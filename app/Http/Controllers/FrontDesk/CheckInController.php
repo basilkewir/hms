@@ -1,0 +1,300 @@
+<?php
+
+namespace App\Http\Controllers\FrontDesk;
+
+use App\Http\Controllers\Controller;
+use App\Models\Reservation;
+use App\Models\Room;
+use App\Models\KeyCard;
+use App\Models\GuestFolio;
+use App\Models\FolioCharge;
+use App\Models\Setting;
+use Inertia\Inertia;
+use Illuminate\Http\Request;
+use Carbon\Carbon;
+use Illuminate\Support\Str;
+
+class CheckInController extends Controller
+{
+    public function index(Request $request)
+    {
+        $today = now()->toDateString();
+        $selectedReservationId = $request->query('reservation_id');
+
+        // Get today's arrivals
+        $arrivals = Reservation::with(['guest', 'room', 'roomType'])
+            ->whereDate('check_in_date', $today)
+            ->whereIn('status', ['confirmed', 'pending'])
+            ->get();
+
+        // Get all check-in eligible reservations (for manual check-in)
+        $allReservations = Reservation::with(['guest', 'room', 'roomType'])
+            ->whereIn('status', ['confirmed', 'pending'])
+            ->whereDate('check_in_date', '<=', now())
+            ->orderBy('check_in_date', 'desc')
+            ->limit(100)
+            ->get();
+
+        // If a reservation ID is provided, pre-select it
+        $selectedReservation = null;
+        if ($selectedReservationId) {
+            $selectedReservation = Reservation::with(['guest', 'room', 'roomType'])
+                ->where('id', $selectedReservationId)
+                ->whereIn('status', ['confirmed', 'pending'])
+                ->first();
+        }
+
+        $availableRooms = Room::with('roomType')
+            ->where('status', 'available')
+            ->where('housekeeping_status', 'clean') // Only show rooms that are clean and ready
+            ->get();
+
+        // Also include reserved rooms that are clean (for reservations that already have a room assigned)
+        $reservedRooms = Room::with('roomType')
+            ->where('status', 'reserved')
+            ->where('housekeeping_status', 'clean')
+            ->get();
+
+        $availableRooms = $availableRooms->merge($reservedRooms)->unique('id');
+
+        $availableKeyCards = KeyCard::available()->get();
+
+        $user = auth()->user();
+        $layout = 'FrontDesk';
+
+        // Determine layout based on role
+        if ($user->hasRole('admin')) {
+            $layout = 'Admin';
+        } elseif ($user->hasRole('manager')) {
+            $layout = 'Manager';
+        }
+
+        return Inertia::render($layout . '/CheckIn', [
+            'user' => $user->load('roles'),
+            'selectedReservationId' => $selectedReservationId,
+            'availableKeyCards' => $availableKeyCards->map(fn($card) => [
+                'id' => $card->id,
+                'card_number' => $card->card_number,
+                'card_type' => $card->card_type,
+            ]),
+            'todaysArrivals' => $arrivals->map(function($r) {
+                $reservedRoom = $r->room;
+                // Allow check-in if room is available OR if it's reserved for this specific reservation
+                $isRoomAvailable = $reservedRoom &&
+                    ($reservedRoom->status === 'available' ||
+                     ($reservedRoom->status === 'reserved' && $reservedRoom->housekeeping_status === 'clean') ||
+                     ($reservedRoom->status === 'reserved' && $r->room_id === $reservedRoom->id));
+
+                return [
+                    'id' => $r->id,
+                    'reservation_number' => $r->reservation_number,
+                    'guestName' => $r->guest->full_name ?? 'N/A',
+                    'guest_id' => $r->guest_id,
+                    'roomNumber' => $reservedRoom->room_number ?? 'TBA',
+                    'room_id' => $r->room_id,
+                    'room_type' => $r->roomType->name ?? 'N/A',
+                    'nights' => $r->check_in_date && $r->check_out_date
+                        ? now()->parse($r->check_in_date)->diffInDays($r->check_out_date)
+                        : 0,
+                    'guestCount' => ($r->adults ?? $r->number_of_adults ?? 0) + ($r->children ?? $r->number_of_children ?? 0),
+                    'arrivalTime' => $r->check_in_date,
+                    'check_in_date' => $r->check_in_date->format('Y-m-d'),
+                    'check_out_date' => $r->check_out_date->format('Y-m-d'),
+                    'total_amount' => $r->total_amount,
+                    'balance_amount' => $r->balance_amount,
+                    'status' => $r->status === 'checked_in' ? 'checked_in' : 'pending',
+                    'reservedRoomAvailable' => $isRoomAvailable,
+                    'reservedRoomStatus' => $reservedRoom ? $reservedRoom->status : null,
+                    'reservedRoomHousekeepingStatus' => $reservedRoom ? $reservedRoom->housekeeping_status : null,
+                ];
+            }),
+            'allReservations' => $allReservations->map(function($r) {
+                $reservedRoom = $r->room;
+                // Allow check-in if room is available OR if it's reserved for this specific reservation
+                $isRoomAvailable = $reservedRoom &&
+                    ($reservedRoom->status === 'available' ||
+                     ($reservedRoom->status === 'reserved' && $reservedRoom->housekeeping_status === 'clean') ||
+                     ($reservedRoom->status === 'reserved' && $r->room_id === $reservedRoom->id));
+
+                return [
+                    'id' => $r->id,
+                    'reservation_number' => $r->reservation_number,
+                    'guestName' => $r->guest->full_name ?? 'N/A',
+                    'guest_id' => $r->guest_id,
+                    'roomNumber' => $reservedRoom->room_number ?? 'TBA',
+                    'room_id' => $r->room_id,
+                    'room_type' => $r->roomType->name ?? 'N/A',
+                    'nights' => $r->check_in_date && $r->check_out_date
+                        ? now()->parse($r->check_in_date)->diffInDays($r->check_out_date)
+                        : 0,
+                    'guestCount' => ($r->adults ?? $r->number_of_adults ?? 0) + ($r->children ?? $r->number_of_children ?? 0),
+                    'arrivalTime' => $r->check_in_date,
+                    'check_in_date' => $r->check_in_date->format('Y-m-d'),
+                    'check_out_date' => $r->check_out_date->format('Y-m-d'),
+                    'total_amount' => $r->total_amount,
+                    'balance_amount' => $r->balance_amount,
+                    'status' => $r->status === 'checked_in' ? 'checked_in' : 'pending',
+                    'reservedRoomAvailable' => $isRoomAvailable,
+                    'reservedRoomStatus' => $reservedRoom ? $reservedRoom->status : null,
+                    'reservedRoomHousekeepingStatus' => $reservedRoom ? $reservedRoom->housekeeping_status : null,
+                ];
+            }),
+            'availableRooms' => $availableRooms->map(fn($room) => [
+                'id' => $room->id,
+                'number' => $room->room_number,
+                'type' => $room->roomType->name ?? 'N/A',
+                'room_type_id' => $room->room_type_id,
+            ]),
+        ]);
+    }
+
+    public function store(Request $request)
+    {
+        $validated = $request->validate([
+            'reservation_id' => 'required|exists:reservations,id',
+            'room_number' => 'required|exists:rooms,room_number',
+            'key_card_id' => 'nullable|exists:key_cards,id',
+        ]);
+
+        $reservation = Reservation::with(['guest', 'room'])->findOrFail($validated['reservation_id']);
+        $room = Room::where('room_number', $validated['room_number'])->firstOrFail();
+
+        // Verify the room is available, clean, or reserved for this reservation
+        $canCheckIn = $room->status === 'available' ||
+                     ($room->housekeeping_status === 'clean') ||
+                     ($room->status === 'reserved' && $reservation->room_id === $room->id);
+
+        if (!$canCheckIn) {
+            return back()->withErrors([
+                'room_number' => "Room {$validated['room_number']} is not available or not clean. Please select a different room."
+            ]);
+        }
+
+        $reservation->update([
+            'room_id' => $room->id,
+            'status' => 'checked_in',
+            'actual_check_in' => now(),
+            'checked_in_by' => auth()->id(),
+        ]);
+
+        $room->update(['status' => 'occupied']);
+
+        // Create GuestFolio and record room charges at check-in
+        $this->createGuestFolio($reservation, $room);
+
+        // Assign key card if provided
+        if (!empty($validated['key_card_id'])) {
+            $keyCard = KeyCard::findOrFail($validated['key_card_id']);
+            if ($keyCard->status === 'available') {
+                $keyCard->assignToReservation(
+                    $reservation->id,
+                    $room->id,
+                    $reservation->guest_id,
+                    auth()->id(),
+                    $reservation->check_out_date
+                );
+            }
+        }
+
+        // Redirect based on user role
+        $user = auth()->user();
+        if ($user->hasRole('admin')) {
+            return redirect()->route('admin.dashboard')
+                ->with('success', 'Guest checked in successfully' . (!empty($validated['key_card_id']) ? ' and key card assigned' : ''));
+        } elseif ($user->hasRole('manager')) {
+            return redirect()->route('manager.dashboard')
+                ->with('success', 'Guest checked in successfully' . (!empty($validated['key_card_id']) ? ' and key card assigned' : ''));
+        }
+
+        return redirect()->route('front-desk.checkin')
+            ->with('success', 'Guest checked in successfully' . (!empty($validated['key_card_id']) ? ' and key card assigned' : ''));
+    }
+
+    /**
+     * Create GuestFolio and record room charges at check-in
+     * This ensures room payments are tracked in transactions from check-in onwards
+     */
+    private function createGuestFolio(Reservation $reservation, Room $room)
+    {
+        // Check if folio already exists
+        $existingFolio = GuestFolio::where('reservation_id', $reservation->id)->first();
+        if ($existingFolio) {
+            return $existingFolio;
+        }
+
+        // Get room rate from reservation or room type
+        $roomRate = $reservation->room_rate ?? 0;
+        if (!$roomRate && $room->roomType) {
+            $roomRate = $room->roomType->base_price ?? 0;
+        }
+
+        // Calculate nights
+        $checkInDate = $reservation->check_in_date instanceof Carbon
+            ? $reservation->check_in_date
+            : Carbon::parse($reservation->check_in_date);
+        $checkOutDate = $reservation->check_out_date instanceof Carbon
+            ? $reservation->check_out_date
+            : Carbon::parse($reservation->check_out_date);
+        $nights = $checkInDate->diffInDays($checkOutDate);
+        if ($nights < 1) {
+            $nights = 1;
+        }
+
+        // Calculate room charges
+        $roomCharges = $roomRate * $nights;
+
+        // Get tax and service charge rates
+        $taxRate = Setting::get('tax_rate', 0);
+        $serviceChargeRate = Setting::get('service_charge_rate', 0);
+
+        // Calculate taxes and service charges
+        $taxAmount = ($roomCharges * $taxRate) / 100;
+        $serviceChargeAmount = ($roomCharges * $serviceChargeRate) / 100;
+
+        // Calculate total
+        $totalAmount = $roomCharges + $taxAmount + $serviceChargeAmount;
+
+        // Create guest folio
+        $folio = GuestFolio::create([
+            'folio_number' => 'FOL-' . strtoupper(Str::random(8)),
+            'reservation_id' => $reservation->id,
+            'guest_id' => $reservation->guest_id,
+            'room_id' => $room->id,
+            'status' => 'open',
+            'folio_date' => now()->toDateString(),
+            'room_charges' => $roomCharges,
+            'service_charges' => $serviceChargeAmount,
+            'tax_amount' => $taxAmount,
+            'discount_amount' => 0,
+            'total_amount' => $totalAmount,
+            'paid_amount' => 0,
+            'balance_amount' => $totalAmount,
+            'is_charged_to_room' => false,
+            'payment_status' => 'pending',
+        ]);
+
+        // Create folio charge for room
+        FolioCharge::create([
+            'guest_folio_id' => $folio->id,
+            'charge_code' => 'ROOM',
+            'description' => 'Room charges - ' . $nights . ' night(s)',
+            'charge_date' => now()->toDateString(),
+            'charge_time' => now()->format('H:i:s'),
+            'quantity' => $nights,
+            'unit_price' => $roomRate,
+            'total_amount' => $roomCharges,
+            'tax_rate' => $taxRate,
+            'tax_amount' => $taxAmount,
+            'discount_rate' => 0,
+            'discount_amount' => 0,
+            'net_amount' => $roomCharges + $taxAmount + $serviceChargeAmount,
+            'reference_type' => 'reservation',
+            'reference_id' => $reservation->id,
+            'department' => 'Front Desk',
+            'posted_by' => auth()->check() ? auth()->id() : null,
+            'posted_at' => now(),
+        ]);
+
+        return $folio;
+    }
+}

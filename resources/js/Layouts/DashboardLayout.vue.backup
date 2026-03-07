@@ -1,0 +1,952 @@
+<template>
+    <ThemeProvider>
+        <div class="min-h-screen bg-white dark:bg-gray-900">
+            <!-- Mobile sidebar overlay -->
+            <div v-show="sidebarOpen" class="fixed inset-0 z-40 lg:hidden" @click="sidebarOpen = false">
+                <div class="fixed inset-0 bg-gray-900 bg-opacity-50"></div>
+            </div>
+
+            <!-- Sidebar -->
+            <aside id="sidebar"
+                   class="fixed flex flex-col top-0 left-0 z-50 h-screen transition-all duration-300 ease-in-out border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900"
+                   :class="{
+                       'w-[290px]': sidebarExpanded || sidebarOpen || sidebarHovered,
+                       'w-[80px]': !sidebarExpanded && !sidebarHovered && !sidebarOpen,
+                       'translate-x-0': sidebarOpen,
+                       '-translate-x-full xl:translate-x-0': !sidebarOpen
+                   }"
+                   :style="{ backgroundColor: themeSettings.theme_sidebar_color, borderColor: themeSettings.theme_border_color }"
+                   @mouseenter="handleMouseEnter"
+                   @mouseleave="handleMouseLeave">
+
+                <!-- Logo Section -->
+                <div class="flex items-center justify-between h-16 px-4 border-b border-gray-200 dark:border-gray-700"
+                     :class="(!sidebarExpanded && !sidebarHovered && !sidebarOpen) ? 'xl:justify-center' : 'justify-between'">
+                    <div class="flex items-center">
+                        <a href="/" class="flex items-center">
+                            <img v-show="sidebarExpanded || sidebarHovered || sidebarOpen"
+                                 class="h-8 w-auto" src="/images/logo/logo.svg" alt="Hotel Management" />
+                            <img v-show="!sidebarExpanded && !sidebarHovered && !sidebarOpen"
+                                 class="h-8 w-8" src="/images/logo/logo-icon.svg" alt="Hotel Management" />
+                        </a>
+                    </div>
+                    <button v-show="sidebarExpanded || sidebarHovered || sidebarOpen"
+                            @click="sidebarExpanded = false"
+                            class="hidden xl:flex items-center justify-center w-8 h-8 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7"></path>
+                        </svg>
+                    </button>
+                </div>
+
+                <!-- Navigation Menu -->
+                <div class="flex-1 overflow-y-auto py-4"
+                     :class="(!sidebarExpanded && !sidebarHovered && !sidebarOpen) ? 'px-2' : 'px-4'">
+                    <nav class="space-y-6">
+                        <!-- Dashboard -->
+                        <div>
+                            <h3 class="mb-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider"
+                                v-show="sidebarExpanded || sidebarHovered || sidebarOpen">
+                                Main
+                            </h3>
+                            <ul class="space-y-1">
+                                <li>
+                                    <Link :href="route('admin.dashboard')"
+                                          class="sidebar-menu-item group"
+                                          :class="[
+                                              isActive(route('admin.dashboard'))
+                                                  ? 'sidebar-menu-item-active'
+                                                  : 'sidebar-menu-item-inactive'
+                                          ]">
+                                        <span class="sidebar-menu-icon">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path>
+                                            </svg>
+                                        </span>
+                                        <span class="sidebar-menu-text">Dashboard</span>
+                                        <span v-show="sidebarExpanded || sidebarHovered || sidebarOpen" 
+                                              class="sidebar-menu-badge"
+                                              v-if="false">
+                                            3
+                                        </span>
+                                    </Link>
+                                </li>
+                            </ul>
+                        </div>
+
+                        <!-- Operations Section -->
+                        <div>
+                            <h3 class="mb-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider"
+                                v-show="sidebarExpanded || sidebarHovered || sidebarOpen">
+                                Operations
+                            </h3>
+                            <ul class="space-y-1">
+                                <li>
+                                    <button @click="toggleSubmenu('operations')"
+                                            class="sidebar-menu-item group w-full"
+                                            :class="[
+                                                isSubmenuOpen('operations')
+                                                    ? 'sidebar-menu-item-active'
+                                                    : 'sidebar-menu-item-inactive'
+                                            ]">
+                                        <span class="sidebar-menu-icon">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
+                                            </svg>
+                                        </span>
+                                        <span class="sidebar-menu-text">Operations</span>
+                                        <span v-show="sidebarExpanded || sidebarHovered || sidebarOpen" 
+                                              class="sidebar-menu-arrow"
+                                              :class="{ 'rotate-180': isSubmenuOpen('operations') }">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                            </svg>
+                                        </span>
+                                    </button>
+                                    <div v-show="isSubmenuOpen('operations') && (sidebarExpanded || sidebarHovered || sidebarOpen)"
+                                         class="sidebar-submenu">
+                                        <ul class="space-y-1">
+                                            <li>
+                                                <Link :href="route('admin.reservations.index')"
+                                                      class="sidebar-submenu-item"
+                                                      :class="isActive(route('admin.reservations.index')) ? 'sidebar-submenu-item-active' : 'sidebar-submenu-item-inactive'">
+                                                    Reservations
+                                                </Link>
+                                            </li>
+                                            <li>
+                                                <Link :href="route('admin.checkin')"
+                                                      class="sidebar-submenu-item"
+                                                      :class="isActive(route('admin.checkin')) ? 'sidebar-submenu-item-active' : 'sidebar-submenu-item-inactive'">
+                                                    Check-in/Check-out
+                                                </Link>
+                                            </li>
+                                            <li>
+                                                <Link :href="route('admin.waitlist.index')"
+                                                      class="sidebar-submenu-item"
+                                                      :class="isActive(route('admin.waitlist.index')) ? 'sidebar-submenu-item-active' : 'sidebar-submenu-item-inactive'">
+                                                    Waitlist
+                                                </Link>
+                                            </li>
+                                            <li>
+                                                <Link :href="route('admin.rooms.index')"
+                                                      class="sidebar-submenu-item"
+                                                      :class="isActive(route('admin.rooms.index')) ? 'sidebar-submenu-item-active' : 'sidebar-submenu-item-inactive'">
+                                                    Rooms
+                                                </Link>
+                                            </li>
+                                            <li>
+                                                <Link :href="route('admin.rooms.status')"
+                                                      class="sidebar-submenu-item"
+                                                      :class="isActive(route('admin.rooms.status')) ? 'sidebar-submenu-item-active' : 'sidebar-submenu-item-inactive'">
+                                                    Room Status
+                                                </Link>
+                                            </li>
+                                            <li>
+                                                <Link :href="route('admin.housekeeping-tasks.index')"
+                                                      class="sidebar-submenu-item"
+                                                      :class="isActive(route('admin.housekeeping-tasks.index')) ? 'sidebar-submenu-item-active' : 'sidebar-submenu-item-inactive'">
+                                                    Housekeeping
+                                                </Link>
+                                            </li>
+                                        </ul>
+                                    </div>
+                                </li>
+                            </ul>
+                        </div>
+
+                        <!-- Guest Management Section -->
+                        <div>
+                            <h3 class="mb-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider"
+                                v-show="sidebarExpanded || sidebarHovered || sidebarOpen">
+                                Guest Management
+                            </h3>
+                            <ul class="space-y-1">
+                                <li>
+                                    <button @click="toggleSubmenu('guest-management')"
+                                            class="sidebar-menu-item group w-full"
+                                            :class="[
+                                                isSubmenuOpen('guest-management')
+                                                    ? 'sidebar-menu-item-active'
+                                                    : 'sidebar-menu-item-inactive'
+                                            ]">
+                                        <span class="sidebar-menu-icon">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                                            </svg>
+                                        </span>
+                                        <span class="sidebar-menu-text">Guest Management</span>
+                                        <span v-show="sidebarExpanded || sidebarHovered || sidebarOpen" 
+                                              class="sidebar-menu-arrow"
+                                              :class="{ 'rotate-180': isSubmenuOpen('guest-management') }">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                            </svg>
+                                        </span>
+                                    </button>
+                                    <div v-show="isSubmenuOpen('guest-management') && (sidebarExpanded || sidebarHovered || sidebarOpen)"
+                                         class="sidebar-submenu">
+                                        <ul class="space-y-1">
+                                            <li>
+                                                <Link :href="route('admin.guests.index')"
+                                                      class="sidebar-submenu-item"
+                                                      :class="isActive(route('admin.guests.index')) ? 'sidebar-submenu-item-active' : 'sidebar-submenu-item-inactive'">
+                                                    Guests
+                                                </Link>
+                                            </li>
+                                            <li>
+                                                <Link :href="route('admin.customers.index')"
+                                                      class="sidebar-submenu-item"
+                                                      :class="isActive(route('admin.customers.index')) ? 'sidebar-submenu-item-active' : 'sidebar-submenu-item-inactive'">
+                                                    Customers
+                                                </Link>
+                                            </li>
+                                            <li>
+                                                <Link :href="route('admin.group-bookings.index')"
+                                                      class="sidebar-submenu-item"
+                                                      :class="isActive(route('admin.group-bookings.index')) ? 'sidebar-submenu-item-active' : 'sidebar-submenu-item-inactive'">
+                                                    Group Bookings
+                                                </Link>
+                                            </li>
+                                            <li>
+                                                <Link :href="route('admin.channel-manager.index')"
+                                                      class="sidebar-submenu-item"
+                                                      :class="isActive(route('admin.channel-manager.index')) ? 'sidebar-submenu-item-active' : 'sidebar-submenu-item-inactive'">
+                                                    Channel Manager
+                                                </Link>
+                                            </li>
+                                        </ul>
+                                    </div>
+                                </li>
+                            </ul>
+                        </div>
+
+                        <!-- Financial Management Section -->
+                        <div>
+                            <h3 class="mb-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider"
+                                v-show="sidebarExpanded || sidebarHovered || sidebarOpen">
+                                Financial Management
+                            </h3>
+                            <ul class="space-y-1">
+                                <li>
+                                    <button @click="toggleSubmenu('financial-management')"
+                                            class="sidebar-menu-item group w-full"
+                                            :class="[
+                                                isSubmenuOpen('financial-management')
+                                                    ? 'sidebar-menu-item-active'
+                                                    : 'sidebar-menu-item-inactive'
+                                            ]">
+                                        <span class="sidebar-menu-icon">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                            </svg>
+                                        </span>
+                                        <span class="sidebar-menu-text">Financial Management</span>
+                                        <span v-show="sidebarExpanded || sidebarHovered || sidebarOpen" 
+                                              class="sidebar-menu-arrow"
+                                              :class="{ 'rotate-180': isSubmenuOpen('financial-management') }">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                            </svg>
+                                        </span>
+                                    </button>
+                                    <div v-show="isSubmenuOpen('financial-management') && (sidebarExpanded || sidebarHovered || sidebarOpen)"
+                                         class="sidebar-submenu">
+                                        <ul class="space-y-1">
+                                            <li>
+                                                <Link :href="route('admin.transactions')"
+                                                      class="sidebar-submenu-item"
+                                                      :class="isActive(route('admin.transactions')) ? 'sidebar-submenu-item-active' : 'sidebar-submenu-item-inactive'">
+                                                    Transactions
+                                                </Link>
+                                            </li>
+                                            <li>
+                                                <Link :href="route('admin.expenses')"
+                                                      class="sidebar-submenu-item"
+                                                      :class="isActive(route('admin.expenses')) ? 'sidebar-submenu-item-active' : 'sidebar-submenu-item-inactive'">
+                                                    Expenses
+                                                </Link>
+                                            </li>
+                                            <li>
+                                                <Link :href="route('admin.budget.dashboard')"
+                                                      class="sidebar-submenu-item"
+                                                      :class="isActive(route('admin.budget.dashboard')) ? 'sidebar-submenu-item-active' : 'sidebar-submenu-item-inactive'">
+                                                    Budget
+                                                </Link>
+                                            </li>
+                                            <li>
+                                                <Link :href="route('admin.financial-reports.index')"
+                                                      class="sidebar-submenu-item"
+                                                      :class="isActive(route('admin.financial-reports.index')) ? 'sidebar-submenu-item-active' : 'sidebar-submenu-item-inactive'">
+                                                    Financial Reports
+                                                </Link>
+                                            </li>
+                                        </ul>
+                                    </div>
+                                </li>
+                            </ul>
+                        </div>
+
+                        <!-- Reports Section -->
+                        <div>
+                            <h3 class="mb-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider"
+                                v-show="sidebarExpanded || sidebarHovered || sidebarOpen">
+                                Reports
+                            </h3>
+                            <ul class="space-y-1">
+                                <li>
+                                    <button @click="toggleSubmenu('reports')"
+                                            class="sidebar-menu-item group w-full"
+                                            :class="[
+                                                isSubmenuOpen('reports')
+                                                    ? 'sidebar-menu-item-active'
+                                                    : 'sidebar-menu-item-inactive'
+                                            ]">
+                                        <span class="sidebar-menu-icon">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v1a1 1 0 001 1h4a1 1 0 001-1v-1m3-2V8a2 2 0 00-2-2H8a2 2 0 00-2 2v6m0 0V8a2 2 0 012-2h8a2 2 0 012 2v6m0 0v2a2 2 0 01-2 2H8a2 2 0 01-2-2v-2z"></path>
+                                            </svg>
+                                        </span>
+                                        <span class="sidebar-menu-text">Reports</span>
+                                        <span v-show="sidebarExpanded || sidebarHovered || sidebarOpen" 
+                                              class="sidebar-menu-arrow"
+                                              :class="{ 'rotate-180': isSubmenuOpen('reports') }">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                            </svg>
+                                        </span>
+                                    </button>
+                                    <div v-show="isSubmenuOpen('reports') && (sidebarExpanded || sidebarHovered || sidebarOpen)"
+                                         class="sidebar-submenu">
+                                        <ul class="space-y-1">
+                                            <li>
+                                                <Link :href="route('admin.reports')"
+                                                      class="sidebar-submenu-item"
+                                                      :class="isActive(route('admin.reports')) ? 'sidebar-submenu-item-active' : 'sidebar-submenu-item-inactive'">
+                                                    All Reports
+                                                </Link>
+                                            </li>
+                                            <li>
+                                                <Link :href="route('admin.reports.occupancy')"
+                                                      class="sidebar-submenu-item"
+                                                      :class="isActive(route('admin.reports.occupancy')) ? 'sidebar-submenu-item-active' : 'sidebar-submenu-item-inactive'">
+                                                    Occupancy Reports
+                                                </Link>
+                                            </li>
+                                            <li>
+                                                <Link :href="route('admin.reports.revenue')"
+                                                      class="sidebar-submenu-item"
+                                                      :class="isActive(route('admin.reports.revenue')) ? 'sidebar-submenu-item-active' : 'sidebar-submenu-item-inactive'">
+                                                    Revenue Reports
+                                                </Link>
+                                            </li>
+                                            <li>
+                                                <Link :href="route('admin.analytics.index')"
+                                                      class="sidebar-submenu-item"
+                                                      :class="isActive(route('admin.analytics.index')) ? 'sidebar-submenu-item-active' : 'sidebar-submenu-item-inactive'">
+                                                    Analytics
+                                                </Link>
+                                            </li>
+                                        </ul>
+                                    </div>
+                                </li>
+                            </ul>
+                        </div>
+
+                        <!-- Settings Section -->
+                        <div>
+                            <h3 class="mb-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider"
+                                v-show="sidebarExpanded || sidebarHovered || sidebarOpen">
+                                Settings
+                            </h3>
+                            <ul class="space-y-1">
+                                <li>
+                                    <button @click="toggleSubmenu('settings')"
+                                            class="sidebar-menu-item group w-full"
+                                            :class="[
+                                                isSubmenuOpen('settings')
+                                                    ? 'sidebar-menu-item-active'
+                                                    : 'sidebar-menu-item-inactive'
+                                            ]">
+                                        <span class="sidebar-menu-icon">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                            </svg>
+                                        </span>
+                                        <span class="sidebar-menu-text">Settings</span>
+                                        <span v-show="sidebarExpanded || sidebarHovered || sidebarOpen" 
+                                              class="sidebar-menu-arrow"
+                                              :class="{ 'rotate-180': isSubmenuOpen('settings') }">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                            </svg>
+                                        </span>
+                                    </button>
+                                    <div v-show="isSubmenuOpen('settings') && (sidebarExpanded || sidebarHovered || sidebarOpen)"
+                                         class="sidebar-submenu">
+                                        <ul class="space-y-1">
+                                            <li>
+                                                <Link :href="route('admin.settings')"
+                                                      class="sidebar-submenu-item"
+                                                      :class="isActive(route('admin.settings')) ? 'sidebar-submenu-item-active' : 'sidebar-submenu-item-inactive'">
+                                                    General Settings
+                                                </Link>
+                                            </li>
+                                            <li>
+                                                <Link :href="route('admin.settings.email')"
+                                                      class="sidebar-submenu-item"
+                                                      :class="isActive(route('admin.settings.email')) ? 'sidebar-submenu-item-active' : 'sidebar-submenu-item-inactive'">
+                                                    Email Settings
+                                                </Link>
+                                            </li>
+                                            <li>
+                                                <Link :href="route('admin.settings.backup')"
+                                                      class="sidebar-submenu-item"
+                                                      :class="isActive(route('admin.settings.backup')) ? 'sidebar-submenu-item-active' : 'sidebar-submenu-item-inactive'">
+                                                    Backup Settings
+                                                </Link>
+                                            </li>
+                                            <li>
+                                                <Link :href="route('admin.settings.logs')"
+                                                      class="sidebar-submenu-item"
+                                                      :class="isActive(route('admin.settings.logs')) ? 'sidebar-submenu-item-active' : 'sidebar-submenu-item-inactive'">
+                                                    System Logs
+                                                </Link>
+                                            </li>
+                                        </ul>
+                                    </div>
+                                </li>
+                            </ul>
+                        </div>
+                    </nav>
+                </div>
+                <div class="flex-1 transition-all duration-300 ease-in-out"
+                     :class="{
+                         'xl:ml-[290px]': sidebarExpanded || sidebarHovered || sidebarOpen,
+                         'xl:ml-[90px]': !sidebarExpanded && !sidebarHovered && !sidebarOpen,
+                         'ml-0': sidebarOpen
+                     }">
+                    <!-- Top bar -->
+                    <header class="sticky top-0 flex w-full bg-white border-gray-200 z-99999 dark:border-gray-800 dark:bg-gray-900 xl:border-b"
+                            :class="{
+                                'xl:ml-[290px]': sidebarExpanded || sidebarHovered || sidebarOpen,
+                                'xl:ml-[90px]': !sidebarExpanded && !sidebarHovered && !sidebarOpen
+                            }">
+                        <div class="flex flex-col items-center justify-between grow xl:flex-row xl:px-6">
+                            <div class="flex items-center justify-between w-full gap-2 px-3 py-3 border-b border-gray-200 dark:border-gray-800 sm:gap-4 xl:justify-normal xl:border-b-0 xl:px-0 lg:py-4">
+                                <!-- Desktop Sidebar Toggle Button (visible on xl and up) -->
+                                <button
+                                    class="hidden xl:flex items-center justify-center w-10 h-10 text-gray-500 border border-gray-200 rounded-lg dark:border-gray-800 dark:text-gray-400 lg:h-11 lg:w-11"
+                                    :class="{ 'bg-gray-100 dark:bg-white/[0.03]': !sidebarExpanded }"
+                                    @click="sidebarExpanded = !sidebarExpanded" aria-label="Toggle Sidebar">
+                                    <svg v-show="!sidebarOpen" width="16" height="12" viewBox="0 0 16 12" fill="none"
+                                         xmlns="http://www.w3.org/2000/svg">
+                                        <path fill-rule="evenodd" clip-rule="evenodd"
+                                              d="M0.583252 1C0.583252 0.585788 0.919038 0.25 1.33325 0.25H14.6666C15.0808 0.25 15.4166 0.585786 15.4166 1C15.4166 1.41421 15.0808 1.75 14.6666 1.75L1.33325 1.75C0.919038 1.75 0.583252 1.41422 0.583252 1ZM0.583252 11C0.583252 10.5858 0.919038 10.25 1.33325 10.25L14.6666 10.25C15.0808 10.25 15.4166 10.5858 15.4166 11C15.4166 11.4142 15.0808 11.75 14.6666 11.75L1.33325 11.75C0.919038 11.75 0.583252 11.4142 0.583252 11ZM1.33325 5.25C0.919038 5.25 0.583252 5.58579 0.583252 6C0.583252 6.41421 0.919038 6.75 1.33325 6.75L7.99992 6.75C8.41413 6.75 8.74992 6.41421 8.74992 6C8.74992 5.58579 8.41413 5.25 7.99992 5.25L1.33325 5.25Z"
+                                              fill="currentColor"></path>
+                                    </svg>
+                                    <svg v-show="sidebarOpen" class="fill-current" width="24" height="24" viewBox="0 0 24 24"
+                                         fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <path fill-rule="evenodd" clip-rule="evenodd"
+                                              d="M6.21967 7.28131C5.92678 6.98841 5.92678 6.51354 6.21967 6.22065C6.51256 5.92775 6.98744 5.92775 7.28033 6.22065L11.999 10.9393L16.7176 6.22078C17.0105 5.92789 17.4854 5.92788 17.7782 6.22078C18.0711 6.51367 18.0711 6.98855 17.7782 7.28144L13.0597 12L17.7782 16.7186C18.0711 17.0115 18.0711 17.4863 17.7782 17.7792C17.4854 18.0721 17.0105 18.0721 16.7176 17.7792L11.999 13.0607L7.28033 17.7794C6.98744 18.0722 6.51256 18.0722 6.21967 17.7794C5.92678 17.4865 5.92678 17.0116 6.21967 16.7187L10.9384 12L6.21967 7.28131Z"
+                                              fill="" />
+                                    </svg>
+                                </button>
+
+                                <!-- Mobile Menu Toggle Button (visible below xl) -->
+                                <button
+                                    class="flex xl:hidden items-center justify-center w-10 h-10 text-gray-500 rounded-lg dark:text-gray-400 lg:h-11 lg:w-11"
+                                    :class="{ 'bg-gray-100 dark:bg-white/[0.03]': sidebarOpen }"
+                                    @click="sidebarOpen = !sidebarOpen" aria-label="Toggle Mobile Menu">
+                                    <svg v-show="!sidebarOpen" width="16" height="12" viewBox="0 0 16 12" fill="none"
+                                         xmlns="http://www.w3.org/2000/svg">
+                                        <path fill-rule="evenodd" clip-rule="evenodd"
+                                              d="M0.583252 1C0.583252 0.585788 0.919038 0.25 1.33325 0.25H14.6666C15.0808 0.25 15.4166 0.585786 15.4166 1C15.4166 1.41421 15.0808 1.75 14.6666 1.75L1.33325 1.75C0.919038 1.75 0.583252 1.41422 0.583252 1ZM0.583252 11C0.583252 10.5858 0.919038 10.25 1.33325 10.25L14.6666 10.25C15.0808 10.25 15.4166 10.5858 15.4166 11C15.4166 11.4142 15.0808 11.75 14.6666 11.75L1.33325 11.75C0.919038 11.75 0.583252 11.4142 0.583252 11ZM1.33325 5.25C0.919038 5.25 0.583252 5.58579 0.583252 6C0.583252 6.41421 0.919038 6.75 1.33325 6.75L7.99992 6.75C8.41413 6.75 8.74992 6.41421 8.74992 6C8.74992 5.58579 8.41413 5.25 7.99992 5.25L1.33325 5.25Z"
+                                              fill="currentColor"></path>
+                                    </svg>
+                                    <svg v-show="sidebarOpen" class="fill-current" width="24" height="24" viewBox="0 0 24 24"
+                                         fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <path fill-rule="evenodd" clip-rule="evenodd"
+                                              d="M6.21967 7.28131C5.92678 6.98841 5.92678 6.51354 6.21967 6.22065C6.51256 5.92775 6.98744 5.92775 7.28033 6.22065L11.999 10.9393L16.7176 6.22078C17.0105 5.92789 17.4854 5.92788 17.7782 6.22078C18.0711 6.51367 18.0711 6.98855 17.7782 7.28144L13.0597 12L17.7782 16.7186C18.0711 17.0115 18.0711 17.4863 17.7782 17.7792C17.4854 18.0721 17.0105 18.0721 16.7176 17.7792L11.999 13.0607L7.28033 17.7794C6.98744 18.0722 6.51256 18.0722 6.21967 17.7794C5.92678 17.4865 5.92678 17.0116 6.21967 16.7187L10.9384 12L6.21967 7.28131Z"
+                                              fill="" />
+                                    </svg>
+                                </button>
+
+                                <!-- Logo (mobile only) -->
+                                              :class="[
+                                                  isActive(route('admin.settings'))
+                                                      ? 'bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white'
+                                                      : 'text-gray-600 dark:text-gray-300'
+                                              ]">
+                                            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                <path d="M12 15C13.6569 15 15 13.6569 15 12C15 10.3431 13.6569 9 12 9C10.3431 9 9 10.3431 9 12C9 13.6569 10.3431 15 12 15Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                                <path d="M19.4 15C19.2669 15.3016 19.2272 15.6362 19.286 15.9606C19.3448 16.285 19.4995 16.5843 19.73 16.82L19.79 16.88C19.9766 17.0657 20.1248 17.2863 20.2256 17.5291C20.3265 17.7718 20.3782 18.0322 20.3782 18.295C20.3782 18.5578 20.3265 18.8182 20.2256 19.0609C20.1248 19.3036 19.9766 19.5243 19.79 19.71L19.73 19.77C19.4995 20.0057 19.3448 20.305 19.286 20.6294C19.2272 20.9538 19.2669 21.2884 19.4 21.59L19.46 21.71C19.6338 22.0534 19.6953 22.4423 19.6352 22.8238C19.5752 23.2053 19.3963 23.558 19.1195 23.8348C18.8427 24.1116 18.4899 24.2906 18.1085 24.3506C17.727 24.4106 17.3381 24.3491 17 24.175L16.88 24.115C16.5732 23.9779 16.2418 23.9279 16.11 23.79C15.9781 23.6521 15.9279 23.3207 15.79 23.01L15.73 22.89C15.4995 22.655 15.3448 22.3557 15.286 22.0313C15.2272 21.7069 15.2669 21.3723 15.4 21.07L15.46 20.95C15.6338 20.6066 15.6953 20.2177 15.6352 19.8362C15.5752 19.4547 15.3963 19.102 15.1195 18.8252C14.8427 18.5484 14.4899 18.3694 14.1085 18.3094C13.727 18.2494 13.3381 18.3109 13 18.485L12.88 18.545C12.5732 18.6821 12.2418 18.7321 12.11 18.87C11.9781 19.0079 11.9279 19.3393 11.79 19.65L11.73 19.77C11.5929 20.0768 11.5429 20.4082 11.68 20.54C11.8179 20.6719 12.1493 20.7221 12.46 20.86L12.58 20.92C12.8868 21.0571 13.2182 21.1071 13.35 21.25C13.4818 21.3929 13.5321 21.7243 13.67 22.035L13.73 22.155C13.8671 22.4618 13.9171 22.7932 13.78 22.93C13.6421 23.0679 13.3107 23.1179 13 23.26L12.88 23.32C12.5732 23.4571 12.2418 23.5071 12.11 23.65C11.9781 23.7879 11.9279 24.1193 11.79 24.43L11.73 24.55C11.5929 24.8568 11.5429 25.1882 11.68 25.32C11.8179 25.4579 12.1493 25.5079 12.46 25.65L12.58 25.71C12.8868 25.8471 13.2182 25.8971 13.35 26.04C13.4818 26.1829 13.5321 26.5143 13.67 26.825L13.73 26.945C13.8671 27.2518 13.9171 27.5832 13.78 27.72C13.6421 27.8579 13.3107 27.9079 13 28.05L12.88 28.11C12.5732 28.2471 12.2418 28.2971 12.11 28.44C11.9781 28.5829 11.9279 28.9143 11.79 29.225L11.73 29.345C11.5929 29.6518 11.5429 29.9832 11.68 30.12C11.8179 30.2579 12.1493 30.3079 12.46 30.45L12.58 30.51C12.8868 30.6471 13.2182 30.6971 13.35 30.84C13.4818 30.9829 13.5321 31.3143 13.67 31.625L13.73 31.745C13.8671 32.0518 13.9171 32.3832 13.78 32.52C13.6421 32.6579 13.3107 32.7079 13 32.85L12.88 32.91C12.5732 33.0471 12.2418 33.0971 12.11 33.24C11.9781 33.3829 11.9279 33.7143 11.79 34.025L11.73 34.145C11.5929 34.4518 11.5429 34.7832 11.68 34.92C11.8179 35.0579 12.1493 35.1079 12.46 35.25L12.58 35.31C12.8868 35.4471 13.2182 35.4971 13.35 35.64C13.4818 35.7829 13.5321 36.1143 13.67 36.425L13.73 36.545C13.8671 36.8518 13.9171 37.1832 13.78 37.32C13.6421 37.4579 13.3107 37.5079 13 37.65L12.88 37.71C12.5732 37.8471 12.2418 37.8971 12.11 38.04C11.9781 38.1829 11.9279 38.5143 11.79 38.825L11.73 38.945C11.5929 39.2518 11.5429 39.5832 11.68 39.72C11.8179 39.8579 12.1493 39.9079 12.46 40.05L12.58 40.11C12.8868 40.2471 13.2182 40.2971 13.35 40.44C13.4818 40.5829 13.5321 40.9143 13.67 41.225L13.73 41.345C13.8671 41.6518 13.9171 41.9832 13.78 42.12C13.6421 42.2579 13.3107 42.3079 13 42.45L12.88 42.51C12.5732 42.6471 12.2418 42.6971 12.11 42.84C11.9781 42.9829 11.9279 43.3143 11.79 43.625L11.73 43.745C11.5929 44.0518 11.5429 44.3832 11.68 44.52C11.8179 44.6579 12.1493 44.7079 12.46 44.85L12.58 44.91C12.8868 45.0471 13.2182 45.0971 13.35 45.24C13.4818 45.3829 13.5321 45.7143 13.67 46.025L13.73 46.145C13.8671 46.4518 13.9171 46.7832 13.78 46.92C13.6421 47.0579 13.3107 47.1079 13 47.25L12.88 47.31C12.5732 47.4471 12.2418 47.4971 12.11 47.64C11.9781 47.7829 11.9279 48.1143 11.79 48.425L11.73 48.545C11.5929 48.8518 11.5429 49.1832 11.68 49.32C11.8179 49.4579 12.1493 49.5079 12.46 49.65L12.58 49.71C12.8868 49.8471 13.2182 49.8971 13.35 50.04C13.4818 50.1829 13.5321 50.5143 13.67 50.825L13.73 50.945C13.8671 51.2518 13.9171 51.5832 13.78 51.72C13.6421 51.8579 13.3107 51.9079 13 52.05L12.88 52.11C12.5732 52.2471 12.2418 52.2971 12.11 52.44C11.9781 52.5829 11.9279 52.9143 11.79 53.225L11.73 53.345C11.5929 53.6518 11.5429 53.9832 11.68 54.12C11.8179 54.2579 12.1493 54.3079 12.46 54.45L12.58 54.51C12.8868 54.6471 13.2182 54.6971 13.35 54.84C13.4818 54.9829 13.5321 55.3143 13.67 55.625L13.73 55.745C13.8671 56.0518 13.9171 56.3832 13.78 56.52C13.6421 56.6579 13.3107 56.7079 13 56.85L12.88 56.91C12.5732 57.0471 12.2418 57.0971 12.11 57.24C11.9781 57.3829 11.9279 57.7143 11.79 58.025L11.73 58.145C11.5929 58.4518 11.5429 58.7832 11.68 58.92C11.8179 59.0579 12.1493 59.1079 12.46 59.25L12.58 59.31C12.8868 59.4471 13.2182 59.4971 13.35 59.64C13.4818 59.7829 13.5321 60.1143 13.67 60.425L13.73 60.545C13.8671 60.8518 13.9171 61.1832 13.78 61.32C13.6421 61.4579 13.3107 61.5079 13 61.65L12.88 61.71C12.5732 61.8471 12.2418 61.8971 12.11 62.04C11.9781 62.1829 11.9279 62.5143 11.79 62.825L11.73 62.945C11.5929 63.2518 11.5429 63.5832 11.68 63.72C11.8179 63.8579 12.1493 63.9079 12.46 64.05L12.58 64.11C12.8868 64.2471 13.2182 64.2971 13.35 64.44C13.4818 64.5829 13.5321 64.9143 13.67 65.225L13.73 65.345C13.8671 65.6518 13.9171 65.9832 13.78 66.12C13.6421 66.2579 13.3107 66.3079 13 66.45L12.88 66.51C12.5732 66.6471 12.2418 66.6971 12.11 66.84C11.9781 66.9829 11.9279 67.3143 11.79 67.625L11.73 67.745C11.5929 68.0518 11.5429 68.3832 11.68 68.52C11.8179 68.6579 12.1493 68.7079 12.46 68.85L12.58 68.91C12.8868 69.0471 13.2182 69.0971 13.35 69.24C13.4818 69.3829 13.5321 69.7143 13.67 70.025L13.73 70.145C13.8671 70.4518 13.9171 70.7832 13.78 70.92C13.6421 71.0579 13.3107 71.1079 13 71.25L12.88 71.31C12.5732 71.4471 12.2418 71.4971 12.11 71.64C11.9781 71.7829 11.9279 72.1143 11.79 72.425L11.73 72.545C11.5929 72.8518 11.5429 73.1832 11.68 73.32C11.8179 73.4579 12.1493 73.5079 12.46 73.65L12.58 73.71C12.8868 73.8471 13.2182 73.8971 13.35 74.04C13.4818 74.1829 13.5321 74.5143 13.67 74.825L13.73 74.945C13.8671 75.2518 13.9171 75.5832 13.78 75.72C13.6421 75.8579 13.3107 75.9079 13 76.05L12.88 76.11C12.5732 76.2471 12.2418 76.2971 12.11 76.44C11.9781 76.5829 11.9279 76.9143 11.79 77.225L11.73 77.345C11.5929 77.6518 11.5429 77.9832 11.68 78.12C11.8179 78.2579 12.1493 78.3079 12.46 78.45L12.58 78.51C12.8868 78.6471 13.2182 78.6971 13.35 78.84C13.4818 78.9829 13.5321 79.3143 13.67 79.625L13.73 79.745C13.8671 80.0518 13.9171 80.3832 13.78 80.52C13.6421 80.6579 13.3107 80.7079 13 80.85L12.88 80.91C12.5732 81.0471 12.2418 81.0971 12.11 81.24C11.9781 81.3829 11.9279 81.7143 11.79 82.025L11.73 82.145C11.5929 82.4518 11.5429 82.7832 11.68 82.92C11.8179 83.0579 12.1493 83.1079 12.46 83.25L12.58 83.31C12.8868 83.4471 13.2182 83.4971 13.35 83.64C13.4818 83.7829 13.5321 84.1143 13.67 84.425L13.73 84.545C13.8671 84.8518 13.9171 85.1832 13.78 85.32C13.6421 85.4579 13.3107 85.5079 13 85.65L12.88 85.71C12.5732 85.8471 12.2418 85.8971 12.11 86.04C11.9781 86.1829 11.9279 86.5143 11.79 86.825L11.73 86.945C11.5929 87.2518 11.5429 87.5832 11.68 87.72C11.8179 87.8579 12.1493 87.9079 12.46 88.05L12.58 88.11C12.8868 88.2471 13.2182 88.2971 13.35 88.44C13.4818 88.5829 13.5321 88.9143 13.67 89.225L13.73 89.345C13.8671 89.6518 13.9171 89.9832 13.78 90.12C13.6421 90.2579 13.3107 90.3079 13 90.45L12.88 90.51C12.5732 90.6471 12.2418 90.6971 12.11 90.84C11.9781 90.9829 11.9279 91.3143 11.79 91.625L11.73 91.745C11.5929 92.0518 11.5429 92.3832 11.68 92.52C11.8179 92.6579 12.1493 92.7079 12.46 92.85L12.58 92.91C12.8868 93.0471 13.2182 93.0971 13.35 93.24C13.4818 93.3829 13.5321 93.7143 13.67 94.025L13.73 94.145C13.8671 94.4518 13.9171 94.7832 13.78 94.92C13.6421 95.0579 13.3107 95.1079 13 95.25L12.88 95.31C12.5732 95.4471 12.2418 95.4971 12.11 95.64C11.9781 95.7829 11.9279 96.1143 11.79 96.425L11.73 96.545C11.5929 96.8518 11.5429 97.1832 11.68 97.32C11.8179 97.4579 12.1493 97.5079 12.46 97.65L12.58 97.71C12.8868 97.8471 13.2182 97.8971 13.35 98.04C13.4818 98.1829 13.5321 98.5143 13.67 98.825L13.73 98.945C13.8671 99.2518 13.9171 99.5832 13.78 99.72C13.6421 99.8579 13.3107 99.9079 13 100.05L12.88 100.11C12.5732 100.2471 12.2418 100.2971 12.11 100.44C11.9781 100.5829 11.9279 100.9143 11.79 101.225L11.73 101.345C11.5929 101.6518 11.5429 101.9832 11.68 102.12C11.8179 102.2579 12.1493 102.3079 12.46 102.45L12.58 102.51C12.8868 102.6471 13.2182 102.6971 13.35 102.84C13.4818 102.9829 13.5321 103.3143 13.67 103.625L13.73 103.745C13.8671 104.0518 13.9171 104.3832 13.78 104.52C13.6421 104.6579 13.3107 104.7079 13 104.85L12.88 104.91C12.5732 105.0471 12.2418 105.0971 12.11 105.24C11.9781 105.3829 11.9279 105.7143 11.79 106.025L11.73 106.145C11.5929 106.4518 11.5429 106.7832 11.68 106.92C11.8179 107.0579 12.1493 107.1079 12.46 107.25L12.58 107.31C12.8868 107.4471 13.2182 107.4971 13.35 107.64C13.4818 107.7829 13.5321 108.1143 13.67 108.425L13.73 108.545C13.8671 108.8518 13.9171 109.1832 13.78 109.32C13.6421 109.4579 13.3107 109.5079 13 109.65L12.88 109.71C12.5732 109.8471 12.2418 109.8971 12.11 110.04C11.9781 110.1829 11.9279 110.5143 11.79 110.825L11.73 110.945C11.5929 111.2518 11.5429 111.5832 11.68 111.72C11.8179 111.8579 12.1493 111.9079 12.46 112.05L12.58 112.11C12.8868 112.2471 13.2182 112.2971 13.35 112.44C13.4818 112.5829 13.5321 112.9143 13.67 113.225L13.73 113.345C13.8671 113.6518 13.9171 113.9832 13.78 114.12C13.6421 114.2579 13.3107 114.3079 13 114.45L12.88 114.51C12.5732 114.6471 12.2418 114.6971 12.11 114.84C11.9781 114.9829 11.9279 115.3143 11.79 115.625L11.73 115.745C11.5929 116.0518 11.5429 116.3832 11.68 116.52C11.8179 116.6579 12.1493 116.7079 12.46 116.85L12.58 116.91C12.8868 117.0471 13.2182 117.0971 13.35 117.24C13.4818 117.3829 13.5321 117.7143 13.67 118.025L13.73 118.145C13.8671 118.4518 13.9171 118.7832 13.78 118.92C13.6421 119.0579 13.3107 119.1079 13 119.25L12.88 119.31C12.5732 119.4471 12.2418 119.4971 12.11 119.64C11.9781 119.7829 11.9279 120.1143 11.79 120.425L11.73 120.545C11.5929 120.8518 11.5429 121.1832 11.68 121.32C11.8179 121.4579 12.1493 121.5079 12.46 121.65L12.58 121.71C12.8868 121.8471 13.2182 121.8971 13.35 122.04C13.4818 122.1829 13.5321 122.5143 13.67 122.825L13.73 122.945C13.8671 123.2518 13.9171 123.5832 13.78 123.72C13.6421 123.8579 13.3107 123.9079 13 124.05L12.88 124.11C12.5732 124.2471 12.2418 124.2971 12.11 124.44C11.9781 124.5829 11.9279 124.9143 11.79 125.225L11.73 125.345C11.5929 125.6518 11.5429 125.9832 11.68 126.12C11.8179 126.2579 12.1493 126.3079 12.46 126.45L12.58 126.51C12.8868 126.6471 13.2182 126.6971 13.35 126.84C13.4818 126.9829 13.5321 127.3143 13.67 127.625L13.73 127.745C13.8671 128.0518 13.9171 128.3832 13.78 128.52C13.6421 128.6579 13.3107 128.7079 13 128.85L12.88 128.91C12.5732 129.0471 12.2418 129.0971 12.11 129.24C11.9781 129.3829 11.9279 129.7143 11.79 130.025L11.73 130.145C11.5929 130.4518 11.5429 130.7832 11.68 130.92C11.8179 131.0579 12.1493 131.1079 12.46 131.25L12.58 131.31C12.8868 131.4471 13.2182 131.4971 13.35 131.64C13.4818 131.7829 13.5321 132.1143 13.67 132.425L13.73 132.545C13.8671 132.8518 13.9171 133.1832 13.78 133.32C13.6421 133.4579 13.3107 133.5079 13 133.65L12.88 133.71C12.5732 133.8471 12.2418 133.8971 12.11 134.04C11.9781 134.1829 11.9279 134.5143 11.79 134.825L11.73 134.945C11.5929 135.2518 11.5429 135.5832 11.68 135.72C11.8179 135.8579 12.1493 135.9079 12.46 136.05L12.58 136.11C12.8868 136.2471 13.2182 136.2971 13.35 136.44C13.4818 136.5829 13.5321 136.9143 13.67 137.225L13.73 137.345C13.8671 137.6518 13.9171 137.9832 13.78 138.12C13.6421 138.2579 13.3107 138.3079 13 138.45L12.88 138.51C12.5732 138.6471 12.2418 138.6971 12.11 138.84C11.9781 138.9829 11.9279 139.3143 11.79 139.625L11.73 139.745C11.5929 140.0518 11.5429 140.3832 11.68 140.52C11.8179 140.6579 12.1493 140.7079 12.46 140.85L12.58 140.91C12.8868 141.0471 13.2182 141.0971 13.35 141.24C13.4818 141.3829 13.5321 141.7143 13.67 142.025L13.73 142.145C13.8671 142.4518 13.9171 142.7832 13.78 142.92C13.6421 143.0579 13.3107 143.1079 13 143.25L12.88 143.31C12.5732 143.4471 12.2418 143.4971 12.11 143.64C11.9781 143.7829 11.9279 144.1143 11.79 144.425L11.73 144.545C11.5929 144.8518 11.5429 145.1832 11.68 145.32C11.8179 145.4579 12.1493 145.5079 12.46 145.65L12.58 145.71C12.8868 145.8471 13.2182 145.8971 13.35 146.04C13.4818 146.1829 13.5321 146.5143 13.67 146.825L13.73 146.945C13.8671 147.2518 13.9171 147.5832 13.78 147.72C13.6421 147.8579 13.3107 147.9079 13 148.05L12.88 148.11C12.5732 148.2471 12.2418 148.2971 12.11 148.44C11.9781 148.5829 11.9279 148.9143 11.79 149.225L11.73 149.345C11.5929 149.6518 11.5429 149.9832 11.68 150.12C11.8179 150.2579 12.1493 150.3079 12.46 150.45L12.58 150.51C12.8868 150.6471 13.2182 150.6971 13.35 150.84C13.4818 150.9829 13.5321 151.3143 13.67 151.625L13.73 151.745C13.8671 152.0518 13.9171 152.3832 13.78 152.52C13.6421 152.6579 13.3107 152.7079 13 152.85L12.88 152.91C12.5732 153.0471 12.2418 153.0971 12.11 153.24C11.9781 153.3829 11.9279 153.7143 11.79 154.025L11.73 154.145C11.5929 154.4518 11.5429 154.7832 11.68 154.92C11.8179 155.0579 12.1493 155.1079 12.46 155.25L12.58 155.31C12.8868 155.4471 13.2182 155.4971 13.35 155.64C13.4818 155.7829 13.5321 156.1143 13.67 156.425L13.73 156.545C13.8671 156.8518 13.9171 157.1832 13.78 157.32C13.6421 157.4579 13.3107 157.5079 13 157.65L12.88 157.71C12.5732 157.8471 12.2418 157.8971 12.11 158.04C11.9781 158.1829 11.9279 158.5143 11.79 158.825L11.73 158.945C11.5929 159.2518 11.5429 159.5832 11.68 159.72C11.8179 159.8579 12.1493 159.9079 12.46 160.05L12.58 160.11C12.8868 160.2471 13.2182 160.2971 13.35 160.44C13.4818 160.5829 13.5321 160.9143 13.67 161.225L13.73 161.345C13.8671 161.6518 13.9171 161.9832 13.78 162.12C13.6421 162.2579 13.3107 162.3079 13 162.45L12.88 162.51C12.5732 162.6471 12.2418 162.6971 12.11 162.84C11.9781 162.9829 11.9279 163.3143 11.79 163.625L11.73 163.745C11.5929 164.0518 11.5429 164.3832 11.68 164.52C11.8179 164.6579 12.1493 164.7079 12.46 164.85L12.58 164.91C12.8868 165.0471 13.2182 165.0971 13.35 165.24C13.4818 165.3829 13.5321 165.7143 13.67 166.025L13.73 166.145C13.8671 166.4518 13.9171 166.7832 13.78 166.92C13.6421 167.0579 13.3107 167.1079 13 167.25L12.88 167.31C12.5732 167.4471 12.2418 167.4971 12.11 167.64C11.9781 167.7829 11.9279 168.1143 11.79 168.425L11.73 168.545C11.5929 168.8518 11.5429 169.1832 11.68 169.32C11.8179 169.4579 12.1493 169.5079 12.46 169.65L12.58 169.71C12.8868 169.8471 13.2182 169.8971 13.35 170.04C13.4818 170.1829 13.5321 170.5143 13.67 170.825L13.73 170.945C13.8671 171.2518 13.9171 171.5832 13.78 171.72C13.6421 171.8579 13.3107 171.9079 13 172.05L12.88 172.11C12.5732 172.2471 12.2418 172.2971 12.11 172.44C11.9781 172.5829 11.9279 172.9143 11.79 173.225L11.73 173.345C11.5929 173.6518 11.5429 173.9832 11.68 174.12C11.8179 174.2579 12.1493 174.3079 12.46 174.45L12.58 174.51C12.8868 174.6471 13.2182 174.6971 13.35 174.84C13.4818 174.9829 13.5321 175.3143 13.67 175.625L13.73 175.745C13.8671 176.0518 13.9171 176.3832 13.78 176.52C13.6421 176.6579 13.3107 176.7079 13 176.85L12.88 176.91C12.5732 177.0471 12.2418 177.0971 12.11 177.24C11.9781 177.3829 11.9279 177.7143 11.79 178.025L11.73 178.145C11.5929 178.4518 11.5429 178.7832 11.68 178.92C11.8179 179.0579 12.1493 179.1079 12.46 179.25L12.58 179.31C12.8868 179.4471 13.2182 179.4971 13.35 179.64C13.4818 179.7829 13.5321 180.1143 13.67 180.425L13.73 180.545C13.8671 180.8518 13.9171 181.1832 13.78 181.32C13.6421 181.4579 13.3107 181.5079 13 181.65L12.88 181.71C12.5732 181.8471 12.2418 181.8971 12.11 182.04C11.9781 182.1829 11.9279 182.5143 11.79 182.825L11.73 182.945C11.5929 183.2518 11.5429 183.5832 11.68 183.72C11.8179 183.8579 12.1493 183.9079 12.46 184.05L12.58 184.11C12.8868 184.2471 13.2182 184.2971 13.35 184.44C13.4818 184.5829 13.5321 184.9143 13.67 185.225L13.73 185.345C13.8671 185.6518 13.9171 185.9832 13.78 186.12C13.6421 186.2579 13.3107 186.3079 13 186.45L12.88 186.51C12.5732 186.6471 12.2418 186.6971 12.11 186.84C11.9781 186.9829 11.9279 187.3143 11.79 187.625L11.73 187.745C11.5929 188.0518 11.5429 188.3832 11.68 188.52C11.8179 188.6579 12.1493 188.7079 12.46 188.85L12.58 188.91C12.8868 189.0471 13.2182 189.0971 13.35 189.24C13.4818 189.3829 13.5321 189.7143 13.67 190.025L13.73 190.145C13.8671 190.4518 13.9171 190.7832 13.78 190.92C13.6421 191.0579 13.3107 191.1079 13 191.25L12.88 191.31C12.5732 191.4471 12.2418 191.4971 12.11 191.64C11.9781 191.7829 11.9279 192.1143 11.79 192.425L11.73 192.545C11.5929 192.8518 11.5429 193.1832 11.68 193.32C11.8179 193.4579 12.1493 193.5079 12.46 193.65L12.58 193.71C12.8868 193.8471 13.2182 193.8971 13.35 194.04C13.4818 194.1829 13.5321 194.5143 13.67 194.825L13.73 194.945C13.8671 195.2518 13.9171 195.5832 13.78 195.72C13.6421 195.8579 13.3107 195.9079 13 196.05L12.88 196.11C12.5732 196.2471 12.2418 196.2971 12.11 196.44C11.9781 196.5829 11.9279 196.9143 11.79 197.225L11.73 197.345C11.5929 197.6518 11.5429 197.9832 11.68 198.12C11.8179 198.2579 12.1493 198.3079 12.46 198.45L12.58 198.51C12.8868 198.6471 13.2182 198.6971 13.35 198.84C13.4818 198.9829 13.5321 199.3143 13.67 199.625L13.73 199.745C13.8671 200.0518 13.9171 200.3832 13.78 200.52C13.6421 200.6579 13.3107 200.7079 13 200.85L12.88 200.91C12.5732 201.0471 12.2418 201.0971 12.11 201.24C11.9781 201.3829 11.9279 201.7143 11.79 202.025L11.73 202.145C11.5929 202.4518 11.5429 202.7832 11.68 202.92C11.8179 203.0579 12.1493 203.1079 12.46 203.25L12.58 203.31C12.8868 203.4471 13.2182 203.4971 13.35 203.64C13.4818 203.7829 13.5321 204.1143 13.67 204.425L13.73 204.545C13.8671 204.8518 13.9171 205.1832 13.78 205.32C13.6421 205.4579 13.3107 205.5079 13 205.65L12.88 205.71C12.5732 205.8471 12.2418 205.8971 12.11 206.04C11.9781 206.1829 11.9279 206.5143 11.79 206.825L11.73 206.945C11.5929 207.2518 11.5429 207.5832 11.68 207.72C11.8179 207.8579 12.1493 207.9079 12.46 208.05L12.58 208.11C12.8868 208.2471 13.2182 208.2971 13.35 208.44C13.4818 208.5829 13.5321 208.9143 13.67 209.225L13.73 209.345C13.8671 210.6518 13.9171 210.9832 13.78 211.12C13.6421 211.2579 13.3107 211.3079 13 211.45L12.88 211.51C12.5732 211.6471 12.2418 211.6971 12.11 211.84C11.9781 211.9829 11.9279 212.3143 11.79 212.625L11.73 212.745C11.5929 213.0518 11.5429 213.3832 11.68 213.52C11.8179 213.6579 12.1493 213.7079 12.46 213.85L12.58 213.91C12.8868 214.0471 13.2182 214.0971 13.35 214.24C13.4818 214.3829 13.5321 214.7143 13.67 215.025L13.73 215.145C13.8671 215.4518 13.9171 215.7832 13.78 215.92C13.6421 216.0579 13.3107 216.1079 13 216.25L12.88 216.31C12.5732 216.4471 12.2418 216.4971 12.11 216.64C11.9781 216.7829 11.9279 217.1143 11.79 217.425L11.73 217.545C11.5929 217.8518 11.5429 218.1832 11.68 218.32C11.8179 218.4579 12.1493 218.5079 12.46 218.65L12.58 218.71C12.8868 218.8471 13.2182 218.8971 13.35 219.04C13.4818 219.1829 13.5321 219.5143 13.67 219.825L13.73 219.945C13.8671 220.2518 13.9171 220.5832 13.78 220.72C13.6421 220.8579 13.3107 220.9079 13 221.05L12.88 221.11C12.5732 221.2471 12.2418 221.2971 12.11 221.44C11.9781 221.5829 11.9279 221.9143 11.79 222.225L11.73 222.345C11.5929 222.6518 11.5429 222.9832 11.68 223.12C11.8179 223.2579 12.1493 223.3079 12.46 223.45L12.58 223.51C12.8868 223.6471 13.2182 223.6971 13.35 223.84C13.4818 223.9829 13.5321 224.3143 13.67 224.625L13.73 224.745C13.8671 225.0518 13.9171 225.3832 13.78 225.52C13.6421 225.6579 13.3107 225.7079 13 225.85L12.88 225.91C12.5732 226.0471 12.2418 226.0971 12.11 226.24C11.9781 226.3829 11.9279 226.7143 11.79 227.025L11.73 227.145C11.5929 227.4518 11.5429 227.7832 11.68 227.92C11.8179 228.0579 12.1493 228.1079 12.46 228.25L12.58 228.31C12.8868 228.4471 13.2182 228.4971 13.35 228.64C13.4818 228.7829 13.5321 229.1143 13.67 229.425L13.73 229.545C13.8671 229.8518 13.9171 230.1832 13.78 230.32C13.6421 230.4579 13.3107 230.5079 13 230.65L12.88 230.71C12.5732 230.8471 12.2418 230.8971 12.11 231.04C11.9781 231.1829 11.9279 231.5143 11.79 231.825L11.73 231.945C11.5929 232.2518 11.5429 232.5832 11.68 232.72C11.8179 232.8579 12.1493 232.9079 12.46 233.05L12.58 233.11C12.8868 233.2471 13.2182 233.2971 13.35 233.44C13.4818 233.5829 13.5321 233.9143 13.67 234.225L13.73 234.345C13.8671 234.6518 13.9171 234.9832 13.78 235.12C13.6421 235.2579 13.3107 235.3079 13 235.45L12.88 235.51C12.5732 235.6471 12.2418 235.6971 12.11 235.84C11.9781 235.9829 11.9279 236.3143 11.79 236.625L11.73 236.745C11.5929 237.0518 11.5429 237.3832 11.68 237.52C11.8179 237.6579 12.1493 237.7079 12.46 237.85L12.58 237.91C12.8868 238.0471 13.2182 238.0971 13.35 238.24C13.4818 238.3829 13.5321 238.7143 13.67 239.025L13.73 239.145C13.8671 239.4518 13.9171 239.7832 13.78 239.92C13.6421 240.0579 13.3107 240.1079 13 240.25L12.88 240.31C12.5732 240.4471 12.2418 240.4971 12.11 240.64C11.9781 240.7829 11.9279 241.1143 11.79 241.425L11.73 241.545C11.5929 241.8518 11.5429 242.1832 11.68 242.32C11.8179 242.4579 12.1493 242.5079 12.46 242.65L12.58 242.71C12.8868 242.8471 13.2182 242.8971 13.35 243.04C13.4818 243.1829 13.5321 243.5143 13.67 243.825L13.73 243.945C13.8671 244.2518 13.9171 244.5832 13.78 244.72C13.6421 244.8579 13.3107 244.9079 13 245.05L12.88 245.11C12.5732 245.2471 12.2418 245.2971 12.11 245.44C11.9781 245.5829 11.9279 245.9143 11.79 246.225L11.73 246.345C11.5929 246.6518 11.5429 246.9832 11.68 247.12C11.8179 247.2579 12.1493 247.3079 12.46 247.45L12.58 247.51C12.8868 247.6471 13.2182 247.6971 13.35 247.84C13.4818 247.9829 13.5321 248.3143 13.67 248.625L13.73 248.745C13.8671 249.0518 13.9171 249.3832 13.78 249.52C13.6421 249.6579 13.3107 249.7079 13 249.85L12.88 249.91C12.5732 250.0471 12.2418 250.0971 12.11 250.24C11.9781 250.3829 11.9279 250.7143 11.79 251.025L11.73 251.145C11.5929 251.4518 11.5429 251.7832 11.68 251.92C11.8179 252.0579 12.1493 252.1079 12.46 252.25L12.58 252.31C12.8868 252.4471 13.2182 252.4971 13.35 252.64C13.4818 252.7829 13.5321 253.1143 13.67 253.425L13.73 253.545C13.8671 253.8518 13.9171 254.1832 13.78 254.32C13.6421 254.4579 13.3107 254.5079 13 254.65L12.88 254.71C12.5732 254.8471 12.2418 254.8971 12.11 255.04C11.9781 255.1829 11.9279 255.5143 11.79 255.825L11.73 255.945C11.5929 256.2518 11.5429 256.5832 11.68 256.72C11.8179 256.8579 12.1493 256.9079 12.46 257.05L12.58 257.11C12.8868 257.2471 13.2182 257.2971 13.35 257.44C13.4818 257.5829 13.5321 257.9143 13.67 258.225L13.73 258.345C13.8671 258.6518 13.9171 258.9832 13.78 259.12C13.6421 259.2579 13.3107 259.3079 13 259.45L12.88 259.51C12.5732 259.6471 12.2418 259.6971 12.11 259.84C11.9781 259.9829 11.9279 260.3143 11.79 260.625L11.73 260.745C11.5929 261.0518 11.5429 261.3832 11.68 261.52C11.8179 261.6579 12.1493 261.7079 12.46 261.85L12.58 261.91C12.8868 262.0471 13.2182 262.0971 13.35 262.24C13.4818 262.3829 13.5321 262.7143 13.67 263.025L13.73 263.145C13.8671 263.4518 13.9171 263.7832 13.78 263.92C13.6421 264.0579 13.3107 264.1079 13 264.25L12.88 264.31C12.5732 264.4471 12.2418 264.4971 12.11 264.64C11.9781 264.7829 11.9279 265.1143 11.79 265.425L11.73 265.545C11.5929 265.8518 11.5429 266.1832 11.68 266.32C11.8179 266.4579 12.1493 266.5079 12.46 266.65L12.58 266.71C12.8868 266.8471 13.2182 266.8971 13.35 267.04C13.4818 267.1829 13.5321 267.5143 13.67 267.825L13.73 267.945C13.8671 268.2518 13.9171 268.5832 13.78 268.72C13.6421 268.8579 13.3107 268.9079 13 269.05L12.88 269.11C12.5732 269.2471 12.2418 269.2971 12.11 269.44C11.9781 269.5829 11.9279 269.9143 11.79 270.225L11.73 270.345C11.5929 270.6518 11.5429 270.9832 11.68 271.12C11.8179 271.2579 12.1493 271.3079 12.46 271.45L12.58 271.51C12.8868 271.6471 13.2182 271.6971 13.35 271.84C13.4818 271.9829 13.5321 272.3143 13.67 272.625L13.73 272.745C13.8671 273.0518 13.9171 273.3832 13.78 273.52C13.6421 273.6579 13.3107 273.7079 13 273.85L12.88 273.91C12.5732 274.0471 12.2418 274.0971 12.11 274.24C11.9781 274.3829 11.9279 274.7143 11.79 275.025L11.73 275.145C11.5929 275.4518 11.5429 275.7832 11.68 275.92C11.8179 276.0579 12.1493 276.1079 12.46 276.25L12.58 276.31C12.8868 276.4471 13.2182 276.4971 13.35 276.64C13.4818 276.7829 13.5321 277.1143 13.67 277.425L13.73 277.545C13.8671 277.8518 13.9171 278.1832 13.78 278.32C13.6421 278.4579 13.3107 278.5079 13 278.65L12.88 278.71C12.5732 278.8471 12.2418 278.8971 12.11 279.04C11.9781 279.1829 11.9279 279.5143 11.79 279.825L11.73 279.945C11.5929 280.2518 11.5429 280.5832 11.68 280.72C11.8179 280.8579 12.1493 280.9079 12.46 281.05L12.58 281.11C12.8868 281.2471 13.2182 281.2971 13.35 281.44C13.4818 281.5829 13.5321 281.9143 13.67 282.225L13.73 282.345C13.8671 282.6518 13.9171 282.9832 13.78 283.12C13.6421 283.2579 13.3107 283.3079 13 283.45L12.88 283.51C12.5732 283.6471 12.2418 283.6971 12.11 283.84C11.9781 283.9829 11.9279 284.3143 11.79 284.625L11.73 284.745C11.5929 285.0518 11.5429 285.3832 11.68 285.52C11.8179 285.6579 12.1493 285.7079 12.46 285.85L12.58 285.91C12.8868 286.0471 13.2182 286.0971 13.35 286.24C13.4818 286.3829 13.5321 286.7143 13.67 287.025L13.73 287.145C13.8671 287.4518 13.9171 287.7832 13.78 287.92C13.6421 288.0579 13.3107 288.1079 13 288.25L12.88 288.31C12.5732 288.4471 12.2418 288.4971 12.11 288.64C11.9781 288.7829 11.9279 289.1143 11.79 289.425L11.73 289.545C11.5929 289.8518 11.5429 290.1832 11.68 290.32C11.8179 290.4579 12.1493 290.5079 12.46 290.65L12.58 290.71C12.8868 290.8471 13.2182 290.8971 13.35 291.04C13.4818 291.1829 13.5321 291.5143 13.67 291.825L13.73 291.945C13.8671 292.2518 13.9171 292.5832 13.78 292.72C13.6421 292.8579 13.3107 292.9079 13 293.05L12.88 293.11C12.5732 293.2471 12.2418 293.2971 12.11 293.44C11.9781
+            <div class="flex-1 transition-all duration-300 ease-in-out"
+                 :class="{
+                     'xl:ml-[290px]': sidebarExpanded || sidebarHovered || sidebarOpen,
+                     'xl:ml-[90px]': !sidebarExpanded && !sidebarHovered && !sidebarOpen,
+                     'ml-0': sidebarOpen
+                 }">
+                <!-- Top bar -->
+                <header class="sticky top-0 flex w-full bg-white border-gray-200 z-99999 dark:border-gray-800 dark:bg-gray-900 xl:border-b"
+                        :class="{
+                            'xl:ml-[290px]': sidebarExpanded || sidebarHovered || sidebarOpen,
+                            'xl:ml-[90px]': !sidebarExpanded && !sidebarHovered && !sidebarOpen
+                        }">
+                    <div class="flex flex-col items-center justify-between grow xl:flex-row xl:px-6">
+                        <div class="flex items-center justify-between w-full gap-2 px-3 py-3 border-b border-gray-200 dark:border-gray-800 sm:gap-4 xl:justify-normal xl:border-b-0 xl:px-0 lg:py-4">
+                            <!-- Desktop Sidebar Toggle Button (visible on xl and up) -->
+                            <button
+                                class="hidden xl:flex items-center justify-center w-10 h-10 text-gray-500 border border-gray-200 rounded-lg dark:border-gray-800 dark:text-gray-400 lg:h-11 lg:w-11"
+                                :class="{ 'bg-gray-100 dark:bg-white/[0.03]': !sidebarExpanded }"
+                                @click="sidebarExpanded = !sidebarExpanded" aria-label="Toggle Sidebar">
+                                <svg v-show="!sidebarOpen" width="16" height="12" viewBox="0 0 16 12" fill="none"
+                                     xmlns="http://www.w3.org/2000/svg">
+                                    <path fill-rule="evenodd" clip-rule="evenodd"
+                                          d="M0.583252 1C0.583252 0.585788 0.919038 0.25 1.33325 0.25H14.6666C15.0808 0.25 15.4166 0.585786 15.4166 1C15.4166 1.41421 15.0808 1.75 14.6666 1.75L1.33325 1.75C0.919038 1.75 0.583252 1.41422 0.583252 1ZM0.583252 11C0.583252 10.5858 0.919038 10.25 1.33325 10.25L14.6666 10.25C15.0808 10.25 15.4166 10.5858 15.4166 11C15.4166 11.4142 15.0808 11.75 14.6666 11.75L1.33325 11.75C0.919038 11.75 0.583252 11.4142 0.583252 11ZM1.33325 5.25C0.919038 5.25 0.583252 5.58579 0.583252 6C0.583252 6.41421 0.919038 6.75 1.33325 6.75L7.99992 6.75C8.41413 6.75 8.74992 6.41421 8.74992 6C8.74992 5.58579 8.41413 5.25 7.99992 5.25L1.33325 5.25Z"
+                                          fill="currentColor"></path>
+                                </svg>
+                                <svg v-show="sidebarOpen" class="fill-current" width="24" height="24" viewBox="0 0 24 24"
+                                     fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path fill-rule="evenodd" clip-rule="evenodd"
+                                          d="M6.21967 7.28131C5.92678 6.98841 5.92678 6.51354 6.21967 6.22065C6.51256 5.92775 6.98744 5.92775 7.28033 6.22065L11.999 10.9393L16.7176 6.22078C17.0105 5.92789 17.4854 5.92788 17.7782 6.22078C18.0711 6.51367 18.0711 6.98855 17.7782 7.28144L13.0597 12L17.7782 16.7186C18.0711 17.0115 18.0711 17.4863 17.7782 17.7792C17.4854 18.0721 17.0105 18.0721 16.7176 17.7792L11.999 13.0607L7.28033 17.7794C6.98744 18.0722 6.51256 18.0722 6.21967 17.7794C5.92678 17.4865 5.92678 17.0116 6.21967 16.7187L10.9384 12L6.21967 7.28131Z"
+                                          fill="" />
+                                </svg>
+                            </button>
+
+                            <!-- Mobile Menu Toggle Button (visible below xl) -->
+                            <button
+                                class="flex xl:hidden items-center justify-center w-10 h-10 text-gray-500 rounded-lg dark:text-gray-400 lg:h-11 lg:w-11"
+                                :class="{ 'bg-gray-100 dark:bg-white/[0.03]': sidebarOpen }"
+                                @click="sidebarOpen = !sidebarOpen" aria-label="Toggle Mobile Menu">
+                                <svg v-show="!sidebarOpen" width="16" height="12" viewBox="0 0 16 12" fill="none"
+                                     xmlns="http://www.w3.org/2000/svg">
+                                    <path fill-rule="evenodd" clip-rule="evenodd"
+                                          d="M0.583252 1C0.583252 0.585788 0.919038 0.25 1.33325 0.25H14.6666C15.0808 0.25 15.4166 0.585786 15.4166 1C15.4166 1.41421 15.0808 1.75 14.6666 1.75L1.33325 1.75C0.919038 1.75 0.583252 1.41422 0.583252 1ZM0.583252 11C0.583252 10.5858 0.919038 10.25 1.33325 10.25L14.6666 10.25C15.0808 10.25 15.4166 10.5858 15.4166 11C15.4166 11.4142 15.0808 11.75 14.6666 11.75L1.33325 11.75C0.919038 11.75 0.583252 11.4142 0.583252 11ZM1.33325 5.25C0.919038 5.25 0.583252 5.58579 0.583252 6C0.583252 6.41421 0.919038 6.75 1.33325 6.75L7.99992 6.75C8.41413 6.75 8.74992 6.41421 8.74992 6C8.74992 5.58579 8.41413 5.25 7.99992 5.25L1.33325 5.25Z"
+                                          fill="currentColor"></path>
+                                </svg>
+                                <svg v-show="sidebarOpen" class="fill-current" width="24" height="24" viewBox="0 0 24 24"
+                                     fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path fill-rule="evenodd" clip-rule="evenodd"
+                                          d="M6.21967 7.28131C5.92678 6.98841 5.92678 6.51354 6.21967 6.22065C6.51256 5.92775 6.98744 5.92775 7.28033 6.22065L11.999 10.9393L16.7176 6.22078C17.0105 5.92789 17.4854 5.92788 17.7782 6.22078C18.0711 6.51367 18.0711 6.98855 17.7782 7.28144L13.0597 12L17.7782 16.7186C18.0711 17.0115 18.0711 17.4863 17.7782 17.7792C17.4854 18.0721 17.0105 18.0721 16.7176 17.7792L11.999 13.0607L7.28033 17.7794C6.98744 18.0722 6.51256 18.0722 6.21967 17.7794C5.92678 17.4865 5.92678 17.0116 6.21967 16.7187L10.9384 12L6.21967 7.28131Z"
+                                          fill="" />
+                                </svg>
+                            </button>
+
+                            <!-- Logo (mobile only) -->
+                            <a href="/" class="xl:hidden">
+                                <img class="dark:hidden" src="/images/logo/logo.svg" alt="Logo" />
+                                <img class="hidden dark:block" src="/images/logo/logo-dark.svg" alt="Logo" />
+                            </a>
+
+                            <!-- Search Bar (desktop only) -->
+                            <div class="hidden xl:block">
+                                <form>
+                                    <div class="relative">
+                                        <span class="absolute -translate-y-1/2 pointer-events-none left-4 top-1/2">
+                                            <!-- Search Icon -->
+                                            <svg class="fill-gray-500 dark:fill-gray-400" width="20" height="20"
+                                                 viewBox="0 0 20 20" fill="none">
+                                                <path fill-rule="evenodd" clip-rule="evenodd"
+                                                      d="M3.04175 9.37363C3.04175 5.87693 5.87711 3.04199 9.37508 3.04199C12.8731 3.04199 15.7084 5.87693 15.7084 9.37363C15.7084 12.8703 12.8731 15.7053 9.37508 15.7053C5.87711 15.7053 3.04175 12.8703 3.04175 9.37363ZM9.37508 1.54199C5.04902 1.54199 1.54175 5.04817 1.54175 9.37363C1.54175 13.6991 5.04902 17.2053 9.37508 17.2053C11.2674 17.2053 13.003 16.5344 14.357 15.4176L17.177 18.238C17.4699 18.5309 17.9448 18.5309 18.2377 18.238C18.5306 18.5309 18.5306 17.4703 18.2377 17.1774L15.418 14.3573C16.5365 13.0033 17.2084 11.2669 17.2084 9.37363C17.2084 5.04817 13.7011 1.54199 9.37508 1.54199Z"
+                                                      fill="" />
+                                            </svg>
+                                        </span>
+                                        <input type="text" placeholder="Search or type command..."
+                                               class="dark:bg-dark-900 h-11 w-full rounded-lg border border-gray-200 bg-transparent py-2.5 pl-12 pr-14 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-800 dark:bg-white/3 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800 xl:w-[430px]" />
+                                        <button
+                                            class="absolute right-2.5 top-1/2 inline-flex -translate-y-1/2 items-center gap-0.5 rounded-lg border border-gray-200 bg-gray-50 px-[7px] py-[4.5px] text-xs -tracking-[0.2px] text-gray-500 dark:border-gray-800 dark:bg-white/[0.03] dark:text-gray-400">
+                                            <span> ⌘ </span>
+                                            <span> K </span>
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+
+                        <!-- Right Side Actions (desktop) -->
+                        <div class="flex items-center gap-2 2xsm:gap-3">
+                            <!-- Theme Toggle Button -->
+                            <button
+                                class="relative flex items-center justify-center text-gray-500 transition-colors bg-white border border-gray-200 rounded-full hover:text-dark-900 h-11 w-11 hover:bg-gray-100 hover:text-gray-700 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
+                                @click="$store.theme.toggle()">
+                                <svg class="hidden dark:block" width="20" height="20" viewBox="0 0 20 20" fill="none"
+                                     xmlns="http://www.w3.org/2000/svg">
+                                    <path fill-rule="evenodd" clip-rule="evenodd"
+                                          d="M9.99998 1.5415C10.4142 1.5415 10.75 1.87729 10.75 2.2915V3.5415C10.75 3.95572 10.4142 4.2915 9.99998 4.2915C9.58577 4.2915 9.24998 3.95572 9.24998 3.5415V2.2915C9.24998 1.87729 9.58577 1.5415 9.99998 1.5415ZM10.0009 6.79327C8.22978 6.79327 6.79402 8.22904 6.79402 10.0001C6.79402 11.7712 8.22978 13.207 10.0009 13.207C11.772 13.207 13.2078 11.7712 13.2078 10.0001C13.2078 8.22904 11.772 6.79327 10.0009 6.79327ZM5.29402 10.0001C5.29402 7.40061 7.40135 5.29327 10.0009 5.29327C12.6004 5.29327 14.7078 7.40061 14.7078 10.0001C14.7078 12.5997 12.6004 14.707 10.0009 14.707C7.40135 14.707 5.29402 12.5997 5.29402 10.0001ZM15.9813 5.08035C16.2742 4.78746 16.2742 4.31258 15.9813 4.01969C15.6884 3.7268 15.2135 3.7268 14.9207 4.01969L14.0368 4.90357C13.7439 5.19647 13.7439 5.67134 14.0368 5.96423C14.3297 6.25713 14.8045 6.25713 15.0974 5.96423L15.9813 5.08035ZM18.4577 10.0001C18.4577 10.4143 18.1219 10.7501 17.7077 10.7501H16.4577C16.0435 10.7501 15.7077 10.4143 15.7077 10.0001C15.7077 9.58592 16.0435 9.25013 16.4577 9.25013H17.7077C18.1219 9.25013 18.4577 9.58592 18.4577 10.0001ZM14.9207 15.9806C15.2135 16.2735 15.6884 16.2735 15.9813 15.9806C16.2742 15.6877 16.2742 15.2128 15.9813 14.9199L15.0974 14.036C14.8045 13.7431 14.3297 13.7431 14.0368 14.036C13.7439 14.3289 13.7439 14.8038 14.0368 15.0967L14.9207 15.9806ZM9.99998 15.7088C10.4142 15.7088 10.75 16.0445 10.75 16.4588V17.7088C10.75 18.123 10.4142 18.4588 9.99998 18.4588C9.58577 18.4588 9.24998 18.123 9.24998 17.7088V16.4588C9.24998 16.0445 9.58577 15.7088 9.99998 15.7088ZM5.96356 15.0972C6.25646 14.8043 6.25646 14.3295 5.96356 14.0366C5.67067 13.7437 5.1958 13.7437 4.9029 14.0366L4.01902 14.9204C3.72613 15.2133 3.72613 15.6882 4.01902 15.9811C4.31191 16.274 4.78679 16.274 5.07968 15.9811L5.96356 15.0972ZM4.29224 10.0001C4.29224 10.4143 3.95645 10.7501 3.54224 10.7501H2.29224C1.87802 10.7501 1.54224 10.4143 1.54224 10.0001C1.54224 9.58592 1.87802 9.25013 2.29224 9.25013H3.54224C3.95645 9.25013 4.29224 9.58592 4.29224 10.0001ZM4.9029 5.9637C5.1958 6.25659 5.67067 6.25659 5.96356 5.9637C6.25646 5.6708 6.25646 5.19593 5.96356 4.90303L5.07968 4.01915C4.78679 3.72626 4.31191 3.72626 4.01902 4.01915C3.72613 4.31204 3.72613 4.78692 4.01902 5.07981L4.9029 5.9637Z"
+                                          fill="currentColor" />
+                                </svg>
+                                <svg class="dark:hidden" width="20" height="20" viewBox="0 0 20 20" fill="none"
+                                     xmlns="http://www.w3.org/2000/svg">
+                                    <path
+                                        d="M17.4547 11.97L18.1799 12.1611C18.265 11.8383 18.1265 11.4982 17.8401 11.3266C17.5538 11.1551 17.1885 11.1934 16.944 11.4207L17.4547 11.97ZM8.0306 2.5459L8.57989 3.05657C8.80718 2.81209 8.84554 2.44682 8.67398 2.16046C8.50243 1.8741 8.16227 1.73559 7.83948 1.82066L8.0306 2.5459ZM12.9154 13.0035C9.64678 13.0035 6.99707 10.3538 6.99707 7.08524H5.49707C5.49707 11.1823 8.81835 14.5035 12.9154 14.5035V13.0035ZM16.944 11.4207C15.8869 12.4035 14.4721 13.0035 12.9154 13.0035V14.5035C14.8657 14.5035 16.6418 13.7499 17.9654 12.5193L16.944 11.4207ZM16.7295 11.7789C15.9437 14.7607 13.2277 16.9586 10.0003 16.9586V18.4586C13.9257 18.4586 17.2249 15.7853 18.1799 12.1611L16.7295 11.7789ZM10.0003 16.9586C6.15734 16.9586 3.04199 13.8433 3.04199 10.0003H1.54199C1.54199 14.6717 5.32892 18.4586 10.0003 18.4586V16.9586ZM3.04199 10.0003C3.04199 6.77289 5.23988 4.05695 8.22173 3.27114L7.83948 1.82066C4.21532 2.77574 1.54199 6.07486 1.54199 10.0003H3.04199ZM6.99707 7.08524C6.99707 5.52854 7.5971 4.11366 8.57989 3.05657L7.48132 2.03522C6.25073 3.35885 5.49707 5.13487 5.49707 7.08524H6.99707Z"
+                                        fill="currentColor" />
+                                </svg>
+                            </button>
+
+                            <!-- Notification Dropdown -->
+                            <button type="button" class="-m-2.5 p-2.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white transition-colors">
+                                <BellIcon class="h-6 w-6" />
+                            </button>
+
+                            <!-- Profile dropdown -->
+                            <div class="relative">
+                                <button @click="profileDropdownOpen = !profileDropdownOpen"
+                                        class="flex items-center text-sm rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 dark:focus:ring-gray-400">
+                                    <div class="w-8 h-8 bg-yellow-500 rounded-full flex items-center justify-center shadow-lg">
+                                        <span class="text-sm font-medium text-gray-900">
+                                            {{ getUserInitials }}
+                                        </span>
+                                    </div>
+                                </button>
+
+                                <div v-show="profileDropdownOpen"
+                                     @click.away="profileDropdownOpen = false"
+                                     class="absolute right-0 z-10 mt-2 w-48 origin-top-right rounded-md bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 py-1 shadow-xl">
+                                    <Link :href="route('profile.show')"
+                                          class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                                        Your Profile
+                                    </Link>
+                                    <Link :href="route('logout')" method="post" as="button"
+                                          class="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                                        Sign out
+                                    </Link>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </header>
+
+                <!-- Page content -->
+                <main class="py-6">
+                    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+                        <slot />
+                    </div>
+                </main>
+            </div>
+        </div>
+</ThemeProvider>
+</template>
+
+<script setup>
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { Link, usePage } from '@inertiajs/vue3'
+import { getNavigationForRole } from '@/Utils/navigation.js'
+import {
+    Bars3Icon,
+    BellIcon,
+    ChevronDownIcon,
+    HomeIcon,
+    UserGroupIcon,
+    CalendarDaysIcon,
+    CurrencyDollarIcon,
+    ClockIcon,
+    TvIcon,
+    ChartBarIcon,
+    ChartPieIcon,
+    CogIcon,
+    DocumentTextIcon,
+    WrenchScrewdriverIcon,
+    BuildingOfficeIcon,
+    UserIcon,
+    BanknotesIcon,
+    ClipboardDocumentListIcon,
+    ShieldCheckIcon,
+    UsersIcon,
+    KeyIcon,
+    ExclamationTriangleIcon,
+    ArchiveBoxIcon,
+    CreditCardIcon,
+    ReceiptPercentIcon,
+    DocumentIcon,
+    CalculatorIcon,
+    Cog6ToothIcon,
+    PlusIcon,
+    TagIcon,
+    ClipboardDocumentCheckIcon,
+    DeviceTabletIcon,
+    RadioIcon,
+    CubeIcon,
+    PlayIcon,
+    IdentificationIcon,
+    CalendarIcon,
+    HomeModernIcon,
+    ArrowRightOnRectangleIcon,
+    ArrowLeftOnRectangleIcon,
+    ChatBubbleLeftRightIcon,
+    UserPlusIcon,
+    ShoppingCartIcon,
+    WrenchIcon
+} from '@heroicons/vue/24/outline'
+import ThemeProvider from '@/Components/ThemeProvider.vue'
+
+const props = defineProps({
+    title: {
+        type: String,
+        default: 'Dashboard'
+    },
+    user: {
+        type: Object,
+        default: () => ({})
+    },
+    navigation: {
+        type: Array,
+        default: () => []
+    }
+})
+
+const page = usePage()
+const sidebarOpen = ref(false)
+const profileDropdownOpen = ref(false)
+const openSubmenus = ref([])
+const sidebarHovered = ref(false)
+const sidebarExpanded = ref(true)
+
+const toggleSubmenu = (name) => {
+    // Toggle the clicked submenu
+    const index = openSubmenus.value.indexOf(name)
+    if (index > -1) {
+        openSubmenus.value.splice(index, 1)
+    } else {
+        openSubmenus.value.push(name)
+    }
+}
+
+const closeSidebarOnMobile = () => {
+    // Only close sidebar on mobile devices, keep submenus open
+    if (window.innerWidth < 1024) {
+        sidebarOpen.value = false
+    }
+}
+
+const isActive = (routeName) => {
+    return page.url === routeName
+}
+
+const isSubmenuOpen = (name) => {
+    return openSubmenus.value.includes(name)
+}
+
+// Helper computed properties to handle different user object structures
+const getUserInitials = computed(() => {
+    if (!props.user) return 'U'
+
+    // Try different possible user object structures
+    if (props.user.first_name && props.user.last_name) {
+        return props.user.first_name.charAt(0) + props.user.last_name.charAt(0)
+    }
+
+    if (props.user.name) {
+        const nameParts = props.user.name.split(' ')
+        if (nameParts.length >= 2) {
+            return nameParts[0].charAt(0) + nameParts[nameParts.length - 1].charAt(0)
+        }
+        return nameParts[0].charAt(0) + nameParts[0].charAt(1)
+    }
+
+    if (props.user.email) {
+        return props.user.email.charAt(0).toUpperCase()
+    }
+
+    return 'U'
+})
+
+const getUserName = computed(() => {
+    if (!props.user) return 'User'
+
+    // Try different possible user object structures
+    if (props.user.full_name) {
+        return props.user.full_name
+    }
+
+    if (props.user.first_name && props.user.last_name) {
+        return `${props.user.first_name} ${props.user.last_name}`
+    }
+
+    if (props.user.name) {
+        return props.user.name
+    }
+
+    if (props.user.email) {
+        return props.user.email.split('@')[0]
+    }
+
+    return 'User'
+})
+
+const getUserRole = computed(() => {
+    if (!props.user) return 'Staff'
+
+    // Try different possible role structures
+    if (props.user.roles && props.user.roles.length > 0) {
+        const role = props.user.roles[0]
+        if (role.display_name) {
+            return role.display_name
+        }
+        if (role.name) {
+            return role.name.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())
+        }
+    }
+
+    if (props.user.role) {
+        return props.user.role.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())
+    }
+
+    return 'Staff'
+})
+
+const resolvedNavigation = computed(() => {
+    // Try to get role from multiple sources
+    let roleName = null
+
+    // 1. Check page.props.auth.user (standard Laravel auth)
+    if (page.props?.auth?.user?.roles?.[0]?.name) {
+        roleName = page.props.auth.user.roles[0].name
+    }
+    // 2. Check props.user.roles (passed as prop from controller)
+    else if (props.user?.roles?.[0]?.name) {
+        roleName = props.user.roles[0].name
+    }
+    // 3. Check page.props.user (alternative prop location)
+    else if (page.props?.user?.roles?.[0]?.name) {
+        roleName = page.props.user.roles[0].name
+    }
+
+    return roleName ? getNavigationForRole(roleName) : []
+})
+
+const canAccessPOS = computed(() => {
+    // Manager area: always show POS in header when under /manager (reactive via usePage)
+    const url = page.url || ''
+    if (url.startsWith('/manager')) {
+        return true
+    }
+    if (!props.user) return false
+
+    // Check if user has POS permissions
+    if (props.user.permissions) {
+        return props.user.permissions.some(permission =>
+            permission.name === 'access_pos' || permission === 'access_pos'
+        )
+    }
+
+    // Check by role (case-insensitive) - include all customer-facing roles
+    if (props.user.roles && props.user.roles.length > 0) {
+        const roleName = (props.user.roles[0].name || '').toLowerCase()
+        return ['admin', 'manager', 'front_desk', 'bartender', 'chef', 'server', 'bar_staff', 'restaurant_staff'].includes(roleName)
+    }
+
+    return false
+})
+
+const posRoute = computed(() => {
+    // If we're on manager area, use manager POS (reactive via usePage)
+    const url = page.url || ''
+    if (url.startsWith('/manager')) {
+        return route('manager.pos.index')
+    }
+    if (!props.user || !props.user.roles || props.user.roles.length === 0) {
+        return route('pos.index') // Default to admin route
+    }
+
+    const roleName = (props.user.roles[0].name || '').toLowerCase()
+
+    // Return appropriate POS route based on role
+    if (roleName === 'front_desk') {
+        return route('front-desk.pos.index')
+    } else if (roleName === 'manager') {
+        return route('manager.pos.index')
+    } else {
+        return route('pos.index') // Admin route
+    }
+})
+
+// Theme Management
+const themeSettings = ref({
+    theme_mode: 'dark',
+    theme_primary_color: '#FFD700', // Kotel Yellow
+    theme_secondary_color: '#87CEEB', // Sky Blue
+    theme_background_color: '#000000', // Black
+    theme_sidebar_color: '#1a1a1a', // Dark Gray
+    theme_card_color: '#111827', // Dark Blue-Gray
+    theme_text_primary: '#ffffff', // White
+    theme_text_secondary: '#87CEEB', // Sky Blue
+    theme_text_tertiary: '#D1D5DB', // Light Gray
+    theme_border_color: '#374151', // Gray
+    theme_success_color: '#10B981', // Green
+    theme_warning_color: '#F97316', // Orange
+    theme_danger_color: '#EF4444', // Red
+    theme_info_color: '#8B5CF6', // Purple
+    theme_font_family: 'Figtree, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, sans-serif',
+    theme_radius: '0.5rem',
+    theme_shadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+    theme_transition: 'all 0.3s ease-in-out',
+})
+
+const loadThemeSettings = async () => {
+    try {
+        const response = await fetch('/api/theme/settings')
+        if (response.ok) {
+            const settings = await response.json()
+            themeSettings.value = { ...themeSettings.value, ...settings }
+            applyThemeToDOM()
+        } else {
+            // Fallback to default theme
+            applyThemeToDOM()
+        }
+    } catch (error) {
+        console.warn('Failed to load theme settings:', error)
+        applyThemeToDOM()
+    }
+}
+
+const applyThemeToDOM = () => {
+    const root = document.documentElement
+
+    // Set CSS custom properties
+    root.style.setProperty('--theme-primary', themeSettings.value.theme_primary_color)
+    root.style.setProperty('--theme-secondary', themeSettings.value.theme_secondary_color)
+    root.style.setProperty('--theme-success', themeSettings.value.theme_success_color)
+    root.style.setProperty('--theme-warning', themeSettings.value.theme_warning_color)
+    root.style.setProperty('--theme-danger', themeSettings.value.theme_danger_color)
+    root.style.setProperty('--theme-background', themeSettings.value.theme_background_color)
+    root.style.setProperty('--theme-sidebar', themeSettings.value.theme_sidebar_color)
+    root.style.setProperty('--theme-card', themeSettings.value.theme_card_color)
+    root.style.setProperty('--theme-text-primary', themeSettings.value.theme_text_primary)
+    root.style.setProperty('--theme-text-secondary', themeSettings.value.theme_text_secondary)
+    root.style.setProperty('--theme-text-tertiary', themeSettings.value.theme_text_tertiary)
+    root.style.setProperty('--theme-border', themeSettings.value.theme_border_color)
+    root.style.setProperty('--theme-radius', themeSettings.value.theme_radius)
+    root.style.setProperty('--theme-shadow', themeSettings.value.theme_shadow)
+    root.style.setProperty('--theme-transition', themeSettings.value.theme_transition)
+
+    // Apply theme mode
+    if (themeSettings.value.theme_mode === 'dark') {
+        document.documentElement.classList.add('dark')
+    } else {
+        document.documentElement.classList.remove('dark')
+    }
+}
+
+// Handle mouse events for sidebar
+const handleMouseEnter = () => {
+    if (!sidebarExpanded.value && window.innerWidth >= 1280) {
+        sidebarHovered.value = true
+    }
+}
+
+const handleMouseLeave = () => {
+    sidebarHovered.value = false
+}
+
+// Initialize theme on mount
+onMounted(() => {
+    loadThemeSettings()
+})
+
+// Clean up on unmount
+onUnmounted(() => {
+    // Cleanup if needed
+})
+
+</script>

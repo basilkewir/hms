@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Theme Persistence Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: var(--kotel-background, #000);
+            color: var(--kotel-text-primary, #fff);
+            transition: all 0.3s ease;
+        }
+        .test-container {
+            background-color: var(--kotel-card, #111827);
+            border: 1px solid var(--kotel-border, #374151);
+            border-radius: var(--kotel-radius, 0.5rem);
+            padding: 20px;
+            margin: 20px 0;
+            box-shadow: var(--kotel-shadow, 0 10px 15px -3px rgba(0, 0, 0, 0.1));
+        }
+        .sidebar-test {
+            background-color: var(--kotel-sidebar, #1a1a1a);
+            border: 1px solid var(--kotel-border, #374151);
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+        .menu-item {
+            color: var(--kotel-text-secondary, #87CEEB);
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .menu-item:hover {
+            background-color: var(--kotel-hover, rgba(255, 255, 255, 0.1));
+            color: var(--kotel-text-primary, #fff);
+        }
+        .menu-item.active {
+            color: var(--kotel-primary, #FFD700);
+            background-color: var(--kotel-hover, rgba(255, 255, 255, 0.1));
+            border-left: 3px solid var(--kotel-primary, #FFD700);
+        }
+        .color-picker {
+            margin: 10px 0;
+        }
+        .color-picker label {
+            display: block;
+            margin-bottom: 5px;
+            color: var(--kotel-text-secondary, #87CEEB);
+        }
+        .color-picker input {
+            padding: 5px;
+            border: 1px solid var(--kotel-border, #374151);
+            border-radius: 4px;
+            background-color: var(--kotel-card, #111827);
+            color: var(--kotel-text-primary, #fff);
+        }
+        .save-btn {
+            background-color: var(--kotel-primary, #FFD700);
+            color: var(--kotel-background, #000);
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            margin: 10px 0;
+            transition: all 0.2s ease;
+        }
+        .save-btn:hover {
+            opacity: 0.8;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 6px;
+            font-weight: bold;
+        }
+        .status.success {
+            background-color: var(--kotel-success, #10B981);
+            color: white;
+        }
+        .status.error {
+            background-color: var(--kotel-danger, #EF4444);
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1 style="color: var(--kotel-text-primary, #fff);">Theme Persistence Test</h1>
+        <p style="color: var(--kotel-text-secondary, #87CEEB);">Test the dynamic theme system and localStorage persistence</p>
+        
+        <div class="color-picker">
+            <label for="primary-color">Primary Color:</label>
+            <input type="color" id="primary-color" value="#FFD700">
+        </div>
+        
+        <div class="color-picker">
+            <label for="sidebar-color">Sidebar Color:</label>
+            <input type="color" id="sidebar-color" value="#1a1a1a">
+        </div>
+        
+        <div class="color-picker">
+            <label for="background-color">Background Color:</label>
+            <input type="color" id="background-color" value="#000000">
+        </div>
+        
+        <div class="color-picker">
+            <label for="text-primary">Text Primary:</label>
+            <input type="color" id="text-primary" value="#ffffff">
+        </div>
+        
+        <div class="color-picker">
+            <label for="text-secondary">Text Secondary:</label>
+            <input type="color" id="text-secondary" value="#87CEEB">
+        </div>
+        
+        <button class="save-btn" onclick="saveTheme()">Save Theme</button>
+        <button class="save-btn" onclick="loadTheme()">Load Theme</button>
+        <button class="save-btn" onclick="clearTheme()">Clear Theme</button>
+        <button class="save-btn" onclick="runTests()">Run Tests</button>
+        <button class="save-btn" onclick="runDebug()">Debug Theme</button>
+        
+        <div id="status"></div>
+    </div>
+    
+    <div class="sidebar-test">
+        <h3 style="color: var(--kotel-text-primary, #fff);">Sidebar Test</h3>
+        <div class="menu-item" onclick="setActive(this)">Dashboard</div>
+        <div class="menu-item active" onclick="setActive(this)">Reservations</div>
+        <div class="menu-item" onclick="setActive(this)">Guests</div>
+        <div class="menu-item" onclick="setActive(this)">Rooms</div>
+        <div class="menu-item" onclick="setActive(this)">Reports</div>
+        <div class="menu-item" onclick="setActive(this)">Settings</div>
+    </div>
+    
+    <div class="test-container">
+        <h2 style="color: var(--kotel-text-primary, #fff);">Current Theme Values</h2>
+        <div id="theme-values" style="color: var(--kotel-text-secondary, #87CEEB); font-family: monospace;">
+            Loading theme values...
+        </div>
+    </div>
+
+    <script>
+        // Apply theme function (similar to useTheme.js)
+        function applyTheme(theme) {
+            const root = document.documentElement;
+            
+            // Set CSS custom properties
+            root.style.setProperty('--kotel-primary', theme.theme_primary_color || '#FFD700');
+            root.style.setProperty('--kotel-sidebar', theme.theme_sidebar_color || '#1a1a1a');
+            root.style.setProperty('--kotel-background', theme.theme_background_color || '#000000');
+            root.style.setProperty('--kotel-card', theme.theme_card_color || '#111827');
+            root.style.setProperty('--kotel-border', theme.theme_border_color || '#374151');
+            root.style.setProperty('--kotel-text-primary', theme.theme_text_primary || '#ffffff');
+            root.style.setProperty('--kotel-text-secondary', theme.theme_text_secondary || '#87CEEB');
+            root.style.setProperty('--kotel-text-tertiary', theme.theme_text_tertiary || '#D1D5DB');
+            root.style.setProperty('--kotel-success', theme.theme_success_color || '#10B981');
+            root.style.setProperty('--kotel-warning', theme.theme_warning_color || '#F97316');
+            root.style.setProperty('--kotel-danger', theme.theme_danger_color || '#EF4444');
+            root.style.setProperty('--kotel-hover', 'rgba(255, 255, 255, 0.1)');
+            root.style.setProperty('--kotel-radius', theme.theme_radius || '0.5rem');
+            root.style.setProperty('--kotel-shadow', theme.theme_shadow || '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)');
+            
+            // Store theme in localStorage
+            localStorage.setItem('kotel_theme', JSON.stringify(theme));
+            
+            updateThemeValues();
+            showStatus('Theme applied successfully!', 'success');
+        }
+        
+        function saveTheme() {
+            const theme = {
+                theme_primary_color: document.getElementById('primary-color').value,
+                theme_sidebar_color: document.getElementById('sidebar-color').value,
+                theme_background_color: document.getElementById('background-color').value,
+                theme_text_primary: document.getElementById('text-primary').value,
+                theme_text_secondary: document.getElementById('text-secondary').value,
+                theme_card_color: '#111827',
+                theme_border_color: '#374151',
+                theme_text_tertiary: '#D1D5DB',
+                theme_success_color: '#10B981',
+                theme_warning_color: '#F97316',
+                theme_danger_color: '#EF4444',
+                theme_radius: '0.5rem',
+                theme_shadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)'
+            };
+            
+            applyTheme(theme);
+        }
+        
+        function loadTheme() {
+            try {
+                const savedTheme = localStorage.getItem('kotel_theme');
+                if (savedTheme) {
+                    const theme = JSON.parse(savedTheme);
+                    applyTheme(theme);
+                    
+                    // Update input fields
+                    document.getElementById('primary-color').value = theme.theme_primary_color || '#FFD700';
+                    document.getElementById('sidebar-color').value = theme.theme_sidebar_color || '#1a1a1a';
+                    document.getElementById('background-color').value = theme.theme_background_color || '#000000';
+                    document.getElementById('text-primary').value = theme.theme_text_primary || '#ffffff';
+                    document.getElementById('text-secondary').value = theme.theme_text_secondary || '#87CEEB';
+                    
+                    showStatus('Theme loaded from localStorage!', 'success');
+                } else {
+                    showStatus('No saved theme found in localStorage', 'error');
+                }
+            } catch (error) {
+                showStatus('Error loading theme: ' + error.message, 'error');
+            }
+        }
+        
+        function clearTheme() {
+            localStorage.removeItem('kotel_theme');
+            showStatus('Theme cleared from localStorage', 'success');
+            
+            // Reset to defaults
+            document.getElementById('primary-color').value = '#FFD700';
+            document.getElementById('sidebar-color').value = '#1a1a1a';
+            document.getElementById('background-color').value = '#000000';
+            document.getElementById('text-primary').value = '#ffffff';
+            document.getElementById('text-secondary').value = '#87CEEB';
+            
+            // Apply default theme
+            const defaultTheme = {
+                theme_primary_color: '#FFD700',
+                theme_sidebar_color: '#1a1a1a',
+                theme_background_color: '#000000',
+                theme_text_primary: '#ffffff',
+                theme_text_secondary: '#87CEEB'
+            };
+            applyTheme(defaultTheme);
+        }
+        
+        function setActive(element) {
+            document.querySelectorAll('.menu-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            element.classList.add('active');
+        }
+        
+        function showStatus(message, type) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = message;
+            statusDiv.className = `status ${type}`;
+            setTimeout(() => {
+                statusDiv.textContent = '';
+                statusDiv.className = 'status';
+            }, 3000);
+        }
+        
+        function updateThemeValues() {
+            const root = document.documentElement;
+            const computedStyle = getComputedStyle(root);
+            
+            const values = {
+                '--kotel-primary': computedStyle.getPropertyValue('--kotel-primary').trim(),
+                '--kotel-sidebar': computedStyle.getPropertyValue('--kotel-sidebar').trim(),
+                '--kotel-background': computedStyle.getPropertyValue('--kotel-background').trim(),
+                '--kotel-card': computedStyle.getPropertyValue('--kotel-card').trim(),
+                '--kotel-border': computedStyle.getPropertyValue('--kotel-border').trim(),
+                '--kotel-text-primary': computedStyle.getPropertyValue('--kotel-text-primary').trim(),
+                '--kotel-text-secondary': computedStyle.getPropertyValue('--kotel-text-secondary').trim(),
+                '--kotel-text-tertiary': computedStyle.getPropertyValue('--kotel-text-tertiary').trim()
+            };
+            
+            const valuesDiv = document.getElementById('theme-values');
+            valuesDiv.innerHTML = Object.entries(values)
+                .map(([key, value]) => `${key}: ${value || 'not set'}`)
+                .join('<br>');
+        }
+        
+        // Load theme on page load
+        window.addEventListener('load', () => {
+            loadTheme();
+        });
+        
+        // Update theme values display
+        setInterval(updateThemeValues, 1000);
+        
+        // Test functions
+        async function runTests() {
+            console.log('=== Theme Persistence Test ===');
+            
+            // Test 1: Save theme to localStorage
+            function testSaveTheme() {
+                console.log('\n1. Testing theme save...');
+                
+                const testTheme = {
+                    theme_mode: 'dark',
+                    theme_primary_color: '#FF6B6B',
+                    theme_secondary_color: '#4ECDC4',
+                    theme_background_color: '#1a1a1a',
+                    theme_sidebar_color: '#2d2d2d',
+                    theme_card_color: '#3a3a3a',
+                    theme_text_primary: '#ffffff',
+                    theme_text_secondary: '#cccccc',
+                    theme_text_tertiary: '#999999',
+                    theme_border_color: '#555555',
+                    theme_success_color: '#10B981',
+                    theme_warning_color: '#F97316',
+                    theme_danger_color: '#EF4444'
+                };
+                
+                localStorage.setItem('kotel_theme', JSON.stringify(testTheme));
+                console.log('✅ Theme saved to localStorage');
+                
+                // Verify it was saved
+                const saved = localStorage.getItem('kotel_theme');
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    console.log('✅ Theme verified in localStorage:', parsed.theme_primary_color);
+                    return true;
+                } else {
+                    console.log('❌ Failed to save theme to localStorage');
+                    return false;
+                }
+            }
+            
+            // Test 2: Load theme from localStorage
+            function testLoadTheme() {
+                console.log('\n2. Testing theme load...');
+                
+                try {
+                    const savedTheme = localStorage.getItem('kotel_theme');
+                    if (savedTheme) {
+                        const theme = JSON.parse(savedTheme);
+                        console.log('✅ Theme loaded from localStorage');
+                        console.log('✅ Primary color:', theme.theme_primary_color);
+                        console.log('✅ Sidebar color:', theme.theme_sidebar_color);
+                        return theme;
+                    } else {
+                        console.log('❌ No theme found in localStorage');
+                        return null;
+                    }
+                } catch (error) {
+                    console.log('❌ Error loading theme:', error.message);
+                    return null;
+                }
+            }
+            
+            // Test 3: Apply theme to CSS variables
+            function testApplyTheme(theme) {
+                console.log('\n3. Testing theme application to CSS variables...');
+                
+                if (!theme) {
+                    console.log('❌ No theme provided for application');
+                    return false;
+                }
+                
+                const root = document.documentElement;
+                
+                // Set CSS custom properties
+                root.style.setProperty('--kotel-primary', theme.theme_primary_color);
+                root.style.setProperty('--kotel-secondary', theme.theme_secondary_color);
+                root.style.setProperty('--kotel-background', theme.theme_background_color);
+                root.style.setProperty('--kotel-sidebar', theme.theme_sidebar_color);
+                root.style.setProperty('--kotel-card', theme.theme_card_color);
+                root.style.setProperty('--kotel-text-primary', theme.theme_text_primary);
+                root.style.setProperty('--kotel-text-secondary', theme.theme_text_secondary);
+                root.style.setProperty('--kotel-text-tertiary', theme.theme_text_tertiary);
+                root.style.setProperty('--kotel-border', theme.theme_border_color);
+                root.style.setProperty('--kotel-success', theme.theme_success_color);
+                root.style.setProperty('--kotel-warning', theme.theme_warning_color);
+                root.style.setProperty('--kotel-danger', theme.theme_danger_color);
+                
+                console.log('✅ CSS variables set successfully');
+                
+                // Verify by reading them back
+                const computedStyle = getComputedStyle(root);
+                const primaryColor = computedStyle.getPropertyValue('--kotel-primary').trim();
+                console.log('✅ Verified primary color in CSS:', primaryColor);
+                
+                return primaryColor === theme.theme_primary_color;
+            }
+            
+            // Test 4: Simulate page refresh
+            function testPageRefresh() {
+                console.log('\n4. Testing page refresh simulation...');
+                
+                // Save current theme
+                const currentTheme = {
+                    theme_primary_color: '#FF6B6B',
+                    theme_sidebar_color: '#2d2d2d'
+                };
+                localStorage.setItem('kotel_theme', JSON.stringify(currentTheme));
+                
+                // Simulate page refresh by clearing current CSS vars and reloading
+                const root = document.documentElement;
+                root.style.setProperty('--kotel-primary', '');
+                root.style.setProperty('--kotel-sidebar', '');
+                
+                console.log('🔄 CSS variables cleared (simulating refresh)');
+                
+                // Now reload from localStorage
+                const loadedTheme = testLoadTheme();
+                if (loadedTheme) {
+                    const success = testApplyTheme(loadedTheme);
+                    if (success) {
+                        console.log('✅ Theme successfully restored after refresh simulation');
+                        return true;
+                    }
+                }
+                
+                console.log('❌ Failed to restore theme after refresh simulation');
+                return false;
+            }
+            
+            // Test 5: Test API endpoint
+            async function testThemeAPI() {
+                console.log('\n5. Testing theme API endpoint...');
+                
+                try {
+                    const response = await fetch('/api/theme');
+                    if (response.ok) {
+                        const theme = await response.json();
+                        console.log('✅ Theme API endpoint is available');
+                        console.log('✅ API returned theme:', theme.theme_primary_color || 'default');
+                        return theme;
+                    } else {
+                        console.log('⚠️ Theme API endpoint returned:', response.status);
+                        return null;
+                    }
+                } catch (error) {
+                    console.log('⚠️ Theme API endpoint not available:', error.message);
+                    console.log('ℹ️ This is expected - localStorage will be used instead');
+                    return null;
+                }
+            }
+            
+            // Run all tests
+            const results = {
+                saveTest: testSaveTheme(),
+                loadTest: testLoadTheme(),
+                applyTest: null,
+                refreshTest: null,
+                apiTest: await testThemeAPI()
+            };
+            
+            if (results.loadTest) {
+                results.applyTest = testApplyTheme(results.loadTest);
+                results.refreshTest = testPageRefresh();
+            }
+            
+            console.log('\n=== Test Results ===');
+            console.log('Save Test:', results.saveTest ? '✅ PASS' : '❌ FAIL');
+            console.log('Load Test:', results.loadTest ? '✅ PASS' : '❌ FAIL');
+            console.log('Apply Test:', results.applyTest ? '✅ PASS' : '❌ FAIL');
+            console.log('Refresh Test:', results.refreshTest ? '✅ PASS' : '❌ FAIL');
+            console.log('API Test:', results.apiTest ? '✅ PASS' : '⚠️ NOT AVAILABLE');
+            
+            const allPassed = results.saveTest && results.loadTest && results.applyTest && results.refreshTest;
+            console.log('\nOverall Result:', allPassed ? '✅ ALL TESTS PASSED' : '❌ SOME TESTS FAILED');
+            
+            if (allPassed) {
+                showStatus('All theme persistence tests passed! 🎉', 'success');
+            } else {
+                showStatus('Some tests failed. Check console for details.', 'error');
+            }
+            
+            return allPassed;
+        }
+        
+        // Debug function
+        function runDebug() {
+            console.log('=== Theme Debug Script ===');
+
+            // Check what's in localStorage
+            console.log('1. Checking localStorage...');
+            const kotelTheme = localStorage.getItem('kotel_theme');
+            const regularTheme = localStorage.getItem('theme');
+
+            console.log('kotel_theme:', kotelTheme);
+            console.log('theme:', regularTheme);
+
+            // Check CSS custom properties
+            console.log('\n2. Checking CSS custom properties...');
+            const root = document.documentElement;
+            const computedStyle = getComputedStyle(root);
+
+            const cssVars = {
+                '--kotel-primary': computedStyle.getPropertyValue('--kotel-primary').trim(),
+                '--kotel-secondary': computedStyle.getPropertyValue('--kotel-secondary').trim(),
+                '--kotel-background': computedStyle.getPropertyValue('--kotel-background').trim(),
+                '--kotel-sidebar': computedStyle.getPropertyValue('--kotel-sidebar').trim(),
+                '--kotel-card': computedStyle.getPropertyValue('--kotel-card').trim(),
+                '--kotel-text-primary': computedStyle.getPropertyValue('--kotel-text-primary').trim(),
+                '--kotel-text-secondary': computedStyle.getPropertyValue('--kotel-text-secondary').trim(),
+                '--kotel-text-tertiary': computedStyle.getPropertyValue('--kotel-text-tertiary').trim(),
+                '--kotel-border': computedStyle.getPropertyValue('--kotel-border').trim(),
+                '--kotel-success': computedStyle.getPropertyValue('--kotel-success').trim(),
+                '--kotel-warning': computedStyle.getPropertyValue('--kotel-warning').trim(),
+                '--kotel-danger': computedStyle.getPropertyValue('--kotel-danger').trim()
+            };
+
+            console.log('CSS Variables:', cssVars);
+
+            // Check if border color is specifically working
+            console.log('\n3. Border color debug...');
+            console.log('Border color from CSS:', cssVars['--kotel-border']);
+            console.log('Border color from localStorage:', kotelTheme ? JSON.parse(kotelTheme).theme_border_color : 'Not found');
+
+            // Test setting border color manually
+            console.log('\n4. Testing manual border color set...');
+            root.style.setProperty('--kotel-border', '#ff0000'); // Red for testing
+            setTimeout(() => {
+                const newBorderColor = getComputedStyle(root).getPropertyValue('--kotel-border').trim();
+                console.log('Manual set border color:', newBorderColor);
+                
+                // Restore original
+                if (kotelTheme) {
+                    const theme = JSON.parse(kotelTheme);
+                    root.style.setProperty('--kotel-border', theme.theme_border_color || '#374151');
+                    console.log('Restored border color:', getComputedStyle(root).getPropertyValue('--kotel-border').trim());
+                }
+                showStatus('Debug complete! Check console for details.', 'success');
+            }, 1000);
+
+            // Check for any errors in theme loading
+            console.log('\n5. Theme loading simulation...');
+            try {
+                if (kotelTheme) {
+                    const theme = JSON.parse(kotelTheme);
+                    console.log('Parsed theme from localStorage:', theme);
+                    
+                    // Apply theme manually to test
+                    Object.keys(theme).forEach(key => {
+                        const cssVar = `--kotel-${key.replace('theme_', '')}`;
+                        const value = theme[key];
+                        if (value) {
+                            root.style.setProperty(cssVar, value);
+                            console.log(`Set ${cssVar} to ${value}`);
+                        }
+                    });
+                    
+                    console.log('Theme applied manually');
+                } else {
+                    console.log('No kotel_theme found in localStorage');
+                }
+            } catch (error) {
+                console.error('Error in theme loading simulation:', error);
+            }
+
+            console.log('\n=== Debug Complete ===');
+        }
+        
+        // Function to fix theme if needed
+        window.fixTheme = function() {
+            console.log('Attempting to fix theme...');
+            
+            // Default theme
+            const defaultTheme = {
+                theme_primary_color: '#facc15',
+                theme_secondary_color: '#3b82f6',
+                theme_background_color: '#0b0b0b',
+                theme_sidebar_color: '#0f172a',
+                theme_card_color: '#111827',
+                theme_text_primary: '#f3f4f6',
+                theme_text_secondary: '#9ca3af',
+                theme_text_tertiary: '#6b7280',
+                theme_border_color: '#374151',
+                theme_success_color: '#22c55e',
+                theme_warning_color: '#f59e0b',
+                theme_danger_color: '#ef4444'
+            };
+            
+            // Save to localStorage
+            localStorage.setItem('kotel_theme', JSON.stringify(defaultTheme));
+            
+            // Apply to CSS
+            const root = document.documentElement;
+            Object.keys(defaultTheme).forEach(key => {
+                const cssVar = `--kotel-${key.replace('theme_', '')}`;
+                const value = defaultTheme[key];
+                root.style.setProperty(cssVar, value);
+            });
+            
+            console.log('Theme fixed and applied');
+            return defaultTheme;
+        };
+        
+        console.log('💡 Run fixTheme() in console to apply default theme');
+    </script>
+</body>
+</html>

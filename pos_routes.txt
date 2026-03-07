@@ -1,0 +1,8 @@
+// POS Routes
+Route::middleware(['auth', 'verified'])->group(function () {
+    Route::prefix('pos')->name('pos.')->group(function () {
+        Route::get('/', [App\Http\Controllers\POS\POSController::class, 'index'])->name('index');
+        Route::post('/process-sale', [App\Http\Controllers\POS\POSController::class, 'processSale'])->name('process-sale');
+        Route::post('/open-drawer', [App\Http\Controllers\POS\POSController::class, 'openDrawer'])->name('open-drawer');
+    });
+});

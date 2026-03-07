@@ -1,0 +1,386 @@
+<template>
+    <DashboardLayout title="Guest Check-In" :user="user" :navigation="navigation">
+        <!-- Check-In Header -->
+        <div class="shadow rounded-lg p-6 mb-8"
+             :style="{ 
+                 backgroundColor: themeColors.card,
+                 borderColor: themeColors.border 
+             }">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h1 class="text-2xl font-bold mb-2"
+                        :style="{ color: themeColors.textPrimary }">Guest Check-In</h1>
+                    <p class="mt-2"
+                       :style="{ color: themeColors.textSecondary }">Process guest arrivals and room assignments.</p>
+                </div>
+                <div class="flex space-x-3">
+                    <Link :href="route('front-desk.reservations.create')" 
+                          class="px-4 py-2 rounded-md transition-colors"
+                          :style="{ 
+                              backgroundColor: themeColors.primary,
+                              color: themeColors.background 
+                          }"
+                          @mouseenter="$event.target.style.backgroundColor = themeColors.hover"
+                          @mouseleave="$event.target.style.backgroundColor = themeColors.primary">
+                        <UserPlusIcon class="h-4 w-4 mr-2 inline" />
+                        Walk-in Guest
+                    </Link>
+                </div>
+            </div>
+        </div>
+
+        <!-- Today's Arrivals -->
+        <div class="shadow rounded-lg p-6 mb-8"
+             :style="{ 
+                 backgroundColor: themeColors.card,
+                 borderColor: themeColors.border 
+             }">
+            <h3 class="text-lg font-medium mb-4"
+                :style="{ color: themeColors.textPrimary }">Today's Expected Arrivals</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div v-for="arrival in todaysArrivals" :key="arrival.id"
+                     class="rounded-lg p-4 cursor-pointer transition-colors"
+                     :style="{ 
+                         backgroundColor: themeColors.background,
+                         borderColor: themeColors.border,
+                         borderStyle: 'solid',
+                         borderWidth: '1px'
+                     }"
+                     @click="selectGuest(arrival)"
+                     @mouseenter="$event.target.style.borderColor = themeColors.primary"
+                     @mouseleave="$event.target.style.borderColor = themeColors.border">
+                    <div class="flex items-center justify-between mb-2">
+                        <h4 class="font-medium"
+                            :style="{ color: themeColors.textPrimary }">{{ arrival.guestName }}</h4>
+                        <span class="text-xs px-2 py-1 rounded-full"
+                              :class="getStatusStyle(arrival.status)">
+                            {{ arrival.status }}
+                        </span>
+                    </div>
+                    <div class="text-sm space-y-1"
+                         :style="{ color: themeColors.textSecondary }">
+                        <p><strong>Reservation:</strong> {{ arrival.reservation_number }}</p>
+                        <p><strong>Room:</strong> {{ arrival.roomNumber }}</p>
+                        <p><strong>Nights:</strong> {{ arrival.nights }}</p>
+                        <p><strong>Check-in:</strong> {{ arrival.check_in_date }}</p>
+                    </div>
+                    <div class="mt-3">
+                        <button class="text-sm font-medium"
+                                :style="{ color: themeColors.primary }">
+                            Check-In Guest
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div v-if="todaysArrivals.length === 0" class="text-center py-8"
+                 :style="{ color: themeColors.textTertiary }">
+                No expected arrivals for today.
+            </div>
+        </div>
+
+        <!-- Search for Manual Check-In -->
+        <div class="shadow rounded-lg p-6 mb-8"
+             :style="{ 
+                 backgroundColor: themeColors.card,
+                 borderColor: themeColors.border 
+             }">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-medium"
+                    :style="{ color: themeColors.textPrimary }">Manual Check-In</h3>
+                <button @click="showManualSearch = !showManualSearch" 
+                        class="text-sm font-medium transition-colors"
+                        :style="{ color: themeColors.primary }"
+                        @mouseenter="$event.target.style.opacity = '0.8'"
+                        @mouseleave="$event.target.style.opacity = '1'">
+                    {{ showManualSearch ? 'Hide Search' : 'Search for Guest' }}
+                </button>
+            </div>
+            <div v-if="showManualSearch" class="mb-4">
+                <input type="text" v-model="searchQuery" 
+                       placeholder="Search by guest name, reservation number, or room number..."
+                       class="w-full rounded-md px-4 py-2 focus:outline-none transition-colors"
+                       :style="{ 
+                           backgroundColor: themeColors.background,
+                           borderColor: themeColors.border,
+                           color: themeColors.textPrimary,
+                           borderStyle: 'solid',
+                           borderWidth: '1px'
+                       }"
+                       @focus="$event.target.style.borderColor = themeColors.primary"
+                       @blur="$event.target.style.borderColor = themeColors.border">
+            </div>
+            <div v-if="showManualSearch && filteredReservations.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div v-for="reservation in filteredReservations" :key="reservation.id"
+                     class="rounded-lg p-4 cursor-pointer transition-colors"
+                     :style="{ 
+                         backgroundColor: themeColors.background,
+                         borderColor: themeColors.border,
+                         borderStyle: 'solid',
+                         borderWidth: '1px'
+                     }"
+                     @click="selectGuest(reservation)"
+                     @mouseenter="$event.target.style.borderColor = themeColors.primary"
+                     @mouseleave="$event.target.style.borderColor = themeColors.border">
+                    <div class="flex items-center justify-between mb-2">
+                        <h4 class="font-medium"
+                            :style="{ color: themeColors.textPrimary }">{{ reservation.guestName }}</h4>
+                        <span class="text-xs px-2 py-1 rounded-full"
+                              :class="getStatusStyle(reservation.status)">
+                            {{ reservation.status }}
+                        </span>
+                    </div>
+                    <div class="text-sm space-y-1"
+                         :style="{ color: themeColors.textSecondary }">
+                        <p><strong>Reservation:</strong> {{ reservation.reservation_number }}</p>
+                        <p><strong>Room:</strong> {{ reservation.roomNumber }}</p>
+                        <p><strong>Nights:</strong> {{ reservation.nights }}</p>
+                        <p><strong>Check-in:</strong> {{ reservation.check_in_date }}</p>
+                    </div>
+                    <div class="mt-3">
+                        <button class="text-sm font-medium"
+                                :style="{ color: themeColors.primary }">
+                            Check-In Guest
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div v-if="showManualSearch && searchQuery && filteredReservations.length === 0" class="text-center py-8"
+                 :style="{ color: themeColors.textTertiary }">
+                No reservations found matching "{{ searchQuery }}".
+            </div>
+        </div>
+
+        <!-- Check-In Modal -->
+        <div v-if="selectedGuest" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto"
+                 :style="{ 
+                     backgroundColor: themeColors.card,
+                     borderColor: themeColors.border,
+                     borderStyle: 'solid',
+                     borderWidth: '1px'
+                 }">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-xl font-bold"
+                        :style="{ color: themeColors.textPrimary }">Check-In Guest</h3>
+                    <button @click="selectedGuest = null"
+                            class="p-2 rounded-md transition-colors"
+                            :style="{ 
+                                backgroundColor: themeColors.secondary,
+                                color: themeColors.textPrimary 
+                            }"
+                            @mouseenter="$event.target.style.backgroundColor = themeColors.hover"
+                            @mouseleave="$event.target.style.backgroundColor = themeColors.secondary">
+                        <XMarkIcon class="h-5 w-5" />
+                    </button>
+                </div>
+
+                <div class="space-y-4">
+                    <!-- Guest Information -->
+                    <div>
+                        <h4 class="font-medium mb-2"
+                            :style="{ color: themeColors.textPrimary }">Guest Information</h4>
+                        <div class="grid grid-cols-2 gap-4 text-sm"
+                             :style="{ color: themeColors.textSecondary }">
+                            <div><strong>Name:</strong> {{ selectedGuest.guestName }}</div>
+                            <div><strong>Email:</strong> {{ selectedGuest.guestEmail }}</div>
+                            <div><strong>Phone:</strong> {{ selectedGuest.guestPhone }}</div>
+                            <div><strong>Reservation:</strong> {{ selectedGuest.reservation_number }}</div>
+                        </div>
+                    </div>
+
+                    <!-- Room Assignment -->
+                    <div>
+                        <h4 class="font-medium mb-2"
+                            :style="{ color: themeColors.textPrimary }">Room Assignment</h4>
+                        <select v-model="selectedRoomId"
+                                class="w-full rounded-md px-3 py-2 focus:outline-none transition-colors"
+                                :style="{ 
+                                    backgroundColor: themeColors.background,
+                                    borderColor: themeColors.border,
+                                    color: themeColors.textPrimary,
+                                    borderStyle: 'solid',
+                                    borderWidth: '1px'
+                                }">
+                            <option value="">Select Room</option>
+                            <option v-for="room in availableRooms" :key="room.id" :value="room.id">
+                                {{ room.room_number }} - {{ room.room_type }}
+                            </option>
+                        </select>
+                    </div>
+
+                    <!-- Special Requests -->
+                    <div>
+                        <h4 class="font-medium mb-2"
+                            :style="{ color: themeColors.textPrimary }">Special Requests</h4>
+                        <textarea v-model="checkInNotes" rows="3"
+                                  class="w-full rounded-md px-3 py-2 focus:outline-none transition-colors"
+                                  :style="{ 
+                                      backgroundColor: themeColors.background,
+                                      borderColor: themeColors.border,
+                                      color: themeColors.textPrimary,
+                                      borderStyle: 'solid',
+                                      borderWidth: '1px'
+                                  }"
+                                  placeholder="Add any special requests or notes..."></textarea>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="flex justify-end space-x-3 pt-4 border-t"
+                         :style="{ borderColor: themeColors.border }">
+                        <button @click="selectedGuest = null"
+                                class="px-4 py-2 rounded-md transition-colors"
+                                :style="{ 
+                                    backgroundColor: themeColors.secondary,
+                                    color: themeColors.textPrimary 
+                                }"
+                                @mouseenter="$event.target.style.backgroundColor = themeColors.hover"
+                                @mouseleave="$event.target.style.backgroundColor = themeColors.secondary">
+                            Cancel
+                        </button>
+                        <button @click="processCheckIn"
+                                :disabled="!selectedRoomId || processing"
+                                class="px-4 py-2 rounded-md transition-colors"
+                                :style="{ 
+                                    backgroundColor: selectedRoomId && !processing ? themeColors.primary : themeColors.secondary,
+                                    color: selectedRoomId && !processing ? themeColors.background : themeColors.textTertiary
+                                }"
+                                @mouseenter="$event.target.style.backgroundColor = selectedRoomId && !processing ? themeColors.hover : ''"
+                                @mouseleave="$event.target.style.backgroundColor = selectedRoomId && !processing ? themeColors.primary : themeColors.secondary">
+                            <span v-if="processing">Processing...</span>
+                            <span v-else>Complete Check-In</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </DashboardLayout>
+</template>
+
+<script setup>
+import { ref, computed } from 'vue'
+import { router, Link } from '@inertiajs/vue3'
+import DashboardLayout from '@/Layouts/DashboardLayout.vue'
+import { getNavigationForRole } from '@/Utils/navigation.js'
+import { useTheme } from '@/Composables/useTheme.js'
+import { UserPlusIcon, XMarkIcon } from '@heroicons/vue/24/outline'
+
+// Initialize theme
+const { loadTheme } = useTheme()
+const themeColors = computed(() => ({
+    background: `var(--kotel-background)`,
+    card: `var(--kotel-card)`,
+    border: `var(--kotel-border)`,
+    textPrimary: `var(--kotel-text-primary)`,
+    textSecondary: `var(--kotel-text-secondary)`,
+    textTertiary: `var(--kotel-text-tertiary)`,
+    primary: `var(--kotel-primary)`,
+    secondary: `var(--kotel-secondary)`,
+    success: `var(--kotel-success)`,
+    warning: `var(--kotel-warning)`,
+    danger: `var(--kotel-danger)`,
+    hover: `rgba(255, 255, 255, 0.1)`
+}))
+
+// Load theme on mount
+loadTheme()
+
+const props = defineProps({
+    user: Object,
+    reservations: Array,
+    availableRooms: Array,
+    todaysArrivals: Array,
+})
+
+const navigation = computed(() => getNavigationForRole('front_desk'))
+
+const showManualSearch = ref(false)
+const searchQuery = ref('')
+const selectedGuest = ref(null)
+const selectedRoomId = ref('')
+const checkInNotes = ref('')
+const processing = ref(false)
+
+const filteredReservations = computed(() => {
+    if (!searchQuery.value) return []
+    return props.reservations.filter(reservation => 
+        reservation.guestName?.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
+        reservation.reservation_number?.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
+        reservation.roomNumber?.toLowerCase().includes(searchQuery.value.toLowerCase())
+    )
+})
+
+const getStatusStyle = (status) => {
+    const styles = {
+        'pending': 'bg-yellow-100 text-yellow-800',
+        'confirmed': 'bg-blue-100 text-blue-800',
+        'checked_in': 'bg-green-100 text-green-800',
+        'checked_out': 'bg-gray-100 text-gray-800',
+        'cancelled': 'bg-red-100 text-red-800'
+    }
+    return styles[status] || 'bg-gray-100 text-gray-800'
+}
+
+const selectGuest = (guest) => {
+    selectedGuest.value = guest
+    selectedRoomId.value = guest.room_id || ''
+    checkInNotes.value = ''
+}
+
+const processCheckIn = () => {
+    if (!selectedRoomId.value) return
+    
+    processing.value = true
+    
+    router.post('/front-desk/checkin/process', {
+        reservation_id: selectedGuest.value.id,
+        room_id: selectedRoomId.value,
+        check_in_notes: checkInNotes.value
+    }, {
+        onSuccess: () => {
+            selectedGuest.value = null
+            selectedRoomId.value = ''
+            checkInNotes.value = ''
+        },
+        onFinish: () => {
+            processing.value = false
+        }
+    })
+}
+</script>
+
+<style scoped>
+/* Fix placeholder colors for inputs */
+input::placeholder,
+textarea::placeholder {
+    color: var(--kotel-text-tertiary) !important;
+    opacity: 0.7;
+}
+
+input::-webkit-input-placeholder,
+textarea::-webkit-input-placeholder {
+    color: var(--kotel-text-tertiary) !important;
+    opacity: 0.7;
+}
+
+input::-moz-placeholder,
+textarea::-moz-placeholder {
+    color: var(--kotel-text-tertiary) !important;
+    opacity: 0.7;
+}
+
+input:-ms-input-placeholder,
+textarea:-ms-input-placeholder {
+    color: var(--kotel-text-tertiary) !important;
+    opacity: 0.7;
+}
+
+/* Fix placeholder colors for select options */
+select option:disabled,
+select option[disabled] {
+    color: var(--kotel-text-tertiary) !important;
+}
+
+select option[value=""] {
+    color: var(--kotel-text-tertiary) !important;
+}
+</style>

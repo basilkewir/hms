@@ -1,0 +1,163 @@
+/* Sidebar Menu Styles - Dynamic Theme with CSS Custom Properties */
+
+/* Base menu item styles */
+.sidebar-menu-item {
+    @apply flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-200;
+    @apply relative overflow-hidden;
+    color: var(--kotel-text-secondary);
+    background-color: transparent;
+}
+
+.sidebar-menu-item:hover {
+    background-color: var(--kotel-hover);
+    color: var(--kotel-text-primary);
+}
+
+/* Active menu item */
+.sidebar-menu-item-active {
+    color: var(--kotel-primary);
+    background-color: var(--kotel-hover);
+    @apply shadow-sm;
+}
+
+.sidebar-menu-item-active::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background-color: var(--kotel-primary);
+}
+
+/* Inactive menu item */
+.sidebar-menu-item-inactive {
+    color: var(--kotel-text-tertiary);
+}
+
+.sidebar-menu-item-inactive:hover {
+    color: var(--kotel-text-primary);
+}
+
+/* Menu icon */
+.sidebar-menu-icon {
+    @apply flex-shrink-0 w-5 h-5;
+    color: var(--kotel-text-tertiary);
+    transition: color 0.2s ease;
+}
+
+.sidebar-menu-item-active .sidebar-menu-icon {
+    color: var(--kotel-primary);
+}
+
+.sidebar-menu-item:hover .sidebar-menu-icon {
+    color: var(--kotel-text-primary);
+}
+
+/* Menu text */
+.sidebar-menu-text {
+    @apply flex-1 text-left;
+    @apply transition-all duration-200;
+    color: inherit;
+}
+
+/* Menu badge */
+.sidebar-menu-badge {
+    @apply inline-flex items-center justify-center px-2 py-0.5 text-xs font-bold;
+    background-color: var(--kotel-danger);
+    color: var(--kotel-text-primary);
+    @apply ml-auto;
+    border-radius: 9999px;
+}
+
+/* Menu arrow */
+.sidebar-menu-arrow {
+    @apply flex-shrink-0 w-4 h-4;
+    @apply transition-transform duration-200;
+    color: var(--kotel-text-tertiary);
+}
+
+.sidebar-menu-item-active .sidebar-menu-arrow {
+    color: var(--kotel-primary);
+}
+
+/* Submenu styles */
+.sidebar-submenu {
+    @apply ml-4 mt-1 space-y-1;
+    border-left: 1px solid var(--kotel-border);
+}
+
+.sidebar-submenu-item {
+    @apply block px-3 py-2 text-sm;
+    color: var(--kotel-text-tertiary);
+    @apply rounded-r-lg transition-all duration-200;
+    @apply relative;
+}
+
+.sidebar-submenu-item:hover {
+    color: var(--kotel-text-primary);
+    background-color: var(--kotel-hover);
+}
+
+.sidebar-submenu-item-active {
+    color: var(--kotel-primary);
+    background-color: var(--kotel-hover);
+    @apply font-medium;
+}
+
+.sidebar-submenu-item-active::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background-color: var(--kotel-primary);
+}
+
+/* Collapsed sidebar styles */
+.sidebar-collapsed .sidebar-menu-text,
+.sidebar-collapsed .sidebar-menu-badge,
+.sidebar-collapsed .sidebar-menu-arrow {
+    @apply opacity-0 invisible;
+}
+
+.sidebar-collapsed .sidebar-menu-item {
+    @apply justify-center;
+}
+
+/* Hover states for collapsed sidebar */
+.sidebar-collapsed .sidebar-menu-item:hover .sidebar-menu-text {
+    @apply opacity-100 visible;
+    @apply absolute left-full ml-2 px-2 py-1;
+    @apply bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900;
+    @apply rounded shadow-lg z-50;
+    @apply whitespace-nowrap;
+}
+
+/* Smooth transitions */
+.sidebar-menu-item,
+.sidebar-submenu-item,
+.sidebar-menu-text,
+.sidebar-menu-arrow {
+    @apply transition-all duration-200 ease-in-out;
+}
+
+/* Focus states */
+.sidebar-menu-item:focus,
+.sidebar-submenu-item:focus {
+    @apply outline-none ring-2 ring-blue-500 ring-opacity-50;
+}
+
+/* Mobile responsive */
+@media (max-width: 1279px) {
+    .sidebar-menu-text,
+    .sidebar-menu-badge,
+    .sidebar-menu-arrow {
+        @apply opacity-100 visible;
+    }
+    
+    .sidebar-menu-item {
+        @apply justify-start;
+    }
+}

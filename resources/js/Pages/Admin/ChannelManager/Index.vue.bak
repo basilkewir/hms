@@ -1,0 +1,264 @@
+<template>
+    <DashboardLayout title="Channel Manager" :user="user" :navigation="navigation">
+        <div class="py-12">
+            <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
+                <div class="bg-white overflow-hidden shadow-xl sm:rounded-lg">
+                <!-- Header -->
+                <div class="p-6 border-b border-gray-200">
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <h2 class="text-2xl font-bold text-gray-900">Channel Manager</h2>
+                            <p class="mt-1 text-sm text-gray-600">Manage OTA bookings and channel inventory</p>
+                        </div>
+                        <div class="flex space-x-4">
+                            <Link :href="route('admin.channel-manager.create')"
+                                  class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors">
+                                Add OTA Booking
+                            </Link>
+                            <button @click="syncInventory"
+                                    class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors">
+                                Sync Inventory
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Stats Cards -->
+                <div class="p-6 border-b border-gray-200">
+                    <div class="grid grid-cols-1 md:grid-cols-6 gap-4">
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <div class="text-sm text-gray-600">Total OTA Bookings</div>
+                            <div class="text-2xl font-bold text-gray-900">{{ stats.total }}</div>
+                        </div>
+                        <div class="bg-blue-50 p-4 rounded-lg">
+                            <div class="text-sm text-blue-600">Booking.com</div>
+                            <div class="text-2xl font-bold text-blue-900">{{ stats.booking_com }}</div>
+                        </div>
+                        <div class="bg-purple-50 p-4 rounded-lg">
+                            <div class="text-sm text-purple-600">Expedia</div>
+                            <div class="text-2xl font-bold text-purple-900">{{ stats.expedia }}</div>
+                        </div>
+                        <div class="bg-orange-50 p-4 rounded-lg">
+                            <div class="text-sm text-orange-600">Agoda</div>
+                            <div class="text-2xl font-bold text-orange-900">{{ stats.agoda }}</div>
+                        </div>
+                        <div class="bg-green-50 p-4 rounded-lg">
+                            <div class="text-sm text-green-600">Travel Agent</div>
+                            <div class="text-2xl font-bold text-green-900">{{ stats.travel_agent }}</div>
+                        </div>
+                        <div class="bg-red-50 p-4 rounded-lg">
+                            <div class="text-sm text-red-600">Corporate</div>
+                            <div class="text-2xl font-bold text-red-900">{{ stats.corporate }}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Filters and Search -->
+                <div class="p-6 border-b border-gray-200">
+                    <div class="flex flex-col md:flex-row gap-4">
+                        <div class="flex-1">
+                            <input type="text"
+                                   v-model="search"
+                                   placeholder="Search reservations, guests, booking references..."
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        </div>
+                        <select v-model="bookingSourceFilter" class="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">All Booking Sources</option>
+                            <option value="booking_com">Booking.com</option>
+                            <option value="expedia">Expedia</option>
+                            <option value="agoda">Agoda</option>
+                            <option value="travel_agent">Travel Agent</option>
+                            <option value="corporate">Corporate</option>
+                        </select>
+                        <select v-model="statusFilter" class="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">All Statuses</option>
+                            <option value="pending">Pending</option>
+                            <option value="confirmed">Confirmed</option>
+                            <option value="checked_in">Checked In</option>
+                            <option value="checked_out">Checked Out</option>
+                            <option value="cancelled">Cancelled</option>
+                            <option value="no_show">No Show</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Reservations Table -->
+                <div class="p-6">
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reservation</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Guest</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dates</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Room</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Commission</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                <tr v-for="reservation in filteredReservations" :key="reservation.id" class="hover:bg-gray-50">
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <div class="text-sm font-medium text-gray-900">{{ reservation.reservation_number }}</div>
+                                        <div class="text-sm text-gray-500">{{ reservation.booking_reference }}</div>
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                            {{ bookingSources[reservation.booking_source] }}
+                                        </span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <div class="text-sm font-medium text-gray-900">{{ reservation.guest_name }}</div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        <div>{{ reservation.check_in_date }}</div>
+                                        <div class="text-gray-400">→</div>
+                                        <div>{{ reservation.check_out_date }}</div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <div class="text-sm text-gray-900">{{ reservation.room_type }}</div>
+                                        <div class="text-sm text-gray-500">{{ reservation.room_number }}</div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        {{ formatCurrency(reservation.total_amount) }}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span :class="getStatusClass(reservation.status)">
+                                            {{ reservation.status }}
+                                        </span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                        <div class="text-gray-900">{{ formatCurrency(reservation.commission_amount) }}</div>
+                                        <div class="text-gray-500">{{ reservation.commission_rate }}%</div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                        <Link :href="route('admin.channel-manager.show', reservation.id)"
+                                              class="text-blue-600 hover:text-blue-900 mr-4">
+                                            View
+                                        </Link>
+                                        <Link :href="route('admin.channel-manager.edit', reservation.id)"
+                                              class="text-green-600 hover:text-green-900 mr-4">
+                                            Edit
+                                        </Link>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Pagination -->
+                    <div class="mt-4 flex justify-between items-center">
+                        <div class="text-sm text-gray-700">
+                            Showing {{ reservations.from }} to {{ reservations.to }} of {{ reservations.total }} results
+                        </div>
+                        <div class="flex space-x-2">
+                            <button v-if="reservations.prev_page_url"
+                                    @click="loadPage(reservations.current_page - 1)"
+                                    class="px-3 py-1 border border-gray-300 rounded-md hover:bg-gray-50">
+                                Previous
+                            </button>
+                            <button v-if="reservations.next_page_url"
+                                    @click="loadPage(reservations.current_page + 1)"
+                                    class="px-3 py-1 border border-gray-300 rounded-md hover:bg-gray-50">
+                                Next
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </DashboardLayout>
+</template>
+
+<script>
+import { Link } from '@inertiajs/vue3'
+
+export default {
+    components: {
+        Link
+    },
+    props: {
+        reservations: Object,
+        stats: Object,
+        commission_rates: Object
+    },
+    data() {
+        return {
+            search: '',
+            bookingSourceFilter: '',
+            statusFilter: '',
+            bookingSources: {
+                'booking_com': 'Booking.com',
+                'expedia': 'Expedia',
+                'agoda': 'Agoda',
+                'travel_agent': 'Travel Agent',
+                'corporate': 'Corporate'
+            }
+        }
+    },
+    computed: {
+        filteredReservations() {
+            let filtered = this.reservations.data.filter(reservation => {
+                const matchesSearch = reservation.reservation_number.toLowerCase().includes(this.search.toLowerCase()) ||
+                                     reservation.guest_name.toLowerCase().includes(this.search.toLowerCase()) ||
+                                     reservation.booking_reference.toLowerCase().includes(this.search.toLowerCase());
+
+                const matchesBookingSource = !this.bookingSourceFilter || reservation.booking_source === this.bookingSourceFilter;
+                const matchesStatus = !this.statusFilter || reservation.status === this.statusFilter;
+
+                return matchesSearch && matchesBookingSource && matchesStatus;
+            });
+
+            return filtered;
+        }
+    },
+    methods: {
+        loadPage(page) {
+            this.$inertia.get(this.route('admin.channel-manager.index', { page }));
+        },
+        getStatusClass(status) {
+            const classes = {
+                'pending': 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800',
+                'confirmed': 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800',
+                'checked_in': 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800',
+                'checked_out': 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800',
+                'cancelled': 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800',
+                'no_show': 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800'
+            };
+            return classes[status] || classes['pending'];
+        },
+        formatCurrency(amount) {
+            return new Intl.NumberFormat('en-CM', {
+                style: 'currency',
+                currency: 'XAF'
+            }).format(amount);
+        },
+        async syncInventory() {
+            try {
+                const response = await fetch(this.route('admin.channel-manager.sync-inventory'), {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                    }
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    this.$notify({
+                        title: 'Success',
+                        message: data.data.message,
+                        type: 'success'
+                    });
+                }
+            } catch (error) {
+                this.$notify({
+                    title: 'Error',
+                    message: 'Failed to sync inventory',
+                    type: 'error'
+                });
+            }
+        }
+    }
+}
+</script>

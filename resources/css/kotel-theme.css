@@ -1,0 +1,678 @@
+/* Kotel Hotel Management System Theme */
+/* Color Scheme: Yellow (#FFD700), Black (#000000), Sky Blue (#87CEEB) */
+
+/* This file contains only essential theme classes that don't conflict with dynamic theming */
+/* All dynamic styling is now handled by the ThemeProvider component */
+
+/* Essential theme color classes for backward compatibility */
+.bg-kotel-yellow {
+    background-color: #0891ab !important;
+}
+
+.bg-kotel-yellow-dark {
+    background-color: #0a9fbc !important;
+}
+
+.bg-kotel-yellow-light {
+    background-color: #e0f9ff !important;
+}
+
+/* Primary button background color */
+.bg-primary {
+    background-color: var(--kotel-primary) !important;
+}
+
+/* Ensure all buttons with primary background use the theme variable */
+:root {
+    --button-primary-bg: var(--kotel-primary);
+}
+
+.text-kotel-yellow {
+    color: #FFD700 !important;
+}
+
+.text-kotel-yellow-dark {
+    color: #E6C200 !important;
+}
+
+.bg-kotel-black {
+    background-color: #000000 !important;
+}
+
+.bg-kotel-dark {
+    background-color: #1a1a1a !important;
+}
+
+.bg-kotel-gray {
+    background-color: #374151 !important;
+}
+
+.bg-kotel-gray-dark {
+    background-color: #1F2937 !important;
+}
+
+.bg-kotel-gray-medium {
+    background-color: #4B5563 !important;
+}
+
+.bg-kotel-sky-blue {
+    background-color: #87CEEB !important;
+}
+
+.bg-kotel-sky-blue-dark {
+    background-color: #5B9ECC !important;
+}
+
+.bg-kotel-sky-blue-light {
+    background-color: #DBEAFE !important;
+}
+
+.text-kotel-sky-blue {
+    color: #87CEEB !important;
+}
+
+.text-kotel-sky-blue-dark {
+    color: #5B9ECC !important;
+}
+
+.bg-kotel-green {
+    background-color: #10B981 !important;
+}
+
+.bg-kotel-green-dark {
+    background-color: #059669 !important;
+}
+
+.bg-kotel-green-light {
+    background-color: #D1FAE5 !important;
+}
+
+.text-kotel-green {
+    color: #10B981 !important;
+}
+
+.text-kotel-green-dark {
+    color: #059669 !important;
+}
+
+.bg-kotel-red {
+    background-color: #EF4444 !important;
+}
+
+.bg-kotel-red-dark {
+    background-color: #DC2626 !important;
+}
+
+.bg-kotel-red-light {
+    background-color: #FEE2E2 !important;
+}
+
+.text-kotel-red {
+    color: #EF4444 !important;
+}
+
+.text-kotel-red-dark {
+    color: #DC2626 !important;
+}
+
+.bg-kotel-orange {
+    background-color: #F97316 !important;
+}
+
+.bg-kotel-orange-dark {
+    background-color: #EA580C !important;
+}
+
+.bg-kotel-orange-light {
+    background-color: #FED7AA !important;
+}
+
+.text-kotel-orange {
+    color: #F97316 !important;
+}
+
+.text-kotel-orange-dark {
+    color: #EA580C !important;
+}
+
+.bg-kotel-purple {
+    background-color: #8B5CF6 !important;
+}
+
+.bg-kotel-purple-dark {
+    background-color: #7C3AED !important;
+}
+
+.bg-kotel-purple-light {
+    background-color: #EDE9FE !important;
+}
+
+.text-kotel-purple {
+    color: #8B5CF6 !important;
+}
+
+.text-kotel-purple-dark {
+    color: #7C3AED !important;
+}
+
+/* Essential background classes */
+.bg-kotel-bg-card {
+    background-color: rgba(26, 26, 26, 0.9) !important;
+    backdrop-filter: blur(12px);
+}
+
+.bg-kotel-bg-header {
+    background-color: rgba(26, 26, 26, 0.95) !important;
+    backdrop-filter: blur(16px);
+}
+
+.bg-kotel-bg-sidebar {
+    background-color: rgba(26, 26, 26, 0.95) !important;
+}
+
+.bg-kotel-bg-modal {
+    background-color: rgba(26, 26, 26, 0.98) !important;
+}
+
+.bg-kotel-black\/50 {
+    background-color: rgba(0, 0, 0, 0.5) !important;
+}
+
+/* Essential border and text classes */
+.border-kotel-border {
+    border-color: rgba(255, 215, 0, 0.3) !important;
+}
+
+.border-kotel-border-light {
+    border-color: rgba(255, 215, 0, 0.2) !important;
+}
+
+.text-kotel-text-primary {
+    color: #ffffff !important;
+}
+
+.text-kotel-text-secondary {
+    color: #87CEEB !important;
+}
+
+.text-kotel-text-tertiary {
+    color: #D1D5DB !important;
+}
+
+/* Essential shadow classes */
+.shadow-kotel-card {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2) !important;
+}
+
+.shadow-kotel-card-hover {
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.2) !important;
+}
+
+.shadow-kotel-button {
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Essential form styling */
+input[type="text"]:focus,
+input[type="email"]:focus,
+input[type="password"]:focus,
+input[type="number"]:focus,
+input[type="date"]:focus,
+input[type="time"]:focus,
+select:focus,
+textarea:focus {
+    border-color: #FFD700 !important;
+    ring-color: #FFD700 !important;
+    box-shadow: 0 0 0 3px rgba(255, 215, 0, 0.1) !important;
+}
+
+/* Essential table styling */
+table {
+    background: rgba(26, 26, 26, 0.9) !important;
+    backdrop-filter: blur(12px);
+}
+
+th {
+    background: rgba(0, 0, 0, 0.7) !important;
+    color: #FFD700 !important;
+    border-bottom: 1px solid rgba(255, 215, 0, 0.3) !important;
+}
+
+td {
+    color: #87CEEB !important;
+    border-bottom: 1px solid rgba(255, 215, 0, 0.1) !important;
+}
+
+tr:hover {
+    background: rgba(255, 215, 0, 0.1) !important;
+}
+
+/* Essential card and panel styling */
+.shadow,
+.shadow-lg,
+.shadow-xl {
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* Essential status badge styling */
+.bg-green-100 {
+    background-color: rgba(34, 197, 94, 0.2) !important;
+    color: #22c55e !important;
+}
+
+.bg-red-100 {
+    background-color: rgba(239, 68, 68, 0.2) !important;
+    color: #ef4444 !important;
+}
+
+.bg-yellow-100 {
+    background-color: rgba(255, 215, 0, 0.2) !important;
+    color: #FFD700 !important;
+}
+
+.bg-blue-100 {
+    background-color: rgba(135, 206, 235, 0.2) !important;
+    color: #87CEEB !important;
+}
+
+/* Essential modal and dropdown styling */
+.bg-white[role="dialog"],
+.dropdown-menu {
+    background: rgba(26, 26, 26, 0.95) !important;
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 215, 0, 0.3) !important;
+}
+
+/* Essential scrollbar styling */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.3);
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(255, 215, 0, 0.5);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 215, 0, 0.7);
+}
+
+/* Essential loading state styling */
+.animate-pulse {
+    background: linear-gradient(90deg, rgba(255, 215, 0, 0.1) 25%, rgba(135, 206, 235, 0.1) 50%, rgba(255, 215, 0, 0.1) 75%);
+    background-size: 200% 100%;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+/* Essential text color overrides */
+.text-blue-600,
+.text-blue-700 {
+    color: #FFD700 !important;
+}
+
+.bg-blue-50 {
+    background-color: rgba(255, 215, 0, 0.1) !important;
+}
+
+/* Ensure proper contrast for readability */
+.text-kotel-text-primary {
+    color: #ffffff !important;
+}
+
+/* Additional overrides for any remaining dark text */
+.text-gray-800,
+.text-gray-900,
+.text-gray-700 {
+    color: #ffffff !important;
+}
+
+/* Custom animations for the theme */
+@keyframes kotel-glow {
+    0%, 100% { box-shadow: 0 0 5px rgba(255, 215, 0, 0.5); }
+    50% { box-shadow: 0 0 20px rgba(255, 215, 0, 0.8); }
+}
+
+.kotel-glow {
+    animation: kotel-glow 2s ease-in-out infinite;
+}
+
+/* Kotel theme color classes */
+.bg-kotel-yellow {
+    background-color: #FFD700 !important;
+}
+
+.bg-kotel-yellow-dark {
+    background-color: #E6C200 !important;
+}
+
+.bg-kotel-yellow-light {
+    background-color: #FEF3C7 !important;
+}
+
+.text-kotel-yellow {
+    color: #FFD700 !important;
+}
+
+.text-kotel-yellow-dark {
+    color: #E6C200 !important;
+}
+
+.bg-kotel-black {
+    background-color: #000000 !important;
+}
+
+.bg-kotel-dark {
+    background-color: #1a1a1a !important;
+}
+
+.bg-kotel-gray {
+    background-color: #374151 !important;
+}
+
+.bg-kotel-gray-dark {
+    background-color: #1F2937 !important;
+}
+
+.bg-kotel-gray-medium {
+    background-color: #4B5563 !important;
+}
+
+.bg-kotel-sky-blue {
+    background-color: #87CEEB !important;
+}
+
+.bg-kotel-sky-blue-dark {
+    background-color: #5B9ECC !important;
+}
+
+.bg-kotel-sky-blue-light {
+    background-color: #DBEAFE !important;
+}
+
+.text-kotel-sky-blue {
+    color: #87CEEB !important;
+}
+
+.text-kotel-sky-blue-dark {
+    color: #5B9ECC !important;
+}
+
+.bg-kotel-green {
+    background-color: #10B981 !important;
+}
+
+.bg-kotel-green-dark {
+    background-color: #059669 !important;
+}
+
+.bg-kotel-green-light {
+    background-color: #D1FAE5 !important;
+}
+
+.text-kotel-green {
+    color: #10B981 !important;
+}
+
+.text-kotel-green-dark {
+    color: #059669 !important;
+}
+
+.bg-kotel-red {
+    background-color: #EF4444 !important;
+}
+
+.bg-kotel-red-dark {
+    background-color: #DC2626 !important;
+}
+
+.bg-kotel-red-light {
+    background-color: #FEE2E2 !important;
+}
+
+.text-kotel-red {
+    color: #EF4444 !important;
+}
+
+.text-kotel-red-dark {
+    color: #DC2626 !important;
+}
+
+.bg-kotel-orange {
+    background-color: #F97316 !important;
+}
+
+.bg-kotel-orange-dark {
+    background-color: #EA580C !important;
+}
+
+.bg-kotel-orange-light {
+    background-color: #FED7AA !important;
+}
+
+.text-kotel-orange {
+    color: #F97316 !important;
+}
+
+.text-kotel-orange-dark {
+    color: #EA580C !important;
+}
+
+.bg-kotel-purple {
+    background-color: #8B5CF6 !important;
+}
+
+.bg-kotel-purple-dark {
+    background-color: #7C3AED !important;
+}
+
+.bg-kotel-purple-light {
+    background-color: #EDE9FE !important;
+}
+
+.text-kotel-purple {
+    color: #8B5CF6 !important;
+}
+
+.text-kotel-purple-dark {
+    color: #7C3AED !important;
+}
+
+.bg-kotel-bg-card {
+    background-color: rgba(26, 26, 26, 0.9) !important;
+    backdrop-filter: blur(12px);
+}
+
+.bg-kotel-bg-header {
+    background-color: rgba(26, 26, 26, 0.95) !important;
+    backdrop-filter: blur(16px);
+}
+
+.bg-kotel-bg-sidebar {
+    background-color: rgba(26, 26, 26, 0.95) !important;
+}
+
+.bg-kotel-bg-modal {
+    background-color: rgba(26, 26, 26, 0.98) !important;
+}
+
+.bg-kotel-black\/50 {
+    background-color: rgba(0, 0, 0, 0.5) !important;
+}
+
+.border-kotel-border {
+    border-color: rgba(255, 215, 0, 0.3) !important;
+}
+
+.border-kotel-border-light {
+    border-color: rgba(255, 215, 0, 0.2) !important;
+}
+
+.text-kotel-text-primary {
+    color: #ffffff !important;
+}
+
+.text-kotel-text-secondary {
+    color: #87CEEB !important;
+}
+
+.text-kotel-text-tertiary {
+    color: #D1D5DB !important;
+}
+
+.shadow-kotel-card {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2) !important;
+}
+
+.shadow-kotel-card-hover {
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.2) !important;
+}
+
+.shadow-kotel-button {
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+}
+
+input[type="text"]:focus,
+input[type="email"]:focus,
+input[type="password"]:focus,
+input[type="number"]:focus,
+input[type="date"]:focus,
+input[type="time"]:focus,
+select:focus,
+textarea:focus {
+    border-color: #FFD700 !important;
+    ring-color: #FFD700 !important;
+    box-shadow: 0 0 0 3px rgba(255, 215, 0, 0.1) !important;
+}
+
+/* Tables */
+table {
+    background: rgba(26, 26, 26, 0.9) !important;
+    backdrop-filter: blur(12px);
+}
+
+th {
+    background: rgba(0, 0, 0, 0.7) !important;
+    color: #FFD700 !important;
+    border-bottom: 1px solid rgba(255, 215, 0, 0.3) !important;
+}
+
+td {
+    color: #87CEEB !important;
+    border-bottom: 1px solid rgba(255, 215, 0, 0.1) !important;
+}
+
+tr:hover {
+    background: rgba(255, 215, 0, 0.1) !important;
+}
+
+/* Cards and panels */
+.shadow,
+.shadow-lg,
+.shadow-xl {
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* Status badges */
+.bg-green-100 {
+    background-color: rgba(34, 197, 94, 0.2) !important;
+    color: #22c55e !important;
+}
+
+.bg-red-100 {
+    background-color: rgba(239, 68, 68, 0.2) !important;
+    color: #ef4444 !important;
+}
+
+.bg-yellow-100 {
+    background-color: rgba(255, 215, 0, 0.2) !important;
+    color: #FFD700 !important;
+}
+
+.bg-blue-100 {
+    background-color: rgba(135, 206, 235, 0.2) !important;
+    color: #87CEEB !important;
+}
+
+/* Modals and dropdowns */
+.bg-white[role="dialog"],
+.dropdown-menu {
+    background: rgba(26, 26, 26, 0.95) !important;
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 215, 0, 0.3) !important;
+}
+
+/* Scrollbars */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.3);
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(255, 215, 0, 0.5);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 215, 0, 0.7);
+}
+
+/* Loading states */
+.animate-pulse {
+    background: linear-gradient(90deg, rgba(255, 215, 0, 0.1) 25%, rgba(135, 206, 235, 0.1) 50%, rgba(255, 215, 0, 0.1) 75%);
+    background-size: 200% 100%;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+/* Chart.js canvas styling - REMOVED to allow Tailwind CSS */
+/* canvas {
+    background: transparent !important;
+} */
+
+/* Override any remaining blue colors */
+.text-blue-600,
+.text-blue-700 {
+    color: #FFD700 !important;
+}
+
+.bg-blue-50 {
+    background-color: rgba(255, 215, 0, 0.1) !important;
+}
+
+/* Ensure proper contrast for readability */
+.text-kotel-text-primary {
+    color: #ffffff !important;
+}
+
+/* Additional overrides for any remaining dark text */
+.text-gray-800,
+.text-gray-900,
+.text-gray-700 {
+    color: #ffffff !important;
+}
+
+/* Custom animations for the theme */
+@keyframes kotel-glow {
+    0%, 100% { box-shadow: 0 0 5px rgba(255, 215, 0, 0.5); }
+    50% { box-shadow: 0 0 20px rgba(255, 215, 0, 0.8); }
+}
+
+.kotel-glow {
+    animation: kotel-glow 2s ease-in-out infinite;
+}

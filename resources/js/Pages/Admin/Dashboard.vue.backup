@@ -1,0 +1,713 @@
+<template>
+    <DashboardLayout title="Admin Dashboard" :user="user">
+        <!-- Header Section -->
+        <div class="shadow rounded-lg p-6 mb-8"
+             :style="{
+                 backgroundColor: themeColors.card,
+                 borderColor: themeColors.border
+             }">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h1 class="text-2xl font-bold mb-2"
+                        :style="{ color: themeColors.textPrimary }">Admin Dashboard</h1>
+                    <p class="text-sm"
+                       :style="{ color: themeColors.textSecondary }">Welcome back, {{ user.first_name }}! Monitor and manage all hotel operations.</p>
+                </div>
+                <div class="flex items-center gap-3">
+                    <div class="text-right">
+                        <p class="text-sm"
+                           :style="{ color: themeColors.textTertiary }">{{ currentDateTime }}</p>
+                        <p class="text-lg font-semibold"
+                           :style="{ color: themeColors.textPrimary }">{{ user.roles[0]?.display_name }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Critical Alerts -->
+        <div v-if="hasAlerts" class="shadow rounded-lg p-6 mb-8"
+             :style="{
+                 backgroundColor: themeColors.card,
+                 borderColor: themeColors.border
+             }">
+            <h2 class="text-lg font-semibold mb-4"
+                :style="{ color: themeColors.textPrimary }">Critical Alerts</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div v-for="(alert, key) in alerts" :key="key"
+                     v-if="alert > 0"
+                     class="rounded-lg p-4 cursor-pointer transition-colors"
+                     :style="{
+                         backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                         borderColor: themeColors.danger,
+                         borderStyle: 'solid',
+                         borderWidth: '1px'
+                     }">
+                    <div class="flex items-center">
+                        <ExclamationTriangleIcon class="h-6 w-6 mr-3"
+                             :style="{ color: themeColors.danger }" />
+                        <div>
+                            <h3 class="text-sm font-medium"
+                                :style="{ color: themeColors.danger }">{{ getAlertTitle(key) }}</h3>
+                            <p class="text-lg font-bold"
+                               :style="{ color: themeColors.danger }">{{ alert }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Dashboard Stats Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6 mb-8">
+            <div class="rounded-lg p-6 border shadow-sm"
+                 :style="{
+                     backgroundColor: themeColors.card,
+                     borderColor: themeColors.border,
+                     borderStyle: 'solid',
+                     borderWidth: '1px'
+                 }">
+                <div class="flex items-center">
+                    <div class="w-12 h-12 rounded-lg flex items-center justify-center mr-4"
+                         :style="{ backgroundColor: 'rgba(59, 130, 246, 0.1)' }">
+                        <BuildingOfficeIcon class="h-6 w-6" :style="{ color: themeColors.primary }" />
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium mb-1"
+                           :style="{ color: themeColors.textSecondary }">Total Rooms</p>
+                        <p class="text-2xl font-bold"
+                           :style="{ color: themeColors.textPrimary }">{{ dashboardStats?.totalRooms || 0 }}</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="rounded-lg p-6 border shadow-sm"
+                 :style="{
+                     backgroundColor: themeColors.card,
+                     borderColor: themeColors.border,
+                     borderStyle: 'solid',
+                     borderWidth: '1px'
+                 }">
+                <div class="flex items-center">
+                    <div class="w-12 h-12 rounded-lg flex items-center justify-center mr-4"
+                         :style="{ backgroundColor: 'rgba(34, 197, 94, 0.1)' }">
+                        <CheckCircleIcon class="h-6 w-6" :style="{ color: themeColors.success }" />
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium mb-1"
+                           :style="{ color: themeColors.textSecondary }">Occupied</p>
+                        <p class="text-2xl font-bold"
+                           :style="{ color: themeColors.textPrimary }">{{ dashboardStats?.occupiedRooms || 0 }}</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="rounded-lg p-6 border shadow-sm"
+                 :style="{
+                     backgroundColor: themeColors.card,
+                     borderColor: themeColors.border,
+                     borderStyle: 'solid',
+                     borderWidth: '1px'
+                 }">
+                <div class="flex items-center">
+                    <div class="w-12 h-12 rounded-lg flex items-center justify-center mr-4"
+                         :style="{ backgroundColor: 'rgba(250, 204, 21, 0.1)' }">
+                        <ClockIcon class="h-6 w-6" :style="{ color: themeColors.warning }" />
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium mb-1"
+                           :style="{ color: themeColors.textSecondary }">Available</p>
+                        <p class="text-2xl font-bold"
+                           :style="{ color: themeColors.textPrimary }">{{ dashboardStats?.availableRooms || 0 }}</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="rounded-lg p-6 border shadow-sm"
+                 :style="{
+                     backgroundColor: themeColors.card,
+                     borderColor: themeColors.border,
+                     borderStyle: 'solid',
+                     borderWidth: '1px'
+                 }">
+                <div class="flex items-center">
+                    <div class="w-12 h-12 rounded-lg flex items-center justify-center mr-4"
+                         :style="{ backgroundColor: 'rgba(139, 92, 246, 0.1)' }">
+                        <UserGroupIcon class="h-6 w-6" :style="{ color: '#8b5cf6' }" />
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium mb-1"
+                           :style="{ color: themeColors.textSecondary }">Guests</p>
+                        <p class="text-2xl font-bold"
+                           :style="{ color: themeColors.textPrimary }">{{ dashboardStats?.totalGuests || 0 }}</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="rounded-lg p-6 border shadow-sm"
+                 :style="{
+                     backgroundColor: themeColors.card,
+                     borderColor: themeColors.border,
+                     borderStyle: 'solid',
+                     borderWidth: '1px'
+                 }">
+                <div class="flex items-center">
+                    <div class="w-12 h-12 rounded-lg flex items-center justify-center mr-4"
+                         :style="{ backgroundColor: 'rgba(251, 146, 60, 0.1)' }">
+                        <CalendarDaysIcon class="h-6 w-6" :style="{ color: '#fb923c' }" />
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium mb-1"
+                           :style="{ color: themeColors.textSecondary }">Reservations</p>
+                        <p class="text-2xl font-bold"
+                           :style="{ color: themeColors.textPrimary }">{{ dashboardStats?.totalReservations || 0 }}</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="rounded-lg p-6 border shadow-sm"
+                 :style="{
+                     backgroundColor: themeColors.card,
+                     borderColor: themeColors.border,
+                     borderStyle: 'solid',
+                     borderWidth: '1px'
+                 }">
+                <div class="flex items-center">
+                    <div class="w-12 h-12 rounded-lg flex items-center justify-center mr-4"
+                         :style="{ backgroundColor: 'rgba(16, 185, 129, 0.1)' }">
+                        <CurrencyDollarIcon class="h-6 w-6" :style="{ color: themeColors.success }" />
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium mb-1"
+                           :style="{ color: themeColors.textSecondary }">Revenue</p>
+                        <p class="text-2xl font-bold"
+                           :style="{ color: themeColors.textPrimary }">{{ formatCurrency(dashboardStats?.todayRevenue || 0) }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts Section -->
+        <div class="shadow rounded-lg p-6 mb-8"
+             :style="{
+                 backgroundColor: themeColors.card,
+                 borderColor: themeColors.border
+             }">
+            <h2 class="text-lg font-semibold mb-4"
+                :style="{ color: themeColors.textPrimary }">Analytics</h2>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Revenue Chart -->
+                <div>
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-semibold"
+                            :style="{ color: themeColors.textPrimary }">Revenue Trend (Last 30 Days)</h3>
+                        <select v-model="revenueChartPeriod"
+                                class="text-sm rounded-md px-3 py-1 focus:outline-none transition-colors"
+                                :style="{
+                                    backgroundColor: themeColors.card,
+                                    borderColor: themeColors.border,
+                                    color: themeColors.textPrimary,
+                                    borderWidth: '1px',
+                                    borderStyle: 'solid'
+                                }">
+                            <option value="30">Last 30 Days</option>
+                            <option value="90">Last 90 Days</option>
+                            <option value="365">Last Year</option>
+                        </select>
+                    </div>
+                    <div class="h-64">
+                        <canvas ref="revenueChart"
+                             :style="{ backgroundColor: themeColors.background }"></canvas>
+                    </div>
+                </div>
+
+                <!-- Occupancy Chart -->
+                <div>
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-semibold"
+                            :style="{ color: themeColors.textPrimary }">Occupancy Rate</h3>
+                        <span class="text-sm"
+                              :style="{ color: themeColors.textTertiary }">Current Month</span>
+                    </div>
+                    <div class="h-64">
+                        <canvas ref="occupancyChart"
+                             :style="{ backgroundColor: themeColors.background }"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- System Overview -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+            <!-- Recent Activities -->
+            <div class="shadow rounded-lg p-6"
+                 :style="{
+                     backgroundColor: themeColors.card,
+                     borderColor: themeColors.border
+                 }">
+                <h3 class="text-lg font-semibold mb-4"
+                    :style="{ color: themeColors.textPrimary }">Recent System Activities</h3>
+                <div class="space-y-3">
+                    <div v-for="activity in recentActivities" :key="activity.id"
+                         class="flex items-start space-x-3 p-3 rounded-lg transition-colors"
+                         :style="{
+                             backgroundColor: themeColors.background,
+                             borderColor: themeColors.border,
+                             borderStyle: 'solid',
+                             borderWidth: '1px'
+                         }"
+                         @mouseenter="$event.target.style.backgroundColor = themeColors.hover"
+                         @mouseleave="$event.target.style.backgroundColor = themeColors.background">
+                        <div class="flex-shrink-0">
+                            <component :is="getActivityIcon(activity.type)"
+                                      class="h-5 w-5"
+                                      :style="{ color: themeColors.primary }" />
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <p class="text-sm font-medium"
+                               :style="{ color: themeColors.textPrimary }">{{ activity.description }}</p>
+                            <p class="text-xs"
+                               :style="{ color: themeColors.textTertiary }">{{ formatDateTime(activity.created_at) }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- System Status -->
+            <div class="shadow rounded-lg p-6"
+                 :style="{
+                     backgroundColor: themeColors.card,
+                     borderColor: themeColors.border
+                 }">
+                <h3 class="text-lg font-semibold mb-4"
+                    :style="{ color: themeColors.textPrimary }">System Status</h3>
+                <div class="space-y-4">
+                    <div v-for="(status, system) in systemStatus" :key="system"
+                         class="flex items-center justify-between">
+                        <span class="text-sm font-medium"
+                              :style="{ color: themeColors.textPrimary }">{{ system }}</span>
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                              :class="getStatusColor(status)">
+                            {{ status }}
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="shadow rounded-lg p-6"
+                 :style="{
+                     backgroundColor: themeColors.card,
+                     borderColor: themeColors.border
+                 }">
+                <h3 class="text-lg font-semibold mb-4"
+                    :style="{ color: themeColors.textPrimary }">Quick Actions</h3>
+                <div class="space-y-3">
+                    <Link :href="route('admin.users.create')"
+                          class="w-full flex items-center justify-center px-4 py-2 rounded-md text-sm font-medium transition-colors"
+                          :style="{
+                              backgroundColor: themeColors.background,
+                              borderColor: themeColors.border,
+                              color: themeColors.textPrimary,
+                              borderStyle: 'solid',
+                              borderWidth: '1px'
+                          }"
+                          @mouseenter="$event.target.style.backgroundColor = themeColors.hover"
+                          @mouseleave="$event.target.style.backgroundColor = themeColors.background">
+                        <UserPlusIcon class="h-4 w-4 mr-2" />
+                        Add New User
+                    </Link>
+                    <Link :href="route('admin.rooms.index')"
+                          class="w-full flex items-center justify-center px-4 py-2 rounded-md text-sm font-medium transition-colors"
+                          :style="{
+                              backgroundColor: themeColors.background,
+                              borderColor: themeColors.border,
+                              color: themeColors.textPrimary,
+                              borderStyle: 'solid',
+                              borderWidth: '1px'
+                          }"
+                          @mouseenter="$event.target.style.backgroundColor = themeColors.hover"
+                          @mouseleave="$event.target.style.backgroundColor = themeColors.background">
+                        <BuildingOfficeIcon class="h-4 w-4 mr-2" />
+                        Manage Rooms
+                    </Link>
+                    <Link :href="route('admin.reports.index')"
+                          class="w-full flex items-center justify-center px-4 py-2 rounded-md text-sm font-medium transition-colors"
+                          :style="{
+                              backgroundColor: themeColors.background,
+                              borderColor: themeColors.border,
+                              color: themeColors.textPrimary,
+                              borderStyle: 'solid',
+                              borderWidth: '1px'
+                          }"
+                          @mouseenter="$event.target.style.backgroundColor = themeColors.hover"
+                          @mouseleave="$event.target.style.backgroundColor = themeColors.background">
+                        <ChartBarIcon class="h-4 w-4 mr-2" />
+                        View Reports
+                    </Link>
+                    <Link :href="route('admin.settings')"
+                          class="w-full flex items-center justify-center px-4 py-2 rounded-md text-sm font-medium transition-colors"
+                          :style="{
+                              backgroundColor: themeColors.background,
+                              borderColor: themeColors.border,
+                              color: themeColors.textPrimary,
+                              borderStyle: 'solid',
+                              borderWidth: '1px'
+                          }"
+                          @mouseenter="$event.target.style.backgroundColor = themeColors.hover"
+                          @mouseleave="$event.target.style.backgroundColor = themeColors.background">
+                        <CogIcon class="h-4 w-4 mr-2" />
+                        System Settings
+                    </Link>
+                </div>
+            </div>
+        </div>
+
+        <!-- Performance Metrics -->
+        <div class="shadow rounded-lg p-6"
+             :style="{
+                 backgroundColor: themeColors.card,
+                 borderColor: themeColors.border
+             }">
+            <h3 class="text-lg font-semibold mb-4"
+                :style="{ color: themeColors.textPrimary }">Performance Metrics</h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="text-center">
+                    <div class="text-3xl font-bold"
+                         :style="{ color: themeColors.primary }">{{ performanceMetricsDisplay.avgOccupancy }}%</div>
+                    <div class="text-sm"
+                         :style="{ color: themeColors.textTertiary }">Average Occupancy</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-3xl font-bold"
+                         :style="{ color: themeColors.textPrimary }">{{ formatCurrency(performanceMetricsDisplay.avgDailyRate) }}</div>
+                    <div class="text-sm"
+                         :style="{ color: themeColors.textTertiary }">Average Daily Rate</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-3xl font-bold"
+                         :style="{ color: themeColors.textPrimary }">{{ formatCurrency(performanceMetricsDisplay.revPAR) }}</div>
+                    <div class="text-sm"
+                         :style="{ color: themeColors.textTertiary }">Revenue per Available Room</div>
+                </div>
+            </div>
+        </div>
+    </DashboardLayout>
+</template>
+
+<script setup>
+import { computed, onMounted, ref } from 'vue'
+import { Link } from '@inertiajs/vue3'
+import DashboardLayout from '@/Layouts/DashboardLayout.vue'
+import { formatCurrency, initializeCurrencySettings } from '@/Utils/currency.js'
+import { useTheme } from '@/Composables/useTheme.js'
+import {
+    ExclamationTriangleIcon,
+    HomeIcon,
+    UserGroupIcon,
+    CurrencyDollarIcon,
+    ClockIcon,
+    TvIcon,
+    ChartBarIcon,
+    CogIcon,
+    UserPlusIcon,
+    BuildingOfficeIcon,
+    DocumentTextIcon,
+    WrenchScrewdriverIcon,
+    BellIcon,
+    CheckCircleIcon,
+    XCircleIcon,
+    ExclamationCircleIcon,
+    CalendarDaysIcon,
+    ChevronRightIcon
+} from '@heroicons/vue/24/outline'
+import Chart from 'chart.js/auto'
+
+// Initialize theme
+const { loadTheme } = useTheme()
+const themeColors = computed(() => ({
+    background: `var(--kotel-background)`,
+    card: `var(--kotel-card)`,
+    border: `var(--kotel-border)`,
+    textPrimary: `var(--kotel-text-primary)`,
+    textSecondary: `var(--kotel-text-secondary)`,
+    textTertiary: `var(--kotel-text-tertiary)`,
+    primary: `var(--kotel-primary)`,
+    secondary: `var(--kotel-secondary)`,
+    success: `var(--kotel-success)`,
+    warning: `var(--kotel-warning)`,
+    danger: `var(--kotel-danger)`,
+    hover: `rgba(255, 255, 255, 0.1)`
+}))
+
+// Load theme on mount
+loadTheme()
+
+const props = defineProps({
+    user: Object,
+    navigation: Array,
+    stats: Object,
+    charts: Object,
+    recentActivities: Array,
+    alerts: Object,
+    systemStatus: Object,
+    performanceMetrics: Object,
+})
+const revenueChart = ref(null)
+const occupancyChart = ref(null)
+const revenueChartPeriod = ref('30')
+
+// Dashboard stats - display real data from backend
+const dashboardStats = computed(() => {
+    return {
+        totalRooms: props.stats?.total_rooms ?? 0,
+        occupiedRooms: props.stats?.occupied_rooms ?? 0,
+        availableRooms: props.stats?.available_rooms ?? 0,
+        totalGuests: props.stats?.total_guests ?? 0,
+        totalReservations: props.stats?.total_reservations ?? 0,
+        todayRevenue: props.stats?.todays_revenue ?? 0,
+    }
+})
+
+// Quick actions matching reservation page design
+const quickActions = computed(() => {
+    return [
+        { label: 'Add New User', route: route('admin.users.create') },
+        { label: 'Manage Rooms', route: route('admin.rooms.index') },
+        { label: 'View Reports', route: route('admin.reports.index') },
+        { label: 'System Settings', route: route('admin.settings') },
+    ]
+})
+
+const currentDateTime = computed(() => {
+    return new Date().toLocaleString()
+})
+
+const hasAlerts = computed(() => {
+    return props.alerts && Object.values(props.alerts).some(alert => alert > 0)
+})
+
+const keyMetrics = computed(() => {
+    return {
+        total_rooms: props.stats?.total_rooms || 0,
+        occupied_rooms: props.stats?.occupied_rooms || 0,
+        todays_revenue: props.stats?.todays_revenue || 0,
+        active_users: props.stats?.active_users || 0,
+    }
+})
+
+const performanceMetricsDisplay = computed(() => {
+    return {
+        avgOccupancy: props.performanceMetrics?.avgOccupancy || 0,
+        avgDailyRate: props.performanceMetrics?.avgDailyRate || 0,
+        revPAR: props.performanceMetrics?.revPAR || 0,
+    }
+})
+
+// Methods
+const getStatIcon = (key) => {
+    const icons = {
+        total_rooms: HomeIcon,
+        occupied_rooms: HomeIcon,
+        todays_revenue: CurrencyDollarIcon,
+        active_users: UserGroupIcon,
+    }
+    return icons[key] || ChartBarIcon
+}
+
+const getStatColor = (key) => {
+    // Icons are now styled with text-blue-600 in template
+    return ''
+}
+
+const getStatTitle = (key) => {
+    const titles = {
+        total_rooms: 'Total Rooms',
+        occupied_rooms: 'Occupied Rooms',
+        todays_revenue: "Today's Revenue",
+        active_users: 'Active Users',
+    }
+    return titles[key] || key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+}
+
+const formatStatValue = (key, value) => {
+    if (key.includes('revenue') || key.includes('amount')) {
+        return formatCurrency(value)
+    }
+    return value
+}
+
+const getAlertTitle = (key) => {
+    const titles = {
+        maintenance_required: 'Maintenance Required',
+        system_errors: 'System Errors',
+        pending_approvals: 'Pending Approvals',
+        offline_devices: 'Offline Devices',
+    }
+    return titles[key] || key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+}
+
+const getActivityIcon = (type) => {
+    const icons = {
+        user_login: UserGroupIcon,
+        reservation: CalendarDaysIcon,
+        payment: CurrencyDollarIcon,
+        maintenance: WrenchScrewdriverIcon,
+        system: CogIcon,
+    }
+    return icons[type] || BellIcon
+}
+
+const getStatusColor = (status) => {
+    const colors = {
+        'Online': 'bg-green-100 text-green-800',
+        'Offline': 'bg-red-100 text-red-800',
+        'Warning': 'bg-yellow-100 text-yellow-800',
+        'Maintenance': 'bg-blue-100 text-blue-800',
+    }
+    return colors[status] || 'bg-gray-100 text-gray-800'
+}
+
+const formatDateTime = (datetime) => {
+    return new Date(datetime).toLocaleString()
+}
+
+// Chart initialization
+onMounted(() => {
+    initializeCurrencySettings()
+    // Initialize charts when component mounts
+    if (props.charts?.revenue && revenueChart.value) {
+        new Chart(revenueChart.value, {
+            type: 'line',
+            data: {
+                labels: props.charts.revenue.map(item => item.date),
+                datasets: [{
+                    label: 'Revenue',
+                    data: props.charts.revenue.map(item => item.amount),
+                    borderColor: '#ffffff',
+                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                    tension: 0.1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        labels: {
+                            color: '#ffffff'
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.1)'
+                        },
+                        ticks: {
+                            color: '#ffffff'
+                        }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.1)'
+                        },
+                        ticks: {
+                            color: '#ffffff',
+                            callback: function(value) {
+                                return formatCurrency(value)
+                            }
+                        }
+                    }
+                }
+            }
+        })
+    }
+
+    if (props.charts?.occupancy && occupancyChart.value) {
+        new Chart(occupancyChart.value, {
+            type: 'line',
+            data: {
+                labels: props.charts.occupancy.map(item => item.date),
+                datasets: [{
+                    label: 'Occupancy Rate (%)',
+                    data: props.charts.occupancy.map(item => item.rate),
+                    borderColor: '#ffffff',
+                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                    tension: 0.1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        labels: {
+                            color: '#ffffff'
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.1)'
+                        },
+                        ticks: {
+                            color: '#ffffff'
+                        }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        max: 100,
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.1)'
+                        },
+                        ticks: {
+                            color: '#ffffff',
+                            callback: function(value) {
+                                return value + '%'
+                            }
+                        }
+                    }
+                }
+            }
+        })
+    }
+})
+</script>
+
+<style scoped>
+/* Fix placeholder colors for inputs */
+input::placeholder,
+textarea::placeholder {
+    color: var(--kotel-text-tertiary) !important;
+    opacity: 0.7;
+}
+
+input::-webkit-input-placeholder,
+textarea::-webkit-input-placeholder {
+    color: var(--kotel-text-tertiary) !important;
+    opacity: 0.7;
+}
+
+input::-moz-placeholder,
+textarea::-moz-placeholder {
+    color: var(--kotel-text-tertiary) !important;
+    opacity: 0.7;
+}
+
+input:-ms-input-placeholder,
+textarea:-ms-input-placeholder {
+    color: var(--kotel-text-tertiary) !important;
+    opacity: 0.7;
+}
+
+/* Fix placeholder colors for select options */
+select option:disabled,
+select option[disabled] {
+    color: var(--kotel-text-tertiary) !important;
+}
+
+select option[value=""] {
+    color: var(--kotel-text-tertiary) !important;
+}
+</style>

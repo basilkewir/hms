@@ -1,0 +1,524 @@
+/* Import Kotel theme */
+@import './kotel-theme.css';
+/* Import Sidebar styles */
+@import './sidebar.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom styles for dark theme */
+@layer components {
+    /* Card components */
+    .card {
+        background-color: var(--kotel-bg-card);
+        border: 1px solid var(--kotel-border);
+        border-radius: 0.5rem;
+        box-shadow: var(--kotel-shadow-card);
+    }
+
+    .card-hover {
+        background-color: var(--kotel-bg-card);
+        border: 1px solid var(--kotel-border);
+        border-radius: 0.5rem;
+        box-shadow: var(--kotel-shadow-card);
+        transition: all 0.3s ease;
+    }
+
+    .card-hover:hover {
+        box-shadow: var(--kotel-shadow-card-hover);
+    }
+
+    /* Button components */
+    .btn-primary {
+        background-color: var(--kotel-yellow);
+        font-weight: 500;
+        padding: 0.5rem 1rem;
+        border-radius: 0.375rem;
+        transition: background-color 0.2s ease;
+        box-shadow: var(--kotel-shadow-button);
+    }
+
+    .btn-primary:hover {
+        background-color: var(--kotel-yellow-dark);
+    }
+
+    .btn-secondary {
+        background-color: var(--kotel-sky-blue);
+        font-weight: 500;
+        padding: 0.5rem 1rem;
+        border-radius: 0.375rem;
+        transition: background-color 0.2s ease;
+        box-shadow: var(--kotel-shadow-button);
+    }
+
+    .btn-secondary:hover {
+        background-color: var(--kotel-sky-blue-dark);
+    }
+
+    .btn-success {
+        background-color: var(--kotel-green);
+        font-weight: 500;
+        padding: 0.5rem 1rem;
+        border-radius: 0.375rem;
+        transition: background-color 0.2s ease;
+        box-shadow: var(--kotel-shadow-button);
+    }
+
+    .btn-success:hover {
+        background-color: var(--kotel-green-dark);
+    }
+
+    .btn-danger {
+        background-color: var(--kotel-red);
+        font-weight: 500;
+        padding: 0.5rem 1rem;
+        border-radius: 0.375rem;
+        transition: background-color 0.2s ease;
+        box-shadow: var(--kotel-shadow-button);
+    }
+
+    .btn-danger:hover {
+        background-color: var(--kotel-red-dark);
+    }
+
+    .btn-warning {
+        background-color: var(--kotel-orange);
+        font-weight: 500;
+        padding: 0.5rem 1rem;
+        border-radius: 0.375rem;
+        transition: background-color 0.2s ease;
+        box-shadow: var(--kotel-shadow-button);
+    }
+
+    .btn-warning:hover {
+        background-color: var(--kotel-orange-dark);
+    }
+
+    .btn-purple {
+        background-color: var(--kotel-purple);
+        font-weight: 500;
+        padding: 0.5rem 1rem;
+        border-radius: 0.375rem;
+        transition: background-color 0.2s ease;
+        box-shadow: var(--kotel-shadow-button);
+    }
+
+    .btn-purple:hover {
+        background-color: var(--kotel-purple-dark);
+    }
+
+    /* Form components */
+    .form-input {
+        width: 100%;
+        padding: 0.5rem 0.75rem;
+        background-color: var(--kotel-gray);
+        border: 1px solid var(--kotel-border-light);
+        border-radius: 0.375rem;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .form-input:focus {
+        outline: none;
+        border-color: transparent;
+        box-shadow: 0 0 0 2px var(--kotel-yellow);
+    }
+
+    .form-select {
+        width: 100%;
+        padding: 0.5rem 0.75rem;
+        background-color: var(--kotel-gray);
+        border: 1px solid var(--kotel-border-light);
+        border-radius: 0.375rem;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .form-select:focus {
+        outline: none;
+        border-color: transparent;
+        box-shadow: 0 0 0 2px var(--kotel-yellow);
+    }
+
+    .form-textarea {
+        width: 100%;
+        padding: 0.5rem 0.75rem;
+        background-color: var(--kotel-gray);
+        border: 1px solid var(--kotel-border-light);
+        border-radius: 0.375rem;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .form-textarea:focus {
+        outline: none;
+        border-color: transparent;
+        box-shadow: 0 0 0 2px var(--kotel-yellow);
+    }
+
+    /* Status badges */
+    .status-pending {
+        background-color: var(--kotel-yellow-light);
+        padding: 0.25rem 0.5rem;
+        border-radius: 9999px;
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+
+    .status-confirmed {
+        background-color: var(--kotel-sky-blue-light);
+        padding: 0.25rem 0.5rem;
+        border-radius: 9999px;
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+
+    .status-checked-in {
+        background-color: var(--kotel-green-light);
+        padding: 0.25rem 0.5rem;
+        border-radius: 9999px;
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+
+    .status-checked-out {
+        background-color: var(--kotel-gray-medium);
+        padding: 0.25rem 0.5rem;
+        border-radius: 9999px;
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+
+    .status-cancelled {
+        background-color: var(--kotel-red-light);
+        padding: 0.25rem 0.5rem;
+        border-radius: 9999px;
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+
+    .status-no-show {
+        background-color: var(--kotel-red-light);
+        padding: 0.25rem 0.5rem;
+        border-radius: 9999px;
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+
+    .status-modified {
+        background-color: var(--kotel-orange-light);
+        padding: 0.25rem 0.5rem;
+        border-radius: 9999px;
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+
+    /* Table components */
+    .table-header {
+        background-color: var(--kotel-gray-dark);
+        font-weight: 600;
+        font-size: 0.875rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    .table-row {
+        border-bottom: 1px solid var(--kotel-border-light);
+        transition: background-color 0.2s ease;
+    }
+
+    .table-row:hover {
+        background-color: rgba(var(--kotel-gray-rgb), 0.5);
+    }
+
+    .table-cell {
+        padding: 1rem 1.5rem;
+    }
+
+    /* Navigation items */
+    .nav-item {
+        display: flex;
+        align-items: center;
+        padding: 0.5rem 0.75rem;
+        font-size: 0.875rem;
+        font-weight: 500;
+        border-radius: 0.375rem;
+        transition: background-color 0.2s ease;
+    }
+
+    .nav-item:hover {
+        background-color: rgba(var(--kotel-yellow-rgb), 0.2);
+    }
+
+    .nav-item-active {
+        background-color: rgba(var(--kotel-yellow-rgb), 0.3);
+    }
+
+    /* Badge components */
+    .badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.25rem 0.75rem;
+        border-radius: 9999px;
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+
+    .badge-yellow {
+        background-color: var(--kotel-yellow-light);
+    }
+
+    .badge-blue {
+        background-color: var(--kotel-sky-blue-light);
+    }
+
+    .badge-green {
+        background-color: var(--kotel-green-light);
+    }
+
+    .badge-red {
+        background-color: var(--kotel-red-light);
+    }
+
+    .badge-orange {
+        background-color: var(--kotel-orange-light);
+    }
+
+    .badge-purple {
+        background-color: var(--kotel-purple-light);
+    }
+
+    .badge-gray {
+        background-color: var(--kotel-gray-medium);
+    }
+
+    /* Modal components */
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 50;
+    }
+
+    .modal-content {
+        background-color: var(--kotel-bg-card);
+        border: 1px solid var(--kotel-border);
+        border-radius: 0.5rem;
+        box-shadow: var(--kotel-shadow-modal);
+        max-width: 90vw;
+        max-height: 90vh;
+        overflow: auto;
+    }
+
+    .modal-header {
+        padding: 1.5rem;
+        border-bottom: 1px solid var(--kotel-border);
+    }
+
+    .modal-body {
+        padding: 1.5rem;
+    }
+
+    .modal-footer {
+        padding: 1.5rem;
+        border-top: 1px solid var(--kotel-border);
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.75rem;
+    }
+
+    /* Alert components */
+    .alert {
+        padding: 1rem;
+        border-radius: 0.375rem;
+        margin-bottom: 1rem;
+        border: 1px solid;
+    }
+
+    .alert-success {
+        background-color: var(--kotel-green-light);
+        border-color: var(--kotel-green);
+    }
+
+    .alert-warning {
+        background-color: var(--kotel-orange-light);
+        border-color: var(--kotel-orange);
+    }
+
+    .alert-danger {
+        background-color: var(--kotel-red-light);
+        border-color: var(--kotel-red);
+    }
+
+    .alert-info {
+        background-color: var(--kotel-sky-blue-light);
+        border-color: var(--kotel-sky-blue);
+    }
+
+    /* Progress components */
+    .progress {
+        width: 100%;
+        height: 0.5rem;
+        background-color: var(--kotel-gray-medium);
+        border-radius: 0.25rem;
+        overflow: hidden;
+    }
+
+    .progress-bar {
+        height: 100%;
+        background-color: var(--kotel-yellow);
+        transition: width 0.3s ease;
+    }
+
+    /* Tooltip components */
+    .tooltip {
+        position: relative;
+        display: inline-block;
+    }
+
+    .tooltip-content {
+        position: absolute;
+        bottom: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        background-color: var(--kotel-gray-dark);
+        border: 1px solid var(--kotel-border);
+        border-radius: 0.375rem;
+        padding: 0.5rem 0.75rem;
+        font-size: 0.875rem;
+        white-space: nowrap;
+        z-index: 10;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s ease;
+    }
+
+    .tooltip:hover .tooltip-content {
+        opacity: 1;
+    }
+
+    /* Loading spinner */
+    .spinner {
+        display: inline-block;
+        width: 1.5rem;
+        height: 1.5rem;
+        border: 2px solid var(--kotel-gray-medium);
+        border-top: 2px solid var(--kotel-yellow);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+}
+
+/* Custom scrollbar styles */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #1e293b;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #475569;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #64748b;
+}
+
+/* Focus styles for accessibility */
+.focus-visible {
+    @apply outline-none ring-2 ring-kotel-yellow ring-offset-2 ring-offset-kotel-bg-card;
+}
+
+/* Print styles */
+@media print {
+    .no-print {
+        display: none !important;
+    }
+
+    body {
+        background: white !important;
+        color: black !important;
+    }
+
+    .card, .btn, .nav-item {
+        box-shadow: none !important;
+        border: 1px solid #ccc !important;
+    }
+}
+
+/* Custom Kotel color classes */
+:root {
+    --kotel-black: #000000;
+    --kotel-dark: #1a1a1a;
+    --kotel-yellow: #FFD700;
+    --kotel-sky-blue: #87CEEB;
+}
+
+/* Tailwind custom colors */
+@layer base {
+    .bg-kotel-black {
+        background-color: var(--kotel-black);
+    }
+    .bg-kotel-dark {
+        background-color: var(--kotel-dark);
+    }
+    .bg-kotel-yellow {
+        background-color: var(--kotel-yellow);
+    }
+    .bg-kotel-sky-blue {
+        background-color: var(--kotel-sky-blue);
+    }
+    .text-kotel-black {
+        color: var(--kotel-black);
+    }
+    .text-kotel-dark {
+        color: var(--kotel-dark);
+    }
+    .text-kotel-yellow {
+        color: var(--kotel-yellow);
+    }
+    .text-kotel-sky-blue {
+        color: var(--kotel-sky-blue);
+    }
+    .border-kotel-yellow {
+        border-color: var(--kotel-yellow);
+    }
+    .border-kotel-sky-blue {
+        border-color: var(--kotel-sky-blue);
+    }
+}
+
+[x-cloak] {
+    display: none;
+}
+
+/* Override green background to be fully opaque */
+.bg-green-50 {
+    --tw-bg-opacity: 1;
+    background-color: rgb(0 120 22 / var(--tw-bg-opacity, 1));
+}
+
+/* Override purple background to be fully opaque with darker shade */
+.bg-purple-100 {
+    --tw-bg-opacity: 1;
+    background-color: rgb(90 0 188 / var(--tw-bg-opacity, 1));
+}
+
+/* Override orange background to be fully opaque with darker shade */
+.bg-orange-100 {
+    --tw-bg-opacity: 1;
+    background-color: rgb(132 75 0 / var(--tw-bg-opacity, 1));
+}

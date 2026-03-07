@@ -1,0 +1,66 @@
+INSTRUCTIONS TO FIX CACHED SIDEBAR ISSUE
+=========================================
+
+The code changes are correct, but your browser has cached the old JavaScript.
+
+STEP 1: Stop and Restart Vite Dev Server
+----------------------------------------
+1. Go to the terminal where "npm run dev" is running
+2. Press Ctrl+C to stop it
+3. Run: npm run dev
+4. Wait for "ready in XX ms" message
+
+STEP 2: Clear Browser Cache AGGRESSIVELY
+-----------------------------------------
+Choose ONE of these methods:
+
+METHOD A - Hard Reload (Try this first):
+1. Open the page: http://localhost:8000/manager/customer-groups
+2. Open DevTools (F12)
+3. RIGHT-CLICK the refresh button (next to address bar)
+4. Select "Empty Cache and Hard Reload"
+
+METHOD B - Clear All Cache:
+1. Press Ctrl + Shift + Delete
+2. Select "All time" for time range
+3. Check ONLY "Cached images and files"
+4. Click "Clear data"
+5. Close and reopen browser
+6. Go to: http://localhost:8000/manager/customer-groups
+
+METHOD C - Incognito/Private Window:
+1. Press Ctrl + Shift + N (Chrome/Edge) or Ctrl + Shift + P (Firefox)
+2. Go to: http://localhost:8000/manager/customer-groups
+3. Login as manager
+4. Check if sidebar is correct
+
+METHOD D - Disable Cache in DevTools (Best for development):
+1. Open DevTools (F12)
+2. Go to Network tab
+3. Check "Disable cache" checkbox
+4. Keep DevTools open
+5. Refresh the page
+
+STEP 3: Verify User Role
+--------------------------
+Make sure you're logged in as a manager (not admin).
+
+STEP 4: Check Console
+----------------------
+1. Open browser console (F12 > Console)
+2. Look for any JavaScript errors
+3. Check what role is being detected
+
+EXPECTED RESULT:
+----------------
+You should see:
+- Manager Dashboard link
+- Manager menu items (Reservations, Rooms, Guests, etc.)
+- NOT Admin menu items (Analytics, Users, Roles, etc.)
+
+IF STILL NOT WORKING:
+---------------------
+1. Check database - verify your user has "manager" role
+2. Clear Laravel cache: php artisan cache:clear
+3. Check browser console for errors
+4. Try a different browser
