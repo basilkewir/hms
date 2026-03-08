@@ -21,7 +21,9 @@ class LicenseValidationService
 
     private function loadStoredToken()
     {
-        $license = \App\Models\License::where('status', 'active')->first();
+        // Load from ANY license record that has a token — do not restrict to status='active'
+        // because isSystemLicensed() may temporarily set status='inactive' during an online check
+        $license = \App\Models\License::whereNotNull('license_key')->latest('id')->first();
         if ($license && isset($license->license_data['token'])) {
             $this->jwtToken = $license->license_data['token'];
             $this->deviceId = $license->license_data['device_id'] ?? null;
@@ -302,7 +304,7 @@ class LicenseValidationService
     public function getLicenseStatus()
     {
         $license = \App\Models\License::where('status', 'active')->first();
-        
+
         if (!$license || !$license->license_data) {
             return ['licensed' => false, 'status' => null];
         }
@@ -310,10 +312,182 @@ class LicenseValidationService
         return ['licensed' => true, 'status' => $license->license_data];
     }
 
-    public function isSystemLicensed()
+    /**
+     * Check whether the system has a valid, active license.
+     *
+     * Strategy (3-tier):
+     *  1. If a JWT token is stored → call GET /info with Authorization: Bearer <token>
+     *     - 200 + ACTIVE  → licensed ✓ (update DB to active)
+     *     - 200 + not ACTIVE → not licensed ✗ (revoked/expired on server)
+     *     - 401 → token expired, fall through to tier 2
+     *     - 4xx other / network error → fall through to offline fallback
+     *  2. No token (or token expired) → re-validate via POST /validate (same as activation)
+     *     - 200 + success → licensed ✓, store new token
+     *     - 4xx / failure → not licensed ✗
+     *  3. Network unreachable → offline grace: trust local DB record
+     */
+    public function isSystemLicensed(): bool
     {
-        $status = $this->getLicenseStatus();
-        return $status['licensed'];
+        // Load the most recent license record regardless of status
+        $license = \App\Models\License::whereNotNull('license_key')->latest('id')->first();
+
+        if (!$license || !$license->license_key) {
+            return false;
+        }
+
+        $licenseKey = $license->license_key;
+
+        // Skip online check for DEMO keys
+        if (str_contains(strtoupper($licenseKey), 'DEMO')) {
+            return true;
+        }
+
+        // --- Tier 1: Bearer token → GET /info ---
+        $token = $license->license_data['token'] ?? $this->jwtToken;
+        if ($token) {
+            try {
+                $response = Http::withOptions([
+                    'verify'          => false,
+                    'timeout'         => 8,
+                    'connect_timeout' => 4,
+                ])->withHeaders([
+                    'Authorization' => 'Bearer ' . $token,
+                    'User-Agent'    => 'HotelManagement/1.0.0 (Hotel Management System)',
+                    'Accept'        => 'application/json',
+                ])->get($this->licenseServer . '/info');
+
+                if ($response->successful()) {
+                    $data = $response->json();
+                    if (!($data['success'] ?? false)) {
+                        Log::warning('License /info returned success=false', ['key' => substr($licenseKey, 0, 8)]);
+                        return $this->offlineFallback($license);
+                    }
+                    $remoteStatus = strtoupper($data['data']['status'] ?? '');
+                    if ($remoteStatus !== 'ACTIVE') {
+                        // Revoked or suspended on the server
+                        $license->update(['status' => 'inactive']);
+                        Log::warning('License is not ACTIVE on kewirdev.com', ['status' => $remoteStatus]);
+                        return false;
+                    }
+                    // Check server-side expiry
+                    $expiresAt = $data['data']['expires_at'] ?? null;
+                    if ($expiresAt && $expiresAt !== 'Never' && strtotime($expiresAt) < time()) {
+                        $license->update(['status' => 'inactive']);
+                        Log::warning('License has expired', ['expires_at' => $expiresAt]);
+                        return false;
+                    }
+                    // All good — ensure DB reflects active
+                    $license->update(['status' => 'active', 'last_validated_at' => now()]);
+                    return true;
+                }
+
+                $statusCode = $response->status();
+                if ($statusCode === 401) {
+                    // Token expired — fall through to tier 2
+                    Log::info('Bearer token expired, will re-validate via POST /validate');
+                } elseif (in_array($statusCode, [403, 404])) {
+                    // License revoked or not found
+                    $license->update(['status' => 'inactive']);
+                    Log::warning('License rejected by kewirdev.com (GET /info)', ['http' => $statusCode]);
+                    return false;
+                } else {
+                    // 5xx or unexpected — fall through to offline
+                    Log::warning('kewirdev.com /info returned unexpected status', ['http' => $statusCode]);
+                    return $this->offlineFallback($license);
+                }
+            } catch (\Throwable $e) {
+                Log::warning('License /info network error: ' . $e->getMessage());
+                return $this->offlineFallback($license);
+            }
+        }
+
+        // --- Tier 2: No token (or token expired) → POST /validate ---
+        try {
+            $deviceId = $license->license_data['device_id'] ?? $this->generateDeviceId();
+
+            $response = Http::withOptions([
+                'verify'          => false,
+                'timeout'         => 10,
+                'connect_timeout' => 5,
+            ])->withHeaders([
+                'Content-Type' => 'application/json',
+                'User-Agent'   => 'HotelManagement/1.0.0 (Hotel Management System)',
+                'Accept'       => 'application/json',
+            ])->post($this->licenseServer . '/validate', [
+                'license_key'      => $licenseKey,
+                'device_id'        => $deviceId,
+                'device_type'      => 'management_backend',
+                'device_name'      => 'Hotel Management System',
+                'device_model'     => 'Server',
+                'device_os'        => php_uname('s'),
+                'device_os_version'=> php_uname('r'),
+                'app_version'      => config('app.version', '1.0.0'),
+                'mac_address'      => $this->getMacAddress(),
+                'metadata'         => [
+                    'system_info'  => php_uname(),
+                    'php_version'  => PHP_VERSION,
+                ],
+            ]);
+
+            if ($response->successful()) {
+                $data = $response->json();
+                if (!($data['success'] ?? false)) {
+                    Log::warning('License POST /validate returned success=false', ['key' => substr($licenseKey, 0, 8)]);
+                    return $this->offlineFallback($license);
+                }
+                // Store new token if returned
+                if (!empty($data['token'])) {
+                    $this->storeToken($data['token'], $deviceId, $data['expires_at'] ?? null);
+                }
+                $license->update(['status' => 'active', 'last_validated_at' => now()]);
+                return true;
+            }
+
+            $statusCode = $response->status();
+            if (in_array($statusCode, [401, 403, 404])) {
+                // Definitive rejection
+                $license->update(['status' => 'inactive']);
+                Log::warning('License rejected by POST /validate', ['http' => $statusCode, 'body' => substr($response->body(), 0, 200)]);
+                return false;
+            }
+
+            // 5xx or network-level issue — offline fallback
+            Log::warning('POST /validate returned unexpected status', ['http' => $statusCode]);
+            return $this->offlineFallback($license);
+
+        } catch (\Throwable $e) {
+            Log::warning('License POST /validate network error: ' . $e->getMessage());
+        }
+
+        // --- Tier 3: Offline fallback ---
+        return $this->offlineFallback($license);
+    }
+
+    /**
+     * Offline grace-period fallback.
+     * Trusts the locally stored license_data when the server is unreachable.
+     * Does NOT mark the DB record as inactive (avoids false lockouts on network hiccups).
+     */
+    private function offlineFallback(\App\Models\License $license): bool
+    {
+        $storedStatus = strtoupper($license->license_data['status'] ?? '');
+        if ($storedStatus !== 'ACTIVE') {
+            return false;
+        }
+
+        $localExpiry = $license->license_data['expires_at'] ?? null;
+        if ($localExpiry && $localExpiry !== 'Never') {
+            $ts = strtotime($localExpiry);
+            if ($ts && $ts < time()) {
+                return false;
+            }
+        }
+
+        // Restore DB status to active so cache stores 'true' (network was just down)
+        if ($license->status !== 'active') {
+            $license->update(['status' => 'active']);
+        }
+        return true;
     }
 
     public function removeLicense()

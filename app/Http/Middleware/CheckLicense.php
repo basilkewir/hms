@@ -11,8 +11,8 @@ use Illuminate\Support\Facades\Log;
 
 class CheckLicense
 {
-    /** Cache TTL for license validity (seconds). */
-    private const CACHE_TTL = 300; // 5 minutes
+    /** Cache TTL for license validity (seconds). 10 min to avoid hammering kewirdev.com */
+    private const CACHE_TTL = 600;
 
     public function __construct(private LicenseValidationService $licenseService) {}
 
@@ -21,18 +21,14 @@ class CheckLicense
         $path = $request->path();
 
         // --- Exempt path prefixes (no license check needed) ---
+        // NOTE: 'login' is intentionally NOT exempt — the license must be valid
+        // before anyone can even see the login screen.
         $exemptPrefixes = [
-            'license',       // /license/activate, /license/info
-            'login',
+            'license',       // /license/activate, /license/info (the activation gate itself)
             'logout',
-            'register',
             'password',
             'forgot-password',
             'reset-password',
-            'email',
-            'two-factor',
-            'fortify',
-            'sanctum',
             '_ignition',     // debug/dev tool
             '_debugbar',
             'vendor',

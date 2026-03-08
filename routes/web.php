@@ -46,6 +46,14 @@ Route::get('/', function () {
     return redirect()->route('login');
 });
 
+// Disable registration — this system does not allow self-registration
+Route::get('/register', function () {
+    return redirect()->route('login');
+});
+Route::post('/register', function () {
+    abort(403, 'Registration is disabled.');
+});
+
 // License Activation Gate (public — accessible when system is unlicensed)
 Route::get('/license/activate', function () {
     return Inertia::render('Auth/LicenseActivate');
