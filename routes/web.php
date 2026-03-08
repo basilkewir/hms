@@ -3616,6 +3616,10 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
         return response()->json(['success' => true, 'message' => 'Settings updated successfully']);
     })->name('settings.update');
 
+    // Logo upload / remove
+    Route::post('/settings/logo', [\App\Http\Controllers\SettingsController::class, 'uploadLogo'])->name('settings.logo.upload');
+    Route::delete('/settings/logo', [\App\Http\Controllers\SettingsController::class, 'removeLogo'])->name('settings.logo.remove');
+
     // Backup
     Route::get('/settings/backup', [BackupController::class, 'index'])->name('settings.backup');
     Route::post('/settings/backup', [BackupController::class, 'create'])->name('settings.backup.create');
@@ -3654,7 +3658,7 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
         // Load general settings from database
         $generalKeys = [
             'hotel_name', 'hotel_address', 'hotel_phone', 'hotel_email', 'timezone',
-            'currency', 'currency_position', 'tax_rate',
+            'currency', 'currency_position', 'tax_rate', 'hotel_logo',
             'auto_apply_guest_type_discount', 'auto_apply_vip_discount',
             'vip_discount_percentage', 'discount_combination_mode',
             'session_timeout', 'password_min_length', 'require_2fa', 'force_password_change',

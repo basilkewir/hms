@@ -11,9 +11,13 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // housekeeping_schedules was created by 2026_01_23_000001 — drop and recreate
+        // with the full column set needed by the application
+        Schema::dropIfExists('housekeeping_schedules');
         Schema::create('housekeeping_schedules', function (Blueprint $table) {
             $table->id();
             $table->foreignId('assigned_to')->nullable()->constrained('users')->nullOnDelete();
+            $table->string('room_numbers')->nullable(); // legacy: JSON/comma-sep room list
             $table->date('start_date');
             $table->date('end_date');
             $table->time('preferred_start_time')->nullable();
@@ -24,9 +28,13 @@ return new class extends Migration
             $table->text('instructions')->nullable();
             $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();
+
+            $table->index(['assigned_to', 'status']);
+            $table->index(['start_date', 'end_date']);
         });
 
         // Pivot table for rooms assigned to schedules
+        Schema::dropIfExists('housekeeping_schedule_rooms');
         Schema::create('housekeeping_schedule_rooms', function (Blueprint $table) {
             $table->id();
             $table->foreignId('housekeeping_schedule_id')->constrained('housekeeping_schedules')->cascadeOnDelete();

@@ -207,6 +207,43 @@ class SettingsController extends Controller
     }
 
     /**
+     * Upload hotel logo (dedicated endpoint — accepts multipart/form-data)
+     */
+    public function uploadLogo(Request $request)
+    {
+        $request->validate([
+            'logo' => 'required|image|mimes:jpeg,png,jpg,gif,webp,svg|max:2048',
+        ]);
+
+        try {
+            $logo = $request->file('logo');
+            $logoData = base64_encode(file_get_contents($logo->getRealPath()));
+            $logoType = $logo->getClientMimeType();
+            $logoBase64 = 'data:' . $logoType . ';base64,' . $logoData;
+
+            Setting::set('hotel_logo', $logoBase64, 'string', 'general');
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Logo uploaded successfully',
+                'logo_url' => $logoBase64,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error uploading logo: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Failed to upload logo.'], 500);
+        }
+    }
+
+    /**
+     * Remove hotel logo
+     */
+    public function removeLogo()
+    {
+        Setting::set('hotel_logo', '', 'string', 'general');
+        return response()->json(['success' => true, 'message' => 'Logo removed successfully']);
+    }
+
+    /**
      * Update print settings for POS and Front Desk
      */
     public function updatePrintSettings(Request $request)

@@ -11,9 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('reservations', function (Blueprint $table) {
-            $table->integer('adults')->default(1)->after('nights');
-        });
+        if (!Schema::hasColumn('reservations', 'adults')) {
+            Schema::table('reservations', function (Blueprint $table) {
+                $table->integer('adults')->default(1)->after('nights');
+            });
+        }
     }
 
     /**
@@ -21,8 +23,10 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('reservations', function (Blueprint $table) {
-            $table->dropColumn('adults');
-        });
+        if (Schema::hasColumn('reservations', 'adults')) {
+            Schema::table('reservations', function (Blueprint $table) {
+                $table->dropColumn('adults');
+            });
+        }
     }
 };

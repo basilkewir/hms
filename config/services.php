@@ -35,4 +35,9 @@ return [
         ],
     ],
 
+    'license' => [
+        // Shared secret for HMAC request signing — must match kewirdev.com APP_KEY (or LICENSE_JWT_SECRET)
+        'signature_secret' => env('LICENSE_SIGNATURE_SECRET', ''),
+    ],
+
 ];

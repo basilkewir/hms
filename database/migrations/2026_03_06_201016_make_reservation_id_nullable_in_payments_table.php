@@ -8,12 +8,12 @@ return new class extends Migration
 {
     /**
      * Run the migrations.
+     * NOTE: This migration is intentionally a no-op.
+     * The actual change was applied by 2026_03_06_200829_make_reservation_id_nullable_in_payments_table.php
      */
     public function up(): void
     {
-        Schema::table('payments', function (Blueprint $table) {
-            //
-        });
+        // no-op — handled by previous migration
     }
 
     /**
@@ -21,8 +21,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('payments', function (Blueprint $table) {
-            //
-        });
+        // no-op
     }
 };

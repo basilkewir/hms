@@ -375,6 +375,55 @@
                         </div>
                     </div>
 
+                    <!-- Hotel Logo Section -->
+                    <div class="mt-8 pt-6 border-t border-kotel-border">
+                        <h3 class="text-lg font-semibold text-kotel-text-primary mb-1">Hotel Logo</h3>
+                        <p class="text-sm text-kotel-text-tertiary mb-4">Upload your hotel logo. It will appear on receipts, bills, and PDF reports.</p>
+                        <div class="flex flex-col sm:flex-row items-start gap-6">
+                            <!-- Current logo preview -->
+                            <div class="flex-shrink-0">
+                                <div v-if="settings.hotel_logo" class="relative w-32 h-32 rounded-lg border border-kotel-border overflow-hidden bg-kotel-darker flex items-center justify-center">
+                                    <img :src="settings.hotel_logo" alt="Hotel Logo" class="max-w-full max-h-full object-contain p-2">
+                                    <button @click="handleRemoveLogo" type="button"
+                                            class="absolute top-1 right-1 bg-red-600 hover:bg-red-700 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs transition-colors"
+                                            title="Remove logo">✕</button>
+                                </div>
+                                <div v-else class="w-32 h-32 rounded-lg border-2 border-dashed border-kotel-border bg-kotel-darker flex flex-col items-center justify-center text-kotel-text-tertiary">
+                                    <svg class="w-10 h-10 mb-1 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                                    </svg>
+                                    <span class="text-xs">No logo</span>
+                                </div>
+                            </div>
+                            <!-- Upload controls -->
+                            <div class="flex-1 space-y-3">
+                                <input type="file" ref="logoInput" @change="handleLogoUpload"
+                                       accept="image/png,image/jpeg,image/jpg,image/gif,image/webp,image/svg+xml"
+                                       class="hidden">
+                                <div class="flex flex-wrap gap-3">
+                                    <button @click="logoInput && logoInput.click()" type="button"
+                                            class="px-4 py-2 bg-kotel-yellow text-kotel-black font-medium rounded-md hover:bg-yellow-400 transition-colors text-sm">
+                                        {{ settings.hotel_logo ? 'Change Logo' : 'Upload Logo' }}
+                                    </button>
+                                    <button v-if="uploadedLogo" @click="saveLogo" type="button"
+                                            :disabled="isLogoSaving"
+                                            class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-md transition-colors text-sm disabled:opacity-50">
+                                        {{ isLogoSaving ? 'Saving...' : 'Save Logo' }}
+                                    </button>
+                                    <button v-if="settings.hotel_logo && !uploadedLogo" @click="handleRemoveLogo" type="button"
+                                            class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-md transition-colors text-sm">
+                                        Remove Logo
+                                    </button>
+                                </div>
+                                <p class="text-xs text-kotel-text-tertiary">PNG, JPG, GIF, WEBP or SVG. Max 2 MB.</p>
+                                <p v-if="logoError" class="text-xs text-red-400">{{ logoError }}</p>
+                                <p v-if="uploadedLogo && !isLogoSaving" class="text-xs text-kotel-yellow">
+                                    ✓ New logo selected — click "Save Logo" to apply.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Guest & Discount Settings Section -->
                     <div class="mt-8 pt-6 border-t border-kotel-border">
                         <h3 class="text-lg font-semibold text-kotel-text-primary mb-4">Guest Type & Discount Settings</h3>
@@ -468,7 +517,8 @@
                             <div class="border border-kotel-border rounded-lg p-4 bg-white text-black"
                                  :style="{ width: getReceiptPreviewWidth(settings.pos_print_paper_width), fontSize: settings.pos_print_font_size }">
                                 <div v-if="settings.pos_print_show_logo" class="text-center mb-2">
-                                    <div class="w-12 h-12 bg-kotel-yellow mx-auto rounded-full flex items-center justify-center font-bold">LOGO</div>
+                                    <img v-if="settings.hotel_logo" :src="settings.hotel_logo" alt="Hotel Logo" class="h-12 max-w-full object-contain mx-auto">
+                                    <div v-else class="w-12 h-12 bg-kotel-yellow mx-auto rounded-full flex items-center justify-center font-bold">LOGO</div>
                                 </div>
                                 <div class="text-center border-b border-gray-300 pb-2 mb-2">
                                     <p class="font-bold">{{ settings.hotel_name || 'Grand Hotel' }}</p>
@@ -529,7 +579,10 @@
                             <div class="border border-kotel-border rounded-lg p-4 bg-white text-black"
                                  :style="{ width: settings.frontdesk_print_paper_width === 'A4' ? '210mm' : settings.frontdesk_print_paper_width === 'A5' ? '148mm' : '8.5in', fontSize: settings.frontdesk_print_font_size }">
                                 <div class="flex justify-between items-start border-b border-gray-300 pb-4 mb-4">
-                                    <div v-if="settings.frontdesk_print_show_logo" class="w-16 h-16 bg-kotel-yellow rounded flex items-center justify-center font-bold text-sm">LOGO</div>
+                                    <div v-if="settings.frontdesk_print_show_logo">
+                                        <img v-if="settings.hotel_logo" :src="settings.hotel_logo" alt="Hotel Logo" class="h-16 max-w-xs object-contain">
+                                        <div v-else class="w-16 h-16 bg-kotel-yellow rounded flex items-center justify-center font-bold text-sm">LOGO</div>
+                                    </div>
                                     <div class="text-right">
                                         <p class="font-bold">{{ settings.hotel_name || 'Grand Hotel' }}</p>
                                         <p class="text-xs">{{ settings.hotel_address || '123 Hotel Street' }}</p>
@@ -914,19 +967,22 @@ const activeTab = ref('general')
 const logoInput = ref(null)
 const logoPreview = ref(null)
 const uploadedLogo = ref(null)
+const isLogoSaving = ref(false)
+const logoError = ref('')
 
 const handleLogoUpload = (event) => {
     const file = event.target.files[0]
+    logoError.value = ''
     if (file) {
         // Validate file type
         if (!file.type.match('image.*')) {
-            notify.error('Please select an image file (PNG, JPG, etc.)')
+            logoError.value = 'Please select an image file (PNG, JPG, GIF, WEBP, SVG).'
             return
         }
 
         // Validate file size (2MB max)
         if (file.size > 2 * 1024 * 1024) {
-            notify.error('File size must be less than 2MB')
+            logoError.value = 'File size must be less than 2 MB.'
             return
         }
 
@@ -943,14 +999,61 @@ const handleLogoUpload = (event) => {
     }
 }
 
-const removeLogo = () => {
+const saveLogo = async () => {
+    if (!uploadedLogo.value) return
+    isLogoSaving.value = true
+    logoError.value = ''
+    try {
+        const formData = new FormData()
+        formData.append('logo', uploadedLogo.value)
+        formData.append('_token', document.querySelector('meta[name="csrf-token"]').getAttribute('content'))
+
+        const response = await fetch('/admin/settings/logo', {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+            },
+            body: formData,
+        })
+
+        const result = await response.json()
+        if (response.ok && result.success) {
+            settings.value.hotel_logo = result.logo_url
+            uploadedLogo.value = null
+            notify.success('Logo saved successfully!')
+        } else {
+            logoError.value = result.message || 'Failed to save logo.'
+            notify.error(logoError.value)
+        }
+    } catch (e) {
+        logoError.value = 'Network error while saving logo.'
+        notify.error(logoError.value)
+    } finally {
+        isLogoSaving.value = false
+    }
+}
+
+const handleRemoveLogo = async () => {
+    if (!confirm('Remove the hotel logo?')) return
     uploadedLogo.value = null
     logoPreview.value = null
     settings.value.hotel_logo = null
-    if (logoInput.value) {
-        logoInput.value.value = ''
+    if (logoInput.value) logoInput.value.value = ''
+
+    try {
+        await fetch('/admin/settings/logo', {
+            method: 'DELETE',
+            headers: {
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+            },
+        })
+        notify.success('Logo removed.')
+    } catch {
+        // silently ignore network errors for remove
     }
 }
+
+const removeLogo = handleRemoveLogo
 
 // Initialize logo preview from existing settings
 onMounted(() => {

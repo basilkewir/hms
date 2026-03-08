@@ -59,7 +59,7 @@ const deactivate = () => {
 const formatDate = (d) => d ? new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '—'
 
 const licenseTypeColor = computed(() => {
-    const t = props.licenseInfo?.license_type
+    const t = (props.licenseInfo?.license_type ?? '').toLowerCase()
     if (t === 'perpetual' || t === 'enterprise') return themeColors.value.success
     if (t === 'premium') return themeColors.value.primary
     if (t === 'basic') return themeColors.value.warning
@@ -68,8 +68,18 @@ const licenseTypeColor = computed(() => {
 
 const statusColor = computed(() => {
     if (!props.licenseInfo) return themeColors.value.textTertiary
-    return props.licenseInfo.status === 'active' ? themeColors.value.success : themeColors.value.danger
+    const s = (props.licenseInfo.status ?? '').toLowerCase()
+    return s === 'active' ? themeColors.value.success : themeColors.value.danger
 })
+
+// Helper: format a limit value — -1 means Unlimited
+const fmtLimit = (v) => (v === -1 || v === null || v === undefined) ? 'Unlimited' : v
+
+// Rooms used/limit from the server-computed values
+const roomsUsed  = computed(() => props.licenseInfo?.rooms_used  ?? 0)
+const roomsLimit = computed(() => props.licenseInfo?.rooms_limit ?? -1)
+const roomsPct   = computed(() => roomsLimit.value === -1 ? 0 : Math.min(100, Math.round(roomsUsed.value / roomsLimit.value * 100)))
+const roomsAtLimit = computed(() => roomsLimit.value !== -1 && roomsUsed.value >= roomsLimit.value)
 </script>
 
 <template>
@@ -191,10 +201,57 @@ const statusColor = computed(() => {
                             <span :style="{ color: themeColors.textSecondary }">Expires</span>
                             <span :style="{ color: themeColors.textPrimary }">{{ licenseInfo.expires_at === null ? 'Never (Perpetual)' : formatDate(licenseInfo.expires_at) }}</span>
                         </div>
-                        <div v-if="licenseInfo.device_usage" class="flex justify-between">
-                            <span :style="{ color: themeColors.textSecondary }">Devices</span>
-                            <span :style="{ color: themeColors.textPrimary }">{{ licenseInfo.device_usage.current }} / {{ licenseInfo.device_usage.maximum }}</span>
+
+                        <!-- Rooms allocation -->
+                        <div class="pt-2 border-t" :style="{ borderColor: themeColors.border }">
+                            <div class="flex justify-between items-center mb-1">
+                                <span :style="{ color: themeColors.textSecondary }">Rooms</span>
+                                <span :style="{ color: roomsAtLimit ? themeColors.danger : themeColors.textPrimary }">
+                                    {{ roomsUsed }} / {{ fmtLimit(roomsLimit) }}
+                                </span>
+                            </div>
+                            <div v-if="roomsLimit !== -1" class="h-1.5 rounded-full overflow-hidden"
+                                 :style="{ backgroundColor: themeColors.border }">
+                                <div class="h-full rounded-full transition-all"
+                                     :style="{
+                                         width: roomsPct + '%',
+                                         backgroundColor: roomsAtLimit
+                                             ? themeColors.danger
+                                             : roomsPct > 80
+                                                 ? themeColors.warning
+                                                 : themeColors.success
+                                     }">
+                                </div>
+                            </div>
+                            <p v-if="roomsAtLimit" class="text-xs mt-1"
+                               :style="{ color: themeColors.danger }">
+                                Room limit reached — upgrade your license to add more rooms.
+                            </p>
                         </div>
+
+                        <!-- API Device usage -->
+                        <div v-if="licenseInfo.total_used !== undefined" class="pt-2 border-t" :style="{ borderColor: themeColors.border }">
+                            <div class="flex justify-between items-center mb-1">
+                                <span :style="{ color: themeColors.textSecondary }">API Devices</span>
+                                <span :style="{ color: themeColors.textPrimary }">
+                                    {{ licenseInfo.total_used }} / {{ fmtLimit(licenseInfo.total_limit) }}
+                                </span>
+                            </div>
+                            <div v-if="licenseInfo.total_limit !== -1 && licenseInfo.total_limit > 0"
+                                 class="h-1.5 rounded-full overflow-hidden" :style="{ backgroundColor: themeColors.border }">
+                                <div class="h-full rounded-full transition-all"
+                                     :style="{
+                                         width: Math.min(100, Math.round(licenseInfo.total_used / licenseInfo.total_limit * 100)) + '%',
+                                         backgroundColor: licenseInfo.total_used >= licenseInfo.total_limit
+                                             ? themeColors.danger
+                                             : licenseInfo.total_used / licenseInfo.total_limit > 0.8
+                                                 ? themeColors.warning
+                                                 : themeColors.success
+                                     }">
+                                </div>
+                            </div>
+                        </div>
+
                         <div v-if="licenseInfo.last_validation" class="flex justify-between">
                             <span :style="{ color: themeColors.textSecondary }">Last validated</span>
                             <span class="text-xs" :style="{ color: themeColors.textTertiary }">{{ formatDate(licenseInfo.last_validation) }}</span>

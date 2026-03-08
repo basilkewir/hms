@@ -12,6 +12,7 @@ use App\Models\Reservation;
 use App\Models\User;
 use App\Models\HousekeepingTask;
 use App\Models\MaintenanceRequest;
+use App\Services\LicenseValidationService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Schema;
@@ -387,6 +388,17 @@ class RoomController extends Controller
 
     public function store(Request $request)
     {
+        // ── License room limit check ──────────────────────────────────────────
+        $limits   = app(LicenseValidationService::class)->getLicenseLimits();
+        $maxRooms = $limits['max_rooms']; // -1 = unlimited
+        if ($maxRooms !== -1 && Room::count() >= $maxRooms) {
+            $msg = "License limit reached: your plan allows a maximum of {$maxRooms} rooms.";
+            if ($request->expectsJson()) {
+                return response()->json(['message' => $msg], 422);
+            }
+            return back()->withErrors(['room_number' => $msg]);
+        }
+
         $rules = [
             'room_number' => 'required|string|unique:rooms,room_number',
             'room_type_id' => 'required|exists:room_types,id',
@@ -432,6 +444,9 @@ class RoomController extends Controller
 
         // Create the room
         $room = Room::create($validated);
+
+        // Sync live room count to license server (non-blocking — failure won't abort the request)
+        app(LicenseValidationService::class)->syncRooms(Room::count());
 
         return redirect()->route('admin.rooms.index')->with('success', 'Room created successfully');
     }

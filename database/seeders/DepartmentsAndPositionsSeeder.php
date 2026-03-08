@@ -11,48 +11,41 @@ class DepartmentsAndPositionsSeeder extends Seeder
 {
     public function run()
     {
-        // Create departments
-        $management = Department::create([
-            'name' => 'Management',
-            'description' => 'Hotel management and administration',
-            'is_active' => true
-        ]);
+        // Create departments — use firstOrCreate so re-runs are safe
+        $management = Department::firstOrCreate(
+            ['name' => 'Management'],
+            ['description' => 'Hotel management and administration', 'is_active' => true]
+        );
 
-        $frontDesk = Department::create([
-            'name' => 'Front Desk',
-            'description' => 'Guest services and reservations',
-            'is_active' => true
-        ]);
+        $frontDesk = Department::firstOrCreate(
+            ['name' => 'Front Desk'],
+            ['description' => 'Guest services and reservations', 'is_active' => true]
+        );
 
-        $housekeeping = Department::create([
-            'name' => 'Housekeeping',
-            'description' => 'Room cleaning and maintenance',
-            'is_active' => true
-        ]);
+        $housekeeping = Department::firstOrCreate(
+            ['name' => 'Housekeeping'],
+            ['description' => 'Room cleaning and maintenance', 'is_active' => true]
+        );
 
-        $maintenance = Department::create([
-            'name' => 'Maintenance',
-            'description' => 'Hotel maintenance and repairs',
-            'is_active' => true
-        ]);
+        $maintenance = Department::firstOrCreate(
+            ['name' => 'Maintenance'],
+            ['description' => 'Hotel maintenance and repairs', 'is_active' => true]
+        );
 
-        $accounting = Department::create([
-            'name' => 'Accounting',
-            'description' => 'Financial management and reporting',
-            'is_active' => true
-        ]);
+        $accounting = Department::firstOrCreate(
+            ['name' => 'Accounting'],
+            ['description' => 'Financial management and reporting', 'is_active' => true]
+        );
 
-        $restaurant = Department::create([
-            'name' => 'Restaurant',
-            'description' => 'Food and beverage services',
-            'is_active' => true
-        ]);
+        $restaurant = Department::firstOrCreate(
+            ['name' => 'Restaurant'],
+            ['description' => 'Food and beverage services', 'is_active' => true]
+        );
 
-        $bar = Department::create([
-            'name' => 'Bar',
-            'description' => 'Bar services and drink preparation',
-            'is_active' => true
-        ]);
+        $bar = Department::firstOrCreate(
+            ['name' => 'Bar'],
+            ['description' => 'Bar services and drink preparation', 'is_active' => true]
+        );
 
         // Create positions for each department
         $managementPositions = [
@@ -115,11 +108,10 @@ class DepartmentsAndPositionsSeeder extends Seeder
     protected function createPositionsForDepartment($department, $positions)
     {
         foreach ($positions as $positionData) {
-            $department->positions()->create([
-                'name' => $positionData['name'],
-                'description' => $positionData['description'],
-                'is_active' => true
-            ]);
+            Position::firstOrCreate(
+                ['name' => $positionData['name'], 'department_id' => $department->id],
+                ['description' => $positionData['description'], 'is_active' => true]
+            );
         }
     }
 

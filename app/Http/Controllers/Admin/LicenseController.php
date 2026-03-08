@@ -28,7 +28,7 @@ class LicenseController extends Controller
             'user'        => $user,
             'navigation'  => app(DashboardController::class)->getNavigationForRole($role),
             'isActivated' => $licenseStatus['licensed'],
-            'licenseData' => $licenseStatus['licensed'] ? $this->formatLicenseData($licenseStatus['status']) : null,
+            'licenseInfo' => $licenseStatus['licensed'] ? $this->formatLicenseData($licenseStatus['status']) : null,
         ]);
     }
 
@@ -129,8 +129,10 @@ class LicenseController extends Controller
             'expires_at'       => $data['expires_at']         ?? null,
             'features'         => $data['features']           ?? [],
             'device_allocation'=> $data['device_allocation']  ?? [],
+            'rooms_used'       => $data['rooms_used']         ?? 0,
+            'rooms_limit'      => $data['rooms_limit']        ?? -1,
             'total_used'       => $data['total_used']         ?? 0,
-            'total_limit'      => $data['total_limit']        ?? 0,
+            'total_limit'      => $data['total_limit']        ?? -1,
             'offline_mode'     => $data['offline_mode']       ?? false,
             'validated_at'     => $data['validated_at']       ?? null,
         ];

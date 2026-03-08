@@ -106,6 +106,10 @@
 </head>
 <body>
     <div class="header">
+        @php $hotelLogo = \App\Models\Setting::get('hotel_logo', ''); @endphp
+        @if($hotelLogo)
+            <img src="{{ $hotelLogo }}" alt="Hotel Logo" style="max-height:70px;max-width:200px;margin-bottom:8px;display:block;margin-left:auto;margin-right:auto;">
+        @endif
         <h2>{{ $reportData['hotel_name'] }}</h2>
         <h1>{{ $reportData['title'] }}</h1>
         <div class="subtitle">{{ $reportData['filename'] }}</div>
