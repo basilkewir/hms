@@ -707,9 +707,10 @@ export const navigationConfig = {
           label: 'Services & Requests',
           icon: 'bell',
           items: [
-            { label: 'Concierge',    routeName: 'front-desk.services.concierge' },
-            { label: 'Housekeeping', routeName: 'front-desk.services.housekeeping' },
-            { label: 'Maintenance',  routeName: 'front-desk.services.maintenance' },
+            { label: 'Concierge',     routeName: 'front-desk.services.concierge' },
+            { label: 'Hall Bookings', routeName: 'front-desk.services.hall-bookings' },
+            { label: 'Housekeeping',  routeName: 'front-desk.services.housekeeping' },
+            { label: 'Maintenance',   routeName: 'front-desk.services.maintenance' },
           ],
         },
       ],

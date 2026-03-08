@@ -1520,6 +1520,7 @@ class DashboardController extends Controller
                     'current' => false,
                     'children' => [
                         ['name' => 'Concierge',    'href' => '/front-desk/services/concierge',    'icon' => 'BellIcon'],
+                        ['name' => 'Hall Bookings','href' => '/front-desk/services/hall-bookings', 'icon' => 'BuildingOfficeIcon'],
                         ['name' => 'Housekeeping', 'href' => '/front-desk/services/housekeeping', 'icon' => 'SparklesIcon'],
                         ['name' => 'Maintenance',  'href' => '/front-desk/services/maintenance',  'icon' => 'WrenchScrewdriverIcon'],
                     ]

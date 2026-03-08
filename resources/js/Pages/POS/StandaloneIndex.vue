@@ -243,9 +243,13 @@
         </div>
       </div>
     </div>
-    <div v-if="showSuccessModal" class="receipt-fullpage">
-      <button @click="closeSuccessModal" class="receipt-close-btn" title="Close">✕</button>
-      <div class="receipt-fullpage-inner">
+    <div v-if="showSuccessModal" class="receipt-modal-overlay" @click.self="closeSuccessModal">
+      <div class="receipt-modal-card">
+        <div class="receipt-modal-actions">
+          <button @click="printReceipt" class="receipt-print-btn" title="Print Receipt">🖨️ Print Receipt</button>
+          <button @click="closeSuccessModal" class="receipt-close-btn" title="Close">✕</button>
+        </div>
+        <div class="receipt-fullpage-inner">
         <div class="receipt-page-header">
           <div class="receipt-page-brand">
             <span class="receipt-page-logo">🏨</span>
@@ -312,8 +316,9 @@
           <p class="receipt-page-thankyou">Thank you for your purchase!</p>
         </div>
       </div>
+      </div><!-- end receipt-modal-card -->
 
-    </div>
+    </div><!-- end receipt-modal-overlay -->
     <!-- Transactions Modal -->
     <div v-if="showTransactionsModal" class="modal-overlay" @click.self="showTransactionsModal = false">
       <div class="transactions-modal">
@@ -1176,6 +1181,51 @@ onUnmounted(() => { if (timeInterval) clearInterval(timeInterval) })
 .calc-op { background: #3b82f6; color: white; border-color: #2563eb; }
 .calc-equals { background: #059669; color: white; border-color: #047857; }
 .calc-zero { grid-column: span 2; }
+.receipt-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.receipt-modal-card {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+  width: 100%;
+  max-width: 520px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.receipt-modal-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
+  flex-shrink: 0;
+}
+.receipt-print-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: #1e293b;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.receipt-print-btn:hover { background: #0f172a; }
 .receipt-fullpage {
   position: fixed;
   inset: 0;
@@ -1186,14 +1236,9 @@ onUnmounted(() => { if (timeInterval) clearInterval(timeInterval) })
   overflow: hidden;
 }
 .receipt-fullpage-inner {
-  flex: 1;
   overflow-y: auto;
-  max-width: 760px;
-  width: 100%;
-  margin: 0 auto;
-  padding: 40px 32px 24px;
+  padding: 24px 24px 20px;
   background: white;
-  box-shadow: 0 4px 24px rgba(0,0,0,0.08);
 }
 .receipt-page-header {
   display: flex;
@@ -1331,22 +1376,17 @@ onUnmounted(() => { if (timeInterval) clearInterval(timeInterval) })
   text-align: center;
 }
 .receipt-close-btn {
-  position: fixed;
-  top: 16px;
-  right: 20px;
-  z-index: 1001;
-  background: rgba(255,255,255,0.9);
+  background: transparent;
   border: 1px solid #e2e8f0;
   color: #475569;
-  width: 36px;
-  height: 36px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
-  font-size: 18px;
+  font-size: 16px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.12);
   transition: background 0.15s;
 }
 .receipt-close-btn:hover {
@@ -1355,6 +1395,9 @@ onUnmounted(() => { if (timeInterval) clearInterval(timeInterval) })
   border-color: #fecaca;
 }
 @media print {
+  .receipt-modal-overlay { position: static !important; background: none !important; }
+  .receipt-modal-card { box-shadow: none !important; max-height: none !important; overflow: visible !important; }
+  .receipt-modal-actions { display: none !important; }
   .receipt-close-btn { display: none !important; }
 }
 .transactions-modal {

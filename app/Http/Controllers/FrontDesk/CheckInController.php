@@ -151,9 +151,11 @@ class CheckInController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'reservation_id' => 'required|exists:reservations,id',
-            'room_number' => 'required|exists:rooms,room_number',
-            'key_card_id' => 'nullable|exists:key_cards,id',
+            'reservation_id'  => 'required|exists:reservations,id',
+            'room_number'     => 'required|exists:rooms,room_number',
+            'key_card_id'     => 'nullable|exists:key_cards,id',
+            'payment_amount'  => 'nullable|numeric|min:0',
+            'payment_method'  => 'nullable|in:cash,card,bank_transfer',
         ]);
 
         $reservation = Reservation::with(['guest', 'room'])->findOrFail($validated['reservation_id']);
@@ -177,15 +179,51 @@ class CheckInController extends Controller
             'checked_in_by' => auth()->id(),
         ]);
 
-        // Mark room as occupied and immediately dirty so housekeeping
-        // knows it needs daily cleaning for this guest's stay.
+        // Mark room as occupied. Keep housekeeping_status 'clean' for the rest
+        // of today — the nightly GenerateDailyCleaningTasks command will flip it
+        // to 'dirty' the next morning so housekeeping receives the task then.
         $room->update([
             'status' => 'occupied',
-            'housekeeping_status' => 'dirty',
+            'housekeeping_status' => 'clean',
         ]);
 
         // Create GuestFolio and record room charges at check-in
-        $this->createGuestFolio($reservation, $room);
+        $folio = $this->createGuestFolio($reservation, $room);
+
+        // Record any payment made at check-in
+        $paymentAmount = isset($validated['payment_amount']) ? (float) $validated['payment_amount'] : 0;
+        if ($paymentAmount > 0 && $folio) {
+            $paymentMethod = $validated['payment_method'] ?? 'cash';
+            $newPaid       = $folio->paid_amount + $paymentAmount;
+            $newBalance    = max(0, $folio->total_amount - $newPaid);
+            $folio->update([
+                'paid_amount'    => $newPaid,
+                'balance_amount' => $newBalance,
+                'payment_status' => $newBalance <= 0 ? 'paid' : 'partial',
+            ]);
+
+            // Record a folio charge/payment entry for audit trail
+            \App\Models\FolioCharge::create([
+                'guest_folio_id'  => $folio->id,
+                'charge_code'     => 'PAYMENT',
+                'description'     => 'Payment at check-in (' . strtoupper($paymentMethod) . ')',
+                'charge_date'     => now()->toDateString(),
+                'charge_time'     => now()->format('H:i:s'),
+                'quantity'        => 1,
+                'unit_price'      => -$paymentAmount,
+                'total_amount'    => -$paymentAmount,
+                'tax_rate'        => 0,
+                'tax_amount'      => 0,
+                'discount_rate'   => 0,
+                'discount_amount' => 0,
+                'net_amount'      => -$paymentAmount,
+                'reference_type'  => 'reservation',
+                'reference_id'    => $reservation->id,
+                'department'      => 'Front Desk',
+                'posted_by'       => auth()->check() ? auth()->id() : null,
+                'posted_at'       => now(),
+            ]);
+        }
 
         // Assign key card if provided
         if (!empty($validated['key_card_id'])) {
@@ -201,18 +239,20 @@ class CheckInController extends Controller
             }
         }
 
+        // Build success message
+        $keyCardMsg  = !empty($validated['key_card_id']) ? ' and key card assigned' : '';
+        $paymentMsg  = $paymentAmount > 0 ? ' — payment of $' . number_format($paymentAmount, 2) . ' recorded' : '';
+        $successMsg  = 'Guest checked in successfully' . $keyCardMsg . $paymentMsg;
+
         // Redirect based on user role
         $user = auth()->user();
         if ($user->hasRole('admin')) {
-            return redirect()->route('admin.dashboard')
-                ->with('success', 'Guest checked in successfully' . (!empty($validated['key_card_id']) ? ' and key card assigned' : ''));
+            return redirect()->route('admin.dashboard')->with('success', $successMsg);
         } elseif ($user->hasRole('manager')) {
-            return redirect()->route('manager.dashboard')
-                ->with('success', 'Guest checked in successfully' . (!empty($validated['key_card_id']) ? ' and key card assigned' : ''));
+            return redirect()->route('manager.dashboard')->with('success', $successMsg);
         }
 
-        return redirect()->route('front-desk.checkin')
-            ->with('success', 'Guest checked in successfully' . (!empty($validated['key_card_id']) ? ' and key card assigned' : ''));
+        return redirect()->route('front-desk.checkin')->with('success', $successMsg);
     }
 
     /**

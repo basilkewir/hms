@@ -4474,11 +4474,21 @@ Route::middleware(['auth', 'role:front_desk'])->prefix('front-desk')->name('fron
     // Customers
     Route::get('/customers', function () {
         $user = auth()->user()->load('roles');
-        $role = $user->roles->first()?->name ?? 'staff';
+        $role = $user->roles->first()?->name ?? 'front_desk';
+
+        $stats = [
+            'total'   => \App\Models\Guest::count(),
+            'active'  => \App\Models\Reservation::where('status', 'checked_in')
+                            ->distinct('guest_id')->count('guest_id'),
+            'pending' => \App\Models\Reservation::whereDate('check_in_date', today())
+                            ->whereNotIn('status', ['cancelled', 'no_show', 'checked_in', 'checked_out'])
+                            ->count(),
+        ];
 
         return Inertia::render('FrontDesk/Customers/Index', [
-            'user' => $user,
-            'navigation' => app(DashboardController::class)->getNavigationForRole($role)
+            'user'       => $user,
+            'navigation' => app(DashboardController::class)->getNavigationForRole($role),
+            'stats'      => $stats,
         ]);
     })->name('customers.index');
 
@@ -5512,28 +5522,73 @@ Route::middleware(['auth', 'role:front_desk'])->prefix('front-desk')->name('fron
             'pending'     => \App\Models\ConciergeRequest::where('status', 'pending')->count(),
             'in_progress' => \App\Models\ConciergeRequest::where('status', 'in_progress')->count(),
             'completed'   => \App\Models\ConciergeRequest::where('status', 'completed')->count(),
-            'total'       => \App\Models\ConciergeRequest::count(),
+            'total'       => \App\Models\ConciergeRequest::whereDate('created_at', today())->count(),
         ];
 
+        // Hall bookings data for front desk
+        $hallBookings = \App\Models\HallBooking::with(['hall', 'guest'])
+            ->orderBy('event_date', 'desc')
+            ->get()
+            ->map(fn($b) => [
+                'id'             => $b->id,
+                'booking_number' => $b->booking_number,
+                'hall_name'      => $b->hall?->name ?? 'N/A',
+                'contact_name'   => $b->contact_name ?? ($b->guest ? trim($b->guest->first_name . ' ' . $b->guest->last_name) : 'N/A'),
+                'event_date'     => $b->event_date?->format('Y-m-d'),
+                'start_time'     => $b->start_time,
+                'end_time'       => $b->end_time,
+                'attendees'      => $b->attendees,
+                'total_amount'   => (float) $b->total_amount,
+                'paid_amount'    => (float) $b->paid_amount,
+                'status'         => $b->status,
+                'notes'          => $b->notes,
+            ]);
+
+        $hallBookingStats = [
+            'total'     => \App\Models\HallBooking::count(),
+            'pending'   => \App\Models\HallBooking::where('status', 'pending')->count(),
+            'confirmed' => \App\Models\HallBooking::where('status', 'confirmed')->count(),
+            'completed' => \App\Models\HallBooking::where('status', 'completed')->count(),
+        ];
+
+        // Available halls for creating new hall bookings
+        $halls = \App\Models\Hall::where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name', 'code', 'capacity', 'base_price', 'type']);
+
+        // Checked-in guests for guest lookup in forms
+        $currentGuests = \App\Models\Reservation::with('guest')
+            ->where('status', 'checked_in')
+            ->get()
+            ->map(fn($r) => [
+                'id'          => $r->guest_id,
+                'name'        => $r->guest ? trim($r->guest->first_name . ' ' . $r->guest->last_name) : 'Unknown',
+                'room_number' => $r->room?->room_number ?? 'N/A',
+            ]);
+
         return Inertia::render('FrontDesk/Services/Concierge', [
-            'user'       => $user,
-            'navigation' => app(DashboardController::class)->getNavigationForRole($role),
-            'requests'   => $requests,
-            'stats'      => $stats,
+            'user'             => $user,
+            'navigation'       => app(DashboardController::class)->getNavigationForRole($role),
+            'requests'         => $requests,
+            'stats'            => $stats,
+            'hallBookings'     => $hallBookings,
+            'hallBookingStats' => $hallBookingStats,
+            'halls'            => $halls,
+            'currentGuests'    => $currentGuests,
         ]);
     })->name('services.concierge');
 
     Route::post('/services/concierge', function (\Illuminate\Http\Request $request) {
         $validated = $request->validate([
             'guest_name'   => 'required|string|max:255',
-            'room_number'  => 'required|string|max:50',
+            'room_number'  => 'nullable|string|max:50',
             'service_type' => 'required|string|max:100',
             'details'      => 'nullable|string',
         ]);
         \App\Models\ConciergeRequest::create([
             'request_number' => 'CON-' . strtoupper(\Illuminate\Support\Str::random(6)),
             'guest_name'     => $validated['guest_name'],
-            'room_number'    => $validated['room_number'],
+            'room_number'    => $validated['room_number'] ?? null,
             'service_type'   => $validated['service_type'],
             'details'        => $validated['details'] ?? null,
             'status'         => 'pending',
@@ -5548,6 +5603,88 @@ Route::middleware(['auth', 'role:front_desk'])->prefix('front-desk')->name('fron
         $concierge->update(['status' => $request->input('status', 'in_progress')]);
         return back()->with('success', 'Concierge request status updated.');
     })->name('services.concierge.update-status');
+
+    // Hall Bookings (front desk can create and view)
+    Route::get('/services/hall-bookings', function () {
+        $user = auth()->user()->load('roles');
+        $role = $user->roles->first()?->name ?? 'front_desk';
+
+        $bookings = \App\Models\HallBooking::with(['hall', 'guest'])
+            ->orderByDesc('event_date')
+            ->paginate(20)->withQueryString();
+
+        $stats = [
+            'total'     => \App\Models\HallBooking::count(),
+            'pending'   => \App\Models\HallBooking::where('status', 'pending')->count(),
+            'confirmed' => \App\Models\HallBooking::where('status', 'confirmed')->count(),
+            'completed' => \App\Models\HallBooking::where('status', 'completed')->count(),
+            'cancelled' => \App\Models\HallBooking::where('status', 'cancelled')->count(),
+        ];
+
+        $halls = \App\Models\Hall::where('is_active', true)->orderBy('name')->get(['id', 'name', 'capacity', 'base_price']);
+
+        $guests = \App\Models\Guest::orderBy('first_name')->get()
+            ->map(fn($g) => ['id' => $g->id, 'name' => trim($g->first_name . ' ' . $g->last_name), 'email' => $g->email]);
+
+        return Inertia::render('FrontDesk/Services/HallBookings', [
+            'user'       => $user,
+            'navigation' => app(DashboardController::class)->getNavigationForRole($role),
+            'bookings'   => $bookings,
+            'stats'      => $stats,
+            'halls'      => $halls,
+            'guests'     => $guests,
+        ]);
+    })->name('services.hall-bookings.index');
+
+    Route::post('/services/hall-bookings', function (\Illuminate\Http\Request $request) {
+        $validated = $request->validate([
+            'hall_id'      => 'required|exists:halls,id',
+            'contact_name' => 'required|string|max:255',
+            'contact_email'=> 'nullable|email|max:255',
+            'contact_phone'=> 'nullable|string|max:50',
+            'event_date'   => 'required|date|after_or_equal:today',
+            'start_time'   => 'required|date_format:H:i',
+            'end_time'     => 'required|date_format:H:i|after:start_time',
+            'attendees'    => 'required|integer|min:1',
+            'notes'        => 'nullable|string',
+            'guest_id'     => 'nullable|exists:guests,id',
+        ]);
+
+        $hall  = \App\Models\Hall::findOrFail($validated['hall_id']);
+        $start = \Carbon\Carbon::createFromTimeString($validated['start_time']);
+        $end   = \Carbon\Carbon::createFromTimeString($validated['end_time']);
+        $hours = max(0.5, $start->diffInMinutes($end) / 60);
+        $total = round((float) $hall->base_price * $hours, 2);
+
+        \App\Models\HallBooking::create([
+            'booking_number' => 'HB-' . now()->format('Ymd') . '-' . random_int(1000, 9999),
+            'hall_id'        => $validated['hall_id'],
+            'guest_id'       => $validated['guest_id'] ?? null,
+            'contact_name'   => $validated['contact_name'],
+            'contact_email'  => $validated['contact_email'] ?? null,
+            'contact_phone'  => $validated['contact_phone'] ?? null,
+            'event_date'     => $validated['event_date'],
+            'start_time'     => $validated['start_time'],
+            'end_time'       => $validated['end_time'],
+            'attendees'      => $validated['attendees'],
+            'total_amount'   => $total,
+            'paid_amount'    => 0,
+            'status'         => 'pending',
+            'notes'          => $validated['notes'] ?? null,
+            'created_by'     => auth()->id(),
+        ]);
+
+        return back()->with('success', 'Hall booking created successfully.');
+    })->name('services.hall-bookings.store');
+
+    Route::post('/services/hall-bookings/{id}/update-status', function (\Illuminate\Http\Request $request, $id) {
+        $booking = \App\Models\HallBooking::findOrFail($id);
+        $booking->update([
+            'status'     => $request->input('status'),
+            'updated_by' => auth()->id(),
+        ]);
+        return back()->with('success', 'Hall booking status updated.');
+    })->name('services.hall-bookings.update-status');
 
     Route::get('/services/housekeeping', function () {
         $user = auth()->user()->load('roles');
@@ -5684,6 +5821,91 @@ Route::middleware(['auth', 'role:front_desk'])->prefix('front-desk')->name('fron
         ]);
         return back()->with('success', 'Maintenance request created successfully.');
     })->name('services.maintenance.store');
+
+    // Hall Bookings (Front Desk)
+    Route::get('/services/hall-bookings', function (\Illuminate\Http\Request $request) {
+        $user = auth()->user()->load('roles');
+
+        $query = \App\Models\HallBooking::query()
+            ->with(['hall', 'guest'])
+            ->orderByDesc('event_date');
+
+        if ($request->filled('status')) {
+            $query->where('status', $request->string('status'));
+        }
+        if ($request->filled('date')) {
+            $query->whereDate('event_date', $request->string('date'));
+        }
+
+        $bookings = $query->paginate(15)->withQueryString();
+
+        $allBookings = \App\Models\HallBooking::get(['id', 'status']);
+        $stats = [
+            'total'     => $allBookings->count(),
+            'pending'   => $allBookings->where('status', 'pending')->count(),
+            'confirmed' => $allBookings->where('status', 'confirmed')->count(),
+            'cancelled' => $allBookings->where('status', 'cancelled')->count(),
+            'completed' => $allBookings->where('status', 'completed')->count(),
+        ];
+
+        $halls  = \App\Models\Hall::orderBy('name')->get(['id', 'name', 'code', 'capacity', 'base_price']);
+        $guests = \App\Models\Guest::orderBy('first_name')->orderBy('last_name')
+                    ->get(['id', 'first_name', 'last_name', 'email', 'phone']);
+
+        return Inertia::render('FrontDesk/Services/HallBookings', [
+            'user'      => $user,
+            'bookings'  => $bookings,
+            'stats'     => $stats,
+            'halls'     => $halls,
+            'guests'    => $guests,
+            'filters'   => [
+                'status' => $request->get('status'),
+                'date'   => $request->get('date'),
+            ],
+        ]);
+    })->name('services.hall-bookings');
+
+    Route::post('/services/hall-bookings', function (\Illuminate\Http\Request $request) {
+        $validated = $request->validate([
+            'hall_id'        => 'required|exists:halls,id',
+            'guest_id'       => 'nullable|exists:guests,id',
+            'event_date'     => 'required|date',
+            'start_time'     => 'required',
+            'end_time'       => 'required',
+            'event_type'     => 'nullable|string|max:100',
+            'attendees'      => 'nullable|integer|min:1',
+            'notes'          => 'nullable|string',
+        ]);
+
+        $hall  = \App\Models\Hall::findOrFail($validated['hall_id']);
+        $start = \Carbon\Carbon::createFromTimeString($validated['start_time']);
+        $end   = \Carbon\Carbon::createFromTimeString($validated['end_time']);
+        $hours = max(1, $start->diffInMinutes($end) / 60);
+        $total = round((float) $hall->base_price * $hours, 2);
+
+        \App\Models\HallBooking::create([
+            'booking_number' => 'HB-' . now()->format('Ymd-His') . '-' . random_int(1000, 9999),
+            'hall_id'        => $validated['hall_id'],
+            'guest_id'       => $validated['guest_id'] ?? null,
+            'event_date'     => $validated['event_date'],
+            'start_time'     => $validated['start_time'],
+            'end_time'       => $validated['end_time'],
+            'event_type'     => $validated['event_type'] ?? null,
+            'attendees'      => $validated['attendees'] ?? null,
+            'notes'          => $validated['notes'] ?? null,
+            'total_amount'   => $total,
+            'status'         => 'pending',
+            'booked_by'      => auth()->id(),
+        ]);
+
+        return back()->with('success', 'Hall booking created successfully.');
+    })->name('services.hall-bookings.store');
+
+    Route::post('/services/hall-bookings/{id}/update-status', function (\Illuminate\Http\Request $request, $id) {
+        $booking = \App\Models\HallBooking::findOrFail($id);
+        $booking->update(['status' => $request->validate(['status' => 'required|string'])['status']]);
+        return back()->with('success', 'Booking status updated.');
+    })->name('services.hall-bookings.update-status');
 
     // Invoices
     Route::get('/invoices', [\App\Http\Controllers\Accountant\InvoiceController::class, 'index'])->name('invoices.index');
