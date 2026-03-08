@@ -1,9 +1,9 @@
 <template>
     <DashboardLayout title="Channel Manager">
         <div class="shadow rounded-lg p-6 mb-8"
-             :style="{ 
+             :style="{
                  backgroundColor: themeColors.card,
-                 borderColor: themeColors.border 
+                 borderColor: themeColors.border
              }">
             <div class="flex items-center justify-between mb-6">
                 <div>
@@ -15,7 +15,7 @@
                 <div class="flex space-x-3">
                     <Link href="/admin/channel-manager/create"
                           class="px-4 py-2 rounded-md transition-colors text-sm font-medium"
-                          :style="{ 
+                          :style="{
                               backgroundColor: themeColors.primary,
                               color: 'white'
                           }"
@@ -26,7 +26,7 @@
                     </Link>
                     <button @click="syncInventory"
                             class="px-4 py-2 rounded-md transition-colors text-sm font-medium"
-                            :style="{ 
+                            :style="{
                                 backgroundColor: themeColors.success,
                                 color: 'white'
                             }"
@@ -41,7 +41,7 @@
                     <!-- Stats Cards -->
             <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
                 <div class="p-4 rounded-lg border"
-                     :style="{ 
+                     :style="{
                          backgroundColor: themeColors.background,
                          borderColor: themeColors.border,
                          borderWidth: '1px',
@@ -53,7 +53,7 @@
                          :style="{ color: themeColors.textPrimary }">{{ stats.total }}</div>
                 </div>
                 <div class="p-4 rounded-lg border"
-                     :style="{ 
+                     :style="{
                          backgroundColor: themeColors.background,
                          borderColor: themeColors.border,
                          borderWidth: '1px',
@@ -65,7 +65,7 @@
                          :style="{ color: themeColors.primary }">{{ stats.booking_com }}</div>
                 </div>
                 <div class="p-4 rounded-lg border"
-                     :style="{ 
+                     :style="{
                          backgroundColor: themeColors.background,
                          borderColor: themeColors.border,
                          borderWidth: '1px',
@@ -77,7 +77,7 @@
                          :style="{ color: themeColors.warning }">{{ stats.expedia }}</div>
                 </div>
                 <div class="p-4 rounded-lg border"
-                     :style="{ 
+                     :style="{
                          backgroundColor: themeColors.background,
                          borderColor: themeColors.border,
                          borderWidth: '1px',
@@ -89,7 +89,7 @@
                          :style="{ color: themeColors.danger }">{{ stats.agoda }}</div>
                 </div>
                 <div class="p-4 rounded-lg border"
-                     :style="{ 
+                     :style="{
                          backgroundColor: themeColors.background,
                          borderColor: themeColors.border,
                          borderWidth: '1px',
@@ -101,7 +101,7 @@
                          :style="{ color: themeColors.success }">{{ stats.travel_agent }}</div>
                 </div>
                 <div class="p-4 rounded-lg border"
-                     :style="{ 
+                     :style="{
                          backgroundColor: themeColors.background,
                          borderColor: themeColors.border,
                          borderWidth: '1px',
@@ -116,9 +116,9 @@
 
                     <!-- Filters and Search -->
             <div class="shadow rounded-lg p-6 mb-8"
-                 :style="{ 
+                 :style="{
                      backgroundColor: themeColors.card,
-                     borderColor: themeColors.border 
+                     borderColor: themeColors.border
                  }">
                 <div class="flex flex-col md:flex-row gap-4">
                     <div class="flex-1">
@@ -126,7 +126,7 @@
                                v-model="search"
                                placeholder="Search reservations, guests, booking references..."
                                class="w-full rounded-md px-3 py-2 focus:outline-none transition-colors"
-                               :style="{ 
+                               :style="{
                                    backgroundColor: themeColors.background,
                                    borderColor: themeColors.border,
                                    color: themeColors.textPrimary,
@@ -134,9 +134,9 @@
                                    borderStyle: 'solid'
                                }">
                     </div>
-                    <select v-model="bookingSourceFilter" 
+                    <select v-model="bookingSourceFilter"
                             class="px-3 py-2 rounded-md focus:outline-none transition-colors"
-                            :style="{ 
+                            :style="{
                                 backgroundColor: themeColors.background,
                                 borderColor: themeColors.border,
                                 color: themeColors.textPrimary,
@@ -150,9 +150,9 @@
                         <option value="travel_agent">Travel Agent</option>
                         <option value="corporate">Corporate</option>
                     </select>
-                    <select v-model="statusFilter" 
+                    <select v-model="statusFilter"
                             class="px-3 py-2 rounded-md focus:outline-none transition-colors"
-                            :style="{ 
+                            :style="{
                                 backgroundColor: themeColors.background,
                                 borderColor: themeColors.border,
                                 color: themeColors.textPrimary,
@@ -172,17 +172,17 @@
 
                     <!-- Reservations Table -->
             <div class="shadow rounded-lg overflow-hidden"
-                 :style="{ 
+                 :style="{
                      backgroundColor: themeColors.card,
-                     borderColor: themeColors.border 
+                     borderColor: themeColors.border
                  }">
                 <div class="overflow-x-auto">
                     <table class="min-w-full"
                            :style="{ borderColor: themeColors.border }">
                         <thead class="border-b"
-                               :style="{ 
+                               :style="{
                                    backgroundColor: themeColors.background,
-                                   borderColor: themeColors.border 
+                                   borderColor: themeColors.border
                                }">
                             <tr>
                                 <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider"
@@ -204,13 +204,13 @@
                             </tr>
                         </thead>
                         <tbody class="border-b"
-                               :style="{ 
+                               :style="{
                                    backgroundColor: themeColors.card,
-                                   borderColor: themeColors.border 
+                                   borderColor: themeColors.border
                                }">
-                            <tr v-for="reservation in filteredReservations" :key="reservation.id" 
+                            <tr v-for="reservation in filteredReservations" :key="reservation.id"
                                 class="transition-colors"
-                                :style="{ 
+                                :style="{
                                     '&:hover': {
                                         backgroundColor: themeColors.hover
                                     }
@@ -221,7 +221,7 @@
                                     <div class="text-sm"
                                          :style="{ color: themeColors.textSecondary }">{{ reservation.booking_reference }}</div>
                                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
-                                          :style="{ 
+                                          :style="{
                                               backgroundColor: themeColors.primary + '20',
                                               color: themeColors.primary
                                           }">
@@ -250,7 +250,7 @@
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <span class="px-2 py-1 text-xs font-semibold rounded-full"
-                                          :style="{ 
+                                          :style="{
                                               backgroundColor: getStatusColor(reservation.status) + '20',
                                               color: getStatusColor(reservation.status)
                                           }">
@@ -294,7 +294,7 @@
                             <button v-if="reservations.prev_page_url"
                                     @click="loadPage(reservations.current_page - 1)"
                                     class="px-3 py-1 rounded-md transition-colors"
-                                    :style="{ 
+                                    :style="{
                                         borderColor: themeColors.border,
                                         color: themeColors.textPrimary,
                                         backgroundColor: themeColors.background,
@@ -308,7 +308,7 @@
                             <button v-if="reservations.next_page_url"
                                     @click="loadPage(reservations.current_page + 1)"
                                     class="px-3 py-1 rounded-md transition-colors"
-                                    :style="{ 
+                                    :style="{
                                         borderColor: themeColors.border,
                                         color: themeColors.textPrimary,
                                         backgroundColor: themeColors.background,
@@ -333,6 +333,7 @@ import DashboardLayout from '@/Layouts/DashboardLayout.vue'
 import { useTheme } from '@/Composables/useTheme.js'
 import { computed, ref } from 'vue'
 import { PlusIcon, ArrowPathIcon } from '@heroicons/vue/24/outline'
+import { formatCurrency } from '@/Utils/currency.js'
 
 // Initialize theme
 const { loadTheme } = useTheme()
@@ -397,13 +398,6 @@ const getStatusColor = (status) => {
         'no_show': themeColors.value.warning
     };
     return colors[status] || colors['pending'];
-};
-
-const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-CM', {
-        style: 'currency',
-        currency: 'XAF'
-    }).format(amount);
 };
 
 const loadPage = (page) => {

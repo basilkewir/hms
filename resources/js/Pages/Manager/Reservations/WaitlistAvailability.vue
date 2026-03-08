@@ -68,6 +68,7 @@
 <script setup>
 import { Link, router } from '@inertiajs/vue3'
 import DashboardLayout from '@/Layouts/DashboardLayout.vue';
+import { formatCurrency } from '@/Utils/currency.js';
 
 const props = defineProps({
     availability: Object,
@@ -93,13 +94,6 @@ const formatDate = (dateString) => {
         month: 'short',
         day: 'numeric'
     });
-};
-
-const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: 'USD'
-    }).format(amount);
 };
 
 const calculateOccupancyPercentage = (roomData) => {

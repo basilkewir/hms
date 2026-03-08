@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { Head, Link } from '@inertiajs/vue3'
 import DashboardLayout from '@/Layouts/DashboardLayout.vue'
+import { formatCurrency } from '@/Utils/currency.js'
 import { useTheme } from '@/Composables/useTheme.js'
 import {
     UserIcon,
@@ -70,14 +71,6 @@ const formatDate = (dateString) => {
 const formatTime = (dateString) => {
     if (!dateString) return 'N/A'
     return new Date(dateString).toLocaleTimeString()
-}
-
-const formatCurrency = (amount) => {
-    if (!amount) return '0 FCFA'
-    return new Intl.NumberFormat('fr-FR', {
-        style: 'currency',
-        currency: 'XOF'
-    }).format(amount)
 }
 
 const checkoutGuest = (checkout) => {

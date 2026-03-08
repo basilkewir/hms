@@ -21,11 +21,17 @@ export function formatCurrency(amount, overrideCurrencyCode = null, overridePosi
         flatSettings.currency ||
         'USD'
 
-    // Admin Settings uses "prefix"/"suffix"
-    const storedPosition =
+    // Normalise position to 'suffix' or 'prefix'.
+    // DB stores 'prefix'/'suffix'; ShareSettings middleware may emit 'before'/'after'.
+    // Accept all four variants so both sources work correctly.
+    const rawPosition =
         overridePosition ||
         flatSettings.currency_position ||
-        (currencyConfig.position === 'after' ? 'suffix' : 'prefix')
+        currencyConfig.position ||
+        'prefix'
+
+    const storedPosition =
+        (rawPosition === 'suffix' || rawPosition === 'after') ? 'suffix' : 'prefix'
 
     const decimals =
         typeof currencyConfig.decimals === 'number'

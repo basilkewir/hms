@@ -177,7 +177,12 @@ class CheckInController extends Controller
             'checked_in_by' => auth()->id(),
         ]);
 
-        $room->update(['status' => 'occupied']);
+        // Mark room as occupied and immediately dirty so housekeeping
+        // knows it needs daily cleaning for this guest's stay.
+        $room->update([
+            'status' => 'occupied',
+            'housekeeping_status' => 'dirty',
+        ]);
 
         // Create GuestFolio and record room charges at check-in
         $this->createGuestFolio($reservation, $room);

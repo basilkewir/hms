@@ -41,14 +41,16 @@
                         </button>
                     </div>
                     <a
-                        :href="route('admin.reports.staff.export', { format: 'csv', start_date: startDate, end_date: endDate })"
+                        href="#"
+                        @click.prevent="exportCSV"
                         class="px-4 py-2 rounded-md border text-sm hover:opacity-80"
                         :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border, color: themeColors.textPrimary }"
                     >
                         Export CSV
                     </a>
                     <a
-                        :href="route('admin.reports.staff.export', { format: 'json', start_date: startDate, end_date: endDate })"
+                        href="#"
+                        @click.prevent="exportJSON"
                         class="px-4 py-2 rounded-md text-sm hover:opacity-90"
                         :style="{ backgroundColor: themeColors.secondary, color: '#000' }"
                     >
@@ -163,7 +165,7 @@ const startDate = ref(props.filters?.start_date || '')
 const endDate = ref(props.filters?.end_date || '')
 
 const applyFilters = () => {
-    router.get(route('admin.reports.staff'), {
+    router.get(route('manager.reports.staff'), {
         start_date: startDate.value,
         end_date: endDate.value,
     }, {
@@ -171,6 +173,36 @@ const applyFilters = () => {
         preserveState: true,
         replace: true,
     })
+}
+
+const exportCSV = () => {
+    const rows = [
+        ['Role', 'Count'],
+        ...(props.byRole || []).map(r => [r.name, r.users_count]),
+    ]
+    const csv = rows.map(r => r.join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'staff_report.csv'
+    a.click()
+    URL.revokeObjectURL(url)
+}
+
+const exportJSON = () => {
+    const data = {
+        stats: props.stats,
+        byRole: props.byRole,
+        recentHires: props.recentHires,
+    }
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'staff_report.json'
+    a.click()
+    URL.revokeObjectURL(url)
 }
 
 const tryShowPicker = (el) => {

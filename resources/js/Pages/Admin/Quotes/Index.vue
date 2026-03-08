@@ -166,6 +166,7 @@
 import { usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 import { router } from '@inertiajs/vue3';
+import { formatCurrency } from '@/Utils/currency.js';
 
 export default {
     name: 'AdminQuotes',
@@ -234,13 +235,6 @@ export default {
                 expired: { backgroundColor: '#fef3c7', color: '#92400e' }
             };
             return styles[status] || { backgroundColor: '#f3f4f6', color: '#374151' };
-        };
-
-        const formatCurrency = (amount) => {
-            return new Intl.NumberFormat('en-US', {
-                style: 'currency',
-                currency: 'USD'
-            }).format(amount);
         };
 
         const formatDate = (dateString) => {

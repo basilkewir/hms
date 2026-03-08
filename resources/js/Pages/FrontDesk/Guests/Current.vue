@@ -2,9 +2,9 @@
     <DashboardLayout title="Current Guests" :user="user" :navigation="navigation">
         <!-- Header Section -->
         <div class="shadow rounded-lg p-6 mb-8"
-             :style="{ 
+             :style="{
                  backgroundColor: themeColors.card,
-                 borderColor: themeColors.border 
+                 borderColor: themeColors.border
              }">
             <div class="flex items-center justify-between">
                 <div>
@@ -19,7 +19,7 @@
         <!-- Guest Stats Cards -->
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <div class="rounded-lg p-6 border shadow-sm"
-                 :style="{ 
+                 :style="{
                      backgroundColor: themeColors.card,
                      borderColor: themeColors.border,
                      borderStyle: 'solid',
@@ -38,9 +38,9 @@
                     </div>
                 </div>
             </div>
-            
+
             <div class="rounded-lg p-6 border shadow-sm"
-                 :style="{ 
+                 :style="{
                      backgroundColor: themeColors.card,
                      borderColor: themeColors.border,
                      borderStyle: 'solid',
@@ -59,9 +59,9 @@
                     </div>
                 </div>
             </div>
-            
+
             <div class="rounded-lg p-6 border shadow-sm"
-                 :style="{ 
+                 :style="{
                      backgroundColor: themeColors.card,
                      borderColor: themeColors.border,
                      borderStyle: 'solid',
@@ -80,9 +80,9 @@
                     </div>
                 </div>
             </div>
-            
+
             <div class="rounded-lg p-6 border shadow-sm"
-                 :style="{ 
+                 :style="{
                      backgroundColor: themeColors.card,
                      borderColor: themeColors.border,
                      borderStyle: 'solid',
@@ -105,7 +105,7 @@
 
         <!-- Current Guests Table -->
         <div class="rounded-lg border shadow-sm"
-             :style="{ 
+             :style="{
                  backgroundColor: themeColors.card,
                  borderColor: themeColors.border,
                  borderStyle: 'solid',
@@ -142,9 +142,9 @@
                         </tr>
                     </thead>
                     <tbody>
-                        <tr v-for="guest in currentGuests" :key="guest.id" 
+                        <tr v-for="guest in currentGuests" :key="guest.id"
                             class="transition-colors"
-                            :style="{ 
+                            :style="{
                                 borderBottomStyle: 'solid',
                                 borderBottomWidth: '1px',
                                 borderColor: themeColors.border

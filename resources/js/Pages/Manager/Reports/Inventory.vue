@@ -119,6 +119,7 @@ import { router } from '@inertiajs/vue3'
 import DashboardLayout from '@/Layouts/DashboardLayout.vue'
 import { getNavigationForRole } from '@/Utils/navigation.js'
 import { useTheme } from '@/Composables/useTheme'
+import { formatCurrency } from '@/Utils/currency.js'
 
 const props = defineProps({
     user: Object,
@@ -169,10 +170,6 @@ const productHref = (id) => {
     }
 }
 
-const formatCurrency = (v) => {
-    const num = Number(v || 0)
-    return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2 }).format(num)
-}
 const formatDate = (d) => {
     if (!d) return ''
     const dt = new Date(d)

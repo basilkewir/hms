@@ -31,7 +31,7 @@ class GenerateDailyCleaningTasks extends Command
     public function handle()
     {
         $dryRun = $this->option('dry-run');
-        
+
         $this->info('Starting daily cleaning task generation...');
         if ($dryRun) {
             $this->info('DRY RUN MODE - No changes will be made');
@@ -99,21 +99,25 @@ class GenerateDailyCleaningTasks extends Command
                         ->whereDate('scheduled_date', $today)
                         ->first();
 
-                    if ($guestRequestedNoCleaning) {
+                    $isCheckoutToday = $checkoutRoomIds->contains($room->id);
+                    $isOccupied      = $occupiedRoomIds->contains($room->id);
+                    $hasReservation  = $isCheckoutToday || $isOccupied;
+
+                    // Guest requested no cleaning – skip only non-checkout rooms
+                    if ($guestRequestedNoCleaning && !$isCheckoutToday) {
                         $this->line("Room {$room->room_number}: Guest requested no cleaning - skipping");
                         $skipped++;
                         continue;
                     }
 
-                    if ($alreadyValidatedToday) {
+                    // Occupied rooms are always re-dirtied each morning regardless of
+                    // whether they were cleaned earlier – guests make rooms dirty every day.
+                    // Only skip "already validated clean today" for empty/available rooms.
+                    if ($alreadyValidatedToday && !$isOccupied && !$isCheckoutToday) {
                         $this->line("Room {$room->room_number}: Already validated as clean today - skipping");
                         $skipped++;
                         continue;
                     }
-
-                    $isCheckoutToday = $checkoutRoomIds->contains($room->id);
-                    $isOccupied      = $occupiedRoomIds->contains($room->id);
-                    $hasReservation  = $isCheckoutToday || $isOccupied;
 
                     // Skip rooms that are clean and have no active/checkout reservation
                     if (!$hasReservation && ($room->housekeeping_status === 'clean' || $room->housekeeping_status === null)) {
@@ -233,8 +237,8 @@ class GenerateDailyCleaningTasks extends Command
             if (is_string($preferences)) {
                 $preferences = json_decode($preferences, true);
             }
-            
-            return isset($preferences['housekeeping_preferences']) && 
+
+            return isset($preferences['housekeeping_preferences']) &&
                    in_array('no_cleaning', (array)$preferences['housekeeping_preferences']);
         }
 

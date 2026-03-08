@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { Head, Link, router } from '@inertiajs/vue3'
 import DashboardLayout from '@/Layouts/DashboardLayout.vue'
+import { formatCurrency } from '@/Utils/currency.js'
 import { getNavigationForRole } from '@/Utils/navigation.js'
 import { useTheme } from '@/Composables/useTheme.js'
 import {
@@ -106,13 +107,6 @@ onMounted(() => {
 })
 
 // Methods
-const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: 'USD'
-    }).format(amount || 0)
-}
-
 const formatDate = (date) => {
     if (!date) return 'N/A'
     return new Date(date).toLocaleDateString('en-US', {

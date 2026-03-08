@@ -11,6 +11,14 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
+    ->withSchedule(function (\Illuminate\Console\Scheduling\Schedule $schedule): void {
+        // Every morning at 06:00 – mark all occupied rooms dirty and generate cleaning tasks.
+        // This ensures housekeeping staff always see dirty rooms for every occupied room.
+        $schedule->command('housekeeping:generate-daily-tasks')
+                 ->dailyAt('06:00')
+                 ->withoutOverlapping()
+                 ->appendOutputTo(storage_path('logs/housekeeping-daily.log'));
+    })
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->web(append: [
             \App\Http\Middleware\HandleInertiaRequests::class,

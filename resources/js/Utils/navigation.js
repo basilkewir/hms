@@ -366,6 +366,33 @@ export const getNavigationForRole = (role, userPermissions = []) => {
             ]
         },
 
+        // ==================== BARTENDER ====================
+        {
+            name: 'Bartender',
+            icon: 'SparklesIcon',
+            permission: null,
+            roles: ['bartender'],
+            children: [
+                { name: 'Dashboard', href: '/bartender/dashboard', permission: null, roles: ['bartender'] },
+                { name: 'Drinks Menu', href: '/bartender/drinks', permission: null, roles: ['bartender'] },
+                { name: 'Inventory', href: '/bartender/inventory', permission: null, roles: ['bartender'] },
+                { name: 'Sales', href: '/bartender/sales', permission: null, roles: ['bartender'] },
+                { name: 'Orders', href: '/bartender/orders', permission: null, roles: ['bartender'] },
+            ]
+        },
+
+        // ==================== SERVER/RESTAURANT ====================
+        {
+            name: 'Restaurant',
+            icon: 'SparklesIcon',
+            permission: null,
+            roles: ['server', 'restaurant_staff'],
+            children: [
+                { name: 'Dashboard', href: '/server/dashboard', permission: null, roles: ['server', 'restaurant_staff'] },
+                { name: 'Sales', href: '/server/sales', permission: null, roles: ['server', 'restaurant_staff'] },
+            ]
+        },
+
         // ==================== STAFF GENERAL ====================
         {
             name: 'Staff Portal',

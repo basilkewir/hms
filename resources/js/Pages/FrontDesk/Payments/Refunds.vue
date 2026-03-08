@@ -10,7 +10,7 @@
                             <p class="mt-1 text-sm text-gray-600">Manage guest payment refunds</p>
                         </div>
                         <div class="flex space-x-3">
-                            <Link 
+                            <Link
                                 :href="route('front-desk.payments.process')"
                                 class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                             >
@@ -33,8 +33,8 @@
                                 No refunds found.
                             </div>
                             <div v-else class="space-y-3">
-                                <div 
-                                    v-for="refund in refunds" 
+                                <div
+                                    v-for="refund in refunds"
                                     :key="refund.id"
                                     class="flex justify-between items-center bg-white p-3 rounded border"
                                 >
@@ -61,6 +61,7 @@
 <script>
 import { defineComponent } from 'vue'
 import { Head, Link } from '@inertiajs/vue3'
+import { formatCurrency as formatCurrencyUtil } from '@/Utils/currency.js'
 
 export default defineComponent({
     components: {
@@ -75,10 +76,7 @@ export default defineComponent({
 
     methods: {
         formatCurrency(amount) {
-            return new Intl.NumberFormat('en-US', {
-                style: 'currency',
-                currency: 'USD'
-            }).format(amount)
+            return formatCurrencyUtil(amount || 0)
         }
     }
 })

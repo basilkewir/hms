@@ -237,10 +237,10 @@
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                 <div class="flex space-x-2">
                                     <button @click="viewTransaction(transaction)" class="text-kotel-sky-blue hover:text-kotel-yellow">View</button>
-                                    <button v-if="transaction.status === 'pending'"
+                                    <button v-if="transaction.type === 'payment' && transaction.status === 'pending'"
                                             @click="processTransaction(transaction)"
                                             class="text-kotel-green hover:text-kotel-yellow">Process</button>
-                                    <button v-if="transaction.status === 'completed' && transaction.type === 'payment'"
+                                    <button v-if="transaction.type === 'payment' && transaction.status === 'completed'"
                                             @click="refundTransaction(transaction)"
                                             class="text-kotel-red hover:text-kotel-yellow">Refund</button>
                                 </div>
@@ -250,11 +250,90 @@
                 </table>
             </div>
         </div>
+
+        <!-- Transaction Detail Modal -->
+        <Teleport to="body">
+            <div v-if="selectedTransaction" class="fixed inset-0 z-50 flex items-center justify-center p-4"
+                 @click.self="closeModal">
+                <div class="absolute inset-0 bg-black bg-opacity-60" @click="closeModal"></div>
+                <div class="relative w-full max-w-lg rounded-xl shadow-2xl z-10 bg-kotel-bg-card border border-kotel-border">
+                    <!-- Header -->
+                    <div class="flex items-center justify-between px-6 py-4 border-b border-kotel-border">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-full flex items-center justify-center text-lg bg-kotel-purple bg-opacity-20 text-kotel-purple font-bold">💳</div>
+                            <div>
+                                <h2 class="text-lg font-bold text-kotel-text-primary">Transaction Details</h2>
+                                <p class="text-xs font-mono text-kotel-text-tertiary">{{ selectedTransaction.transaction_id }}</p>
+                            </div>
+                        </div>
+                        <button @click="closeModal"
+                                class="w-8 h-8 rounded-full flex items-center justify-center text-xl font-bold text-kotel-text-secondary hover:bg-kotel-red hover:text-white transition-colors">×</button>
+                    </div>
+                    <!-- Body -->
+                    <div class="px-6 py-5 space-y-3">
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="rounded-lg p-3 bg-kotel-gray">
+                                <p class="text-xs font-medium mb-1 text-kotel-text-secondary">Guest / Reference</p>
+                                <p class="text-sm font-semibold text-kotel-text-primary">{{ selectedTransaction.guest_name || '—' }}</p>
+                                <p class="text-xs text-kotel-text-tertiary">{{ selectedTransaction.reference || '—' }}</p>
+                            </div>
+                            <div class="rounded-lg p-3 bg-kotel-gray">
+                                <p class="text-xs font-medium mb-1 text-kotel-text-secondary">Amount</p>
+                                <p class="text-lg font-bold"
+                                   :class="selectedTransaction.type === 'refund' ? 'text-kotel-red' : 'text-kotel-green'">
+                                    {{ selectedTransaction.type === 'refund' ? '-' : '+' }}{{ formatCurrency(selectedTransaction.amount || 0) }}
+                                </p>
+                            </div>
+                            <div class="rounded-lg p-3 bg-kotel-gray">
+                                <p class="text-xs font-medium mb-1 text-kotel-text-secondary">Type</p>
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                                      :class="getTypeColor(selectedTransaction.type)">
+                                    {{ formatType(selectedTransaction.type) }}
+                                </span>
+                            </div>
+                            <div class="rounded-lg p-3 bg-kotel-gray">
+                                <p class="text-xs font-medium mb-1 text-kotel-text-secondary">Status</p>
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                                      :class="getStatusColor(selectedTransaction.status)">
+                                    {{ formatStatus(selectedTransaction.status) }}
+                                </span>
+                            </div>
+                            <div class="rounded-lg p-3 bg-kotel-gray">
+                                <p class="text-xs font-medium mb-1 text-kotel-text-secondary">Payment Method</p>
+                                <p class="text-sm font-semibold text-kotel-text-primary">{{ formatPaymentMethod(selectedTransaction.payment_method) }}</p>
+                            </div>
+                            <div class="rounded-lg p-3 bg-kotel-gray">
+                                <p class="text-xs font-medium mb-1 text-kotel-text-secondary">Date & Time</p>
+                                <p class="text-sm text-kotel-text-primary">{{ formatDateTime(selectedTransaction.created_at) }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Footer -->
+                    <div class="flex items-center justify-end gap-3 px-6 py-4 border-t border-kotel-border">
+                        <button @click="closeModal"
+                                class="px-4 py-2 rounded-lg text-sm font-medium bg-kotel-gray text-kotel-text-secondary border border-kotel-border hover:text-kotel-text-primary transition-colors">
+                            Close
+                        </button>
+                        <button v-if="selectedTransaction.type === 'payment' && selectedTransaction.status === 'pending'"
+                                @click="processTransaction(selectedTransaction)"
+                                class="px-4 py-2 rounded-lg text-sm font-medium text-white bg-kotel-green hover:opacity-90 transition-opacity">
+                            ✓ Mark as Processed
+                        </button>
+                        <button v-if="selectedTransaction.type === 'payment' && selectedTransaction.status === 'completed'"
+                                @click="refundTransaction(selectedTransaction)"
+                                class="px-4 py-2 rounded-lg text-sm font-medium text-white bg-kotel-red hover:opacity-90 transition-opacity">
+                            ↩ Refund
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </Teleport>
     </DashboardLayout>
 </template>
 
 <script setup>
 import { ref, computed } from 'vue'
+import { router } from '@inertiajs/vue3'
 import DashboardLayout from '@/Layouts/DashboardLayout.vue'
 import { getNavigationForRole } from '@/Utils/navigation.js'
 import { formatCurrency as formatCurrencyUtil } from '@/Utils/currency.js'
@@ -284,6 +363,9 @@ const searchQuery = ref('')
 const selectedType = ref('')
 const selectedStatus = ref('')
 const selectedPaymentMethod = ref('')
+const selectedTransaction = ref(null)
+
+const closeModal = () => { selectedTransaction.value = null }
 
 const filteredTransactions = computed(() => {
     if (!props.transactions) return []
@@ -302,34 +384,52 @@ const filteredTransactions = computed(() => {
 
 const getTypeColor = (type) => {
     const colors = {
-        payment: 'bg-green-100 text-green-800',
-        refund: 'bg-red-100 text-red-800',
-        deposit: 'bg-blue-100 text-blue-800',
-        fee: 'bg-yellow-100 text-yellow-800'
+        payment:      'bg-green-600 text-white',
+        refund:       'bg-red-600 text-white',
+        deposit:      'bg-blue-600 text-white',
+        fee:          'bg-yellow-500 text-white',
+        folio_charge: 'bg-purple-600 text-white',
+        room_charge:  'bg-indigo-600 text-white',
+        charge:       'bg-indigo-600 text-white',
+        sale:         'bg-teal-600 text-white',
+        expense:      'bg-orange-600 text-white',
+        transfer:     'bg-cyan-600 text-white',
+        adjustment:   'bg-pink-600 text-white',
     }
-    return colors[type] || 'bg-gray-100 text-gray-800'
+    return colors[type?.toLowerCase()] || 'bg-slate-500 text-white'
 }
 
 const getStatusColor = (status) => {
     const colors = {
-        completed: 'bg-green-100 text-green-800',
-        pending: 'bg-yellow-100 text-yellow-800',
-        failed: 'bg-red-100 text-red-800',
-        cancelled: 'bg-gray-100 text-gray-800'
+        completed: 'bg-green-600 text-white',
+        complete:  'bg-green-600 text-white',
+        paid:      'bg-green-600 text-white',
+        active:    'bg-blue-600 text-white',
+        pending:   'bg-yellow-500 text-white',
+        failed:    'bg-red-600 text-white',
+        cancelled: 'bg-slate-500 text-white',
+        canceled:  'bg-slate-500 text-white',
+        refunded:  'bg-red-500 text-white',
+        voided:    'bg-slate-500 text-white',
+        draft:     'bg-slate-500 text-white',
+        overdue:   'bg-orange-600 text-white',
     }
-    return colors[status] || 'bg-gray-100 text-gray-800'
+    return colors[status?.toLowerCase()] || 'bg-slate-500 text-white'
 }
 
 const formatType = (type) => {
-    return type.charAt(0).toUpperCase() + type.slice(1)
+    if (!type) return 'Unknown'
+    return type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
 }
 
 const formatStatus = (status) => {
-    return status.charAt(0).toUpperCase() + status.slice(1)
+    if (!status) return 'Unknown'
+    return status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
 }
 
 const formatPaymentMethod = (method) => {
-    return method.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())
+    if (!method) return '—'
+    return method.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
 }
 
 const formatDateTime = (date) => {
@@ -344,23 +444,26 @@ const clearFilters = () => {
 }
 
 const exportTransactions = () => {
-    alert('Exporting transactions...')
+    window.location.href = route('admin.transactions.export', { format: 'csv' })
 }
 
 const viewTransaction = (transaction) => {
-    alert(`Viewing transaction: ${transaction.transaction_id}`)
+    selectedTransaction.value = transaction
 }
 
 const processTransaction = (transaction) => {
-    if (confirm(`Process transaction ${transaction.transaction_id}?`)) {
-        transaction.status = 'completed'
-        alert('Transaction processed successfully!')
-    }
+    if (!confirm(`Mark transaction ${transaction.transaction_id} as processed?`)) return
+    router.post(route('admin.transactions.process', { payment: transaction.source_id ?? transaction.id }), {}, {
+        preserveScroll: true,
+        onSuccess: () => { closeModal() }
+    })
 }
 
 const refundTransaction = (transaction) => {
-    if (confirm(`Refund transaction ${transaction.transaction_id}?`)) {
-        alert('Refund initiated successfully!')
-    }
+    if (!confirm(`Initiate refund for transaction ${transaction.transaction_id}?`)) return
+    router.post(route('admin.transactions.refund', { payment: transaction.source_id ?? transaction.id }), {}, {
+        preserveScroll: true,
+        onSuccess: () => { closeModal() }
+    })
 }
 </script>

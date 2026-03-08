@@ -2,9 +2,9 @@
     <DashboardLayout title="Transaction Management" :user="user">
         <!-- Page Header -->
         <div class="shadow rounded-lg p-6 mb-8"
-             :style="{ 
+             :style="{
                  backgroundColor: themeColors.card,
-                 borderColor: themeColors.border 
+                 borderColor: themeColors.border
              }">
             <div class="flex items-center justify-between">
                 <div>
@@ -17,7 +17,7 @@
                     <div class="flex space-x-3">
                         <select v-model="selectedFormat"
                                 class="rounded-md px-3 py-2 focus:outline-none transition-colors"
-                                :style="{ 
+                                :style="{
                                     backgroundColor: themeColors.background,
                                     borderColor: themeColors.border,
                                     color: themeColors.textPrimary
@@ -28,7 +28,7 @@
                         </select>
                         <button @click="exportTransactions"
                                 class="px-4 py-2 rounded-md transition-colors flex items-center"
-                                :style="{ 
+                                :style="{
                                     backgroundColor: themeColors.primary,
                                     color: '#ffffff'
                                 }"
@@ -39,7 +39,7 @@
                         </button>
                         <button @click="printTransactions"
                                 class="px-4 py-2 rounded-md transition-colors flex items-center"
-                                :style="{ 
+                                :style="{
                                     backgroundColor: themeColors.success,
                                     color: '#ffffff'
                                 }"
@@ -56,9 +56,9 @@
         <!-- Transaction Stats -->
         <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
             <div class="shadow rounded-lg p-6"
-                 :style="{ 
+                 :style="{
                      backgroundColor: themeColors.card,
-                     borderColor: themeColors.border 
+                     borderColor: themeColors.border
                  }">
                 <div class="flex items-center">
                     <div class="p-3 rounded-full mr-4"
@@ -75,9 +75,9 @@
                 </div>
             </div>
             <div class="shadow rounded-lg p-6"
-                 :style="{ 
+                 :style="{
                      backgroundColor: themeColors.card,
-                     borderColor: themeColors.border 
+                     borderColor: themeColors.border
                  }">
                 <div class="flex items-center">
                     <div class="p-3 rounded-full mr-4"
@@ -94,9 +94,9 @@
                 </div>
             </div>
             <div class="shadow rounded-lg p-6"
-                 :style="{ 
+                 :style="{
                      backgroundColor: themeColors.card,
-                     borderColor: themeColors.border 
+                     borderColor: themeColors.border
                  }">
                 <div class="flex items-center">
                     <div class="p-3 rounded-full mr-4"
@@ -113,9 +113,9 @@
                 </div>
             </div>
             <div class="shadow rounded-lg p-6"
-                 :style="{ 
+                 :style="{
                      backgroundColor: themeColors.card,
-                     borderColor: themeColors.border 
+                     borderColor: themeColors.border
                  }">
                 <div class="flex items-center">
                     <div class="p-3 rounded-full mr-4"
@@ -135,7 +135,7 @@
 
         <!-- Quick Actions -->
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-            <Link :href="route('accountant.transactions.payments')" 
+            <Link :href="route('accountant.transactions.payments')"
                   class="shadow rounded-lg p-4 transition-colors flex items-center"
                   :style="{
                       backgroundColor: themeColors.card,
@@ -156,7 +156,7 @@
                 </div>
             </Link>
 
-            <Link :href="route('accountant.transactions.refunds')" 
+            <Link :href="route('accountant.transactions.refunds')"
                   class="shadow rounded-lg p-4 transition-colors flex items-center"
                   :style="{
                       backgroundColor: themeColors.card,
@@ -177,7 +177,7 @@
                 </div>
             </Link>
 
-            <Link :href="route('accountant.transactions.pending')" 
+            <Link :href="route('accountant.transactions.pending')"
                   class="shadow rounded-lg p-4 transition-colors flex items-center"
                   :style="{
                       backgroundColor: themeColors.card,
@@ -198,7 +198,7 @@
                 </div>
             </Link>
 
-            <button @click="reconcileTransactions" 
+            <button @click="reconcileTransactions"
                     class="shadow rounded-lg p-4 transition-colors flex items-center"
                     :style="{
                         backgroundColor: themeColors.card,
@@ -222,9 +222,9 @@
 
         <!-- Transactions Table -->
         <div class="shadow rounded-lg overflow-hidden"
-             :style="{ 
+             :style="{
                  backgroundColor: themeColors.card,
-                 borderColor: themeColors.border 
+                 borderColor: themeColors.border
              }">
             <div class="px-6 py-4 border-b"
                  :style="{ borderColor: themeColors.border }">
@@ -272,7 +272,7 @@
                     </thead>
                     <tbody class="divide-y"
                            :style="{ borderColor: themeColors.border }">
-                        <tr v-for="transaction in recentTransactions" :key="transaction.id" 
+                        <tr v-for="transaction in recentTransactions" :key="transaction.id"
                             class="hover:bg-opacity-50 transition-colors"
                             :style="{ hover: { backgroundColor: themeColors.hover } }">
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium"
@@ -295,7 +295,8 @@
                                 :class="transaction.type === 'refund' ? 'text-red-600' : 'text-green-600'">
                                 {{ transaction.type === 'refund' ? '-' : '+' }}{{ formatCurrency(transaction.amount || 0) }}
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            <td class="px-6 py-4 whitespace-nowrap text-sm"
+                                :style="{ color: themeColors.textSecondary }">
                                 {{ formatPaymentMethod(transaction.payment_method) }}
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
@@ -304,14 +305,15 @@
                                     {{ formatStatus(transaction.status) }}
                                 </span>
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            <td class="px-6 py-4 whitespace-nowrap text-sm"
+                                :style="{ color: themeColors.textSecondary }">
                                 {{ formatDateTime(transaction.created_at) }}
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                 <div class="flex space-x-2">
                                     <button @click="viewTransaction(transaction)" class="text-blue-600 hover:text-blue-900">View</button>
-                                    <button v-if="transaction.status === 'pending'" 
-                                            @click="processTransaction(transaction)" 
+                                    <button v-if="transaction.type === 'payment' && transaction.status === 'pending'"
+                                            @click="processTransaction(transaction)"
                                             class="text-green-600 hover:text-green-900">Process</button>
                                 </div>
                             </td>
@@ -320,6 +322,97 @@
                 </table>
             </div>
         </div>
+
+        <!-- Transaction Detail Modal -->
+        <Teleport to="body">
+            <div v-if="selectedTransaction" class="fixed inset-0 z-50 flex items-center justify-center p-4"
+                 @click.self="closeModal">
+                <!-- Backdrop -->
+                <div class="absolute inset-0 bg-black bg-opacity-60" @click="closeModal"></div>
+
+                <!-- Modal Card -->
+                <div class="relative w-full max-w-lg rounded-xl shadow-2xl z-10"
+                     :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border, border: '1px solid' }">
+
+                    <!-- Header -->
+                    <div class="flex items-center justify-between px-6 py-4 border-b"
+                         :style="{ borderColor: themeColors.border }">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold"
+                                 :style="{ backgroundColor: themeColors.primary + '20', color: themeColors.primary }">
+                                💳
+                            </div>
+                            <div>
+                                <h2 class="text-lg font-bold" :style="{ color: themeColors.textPrimary }">
+                                    Transaction Details
+                                </h2>
+                                <p class="text-xs font-mono" :style="{ color: themeColors.textSecondary }">
+                                    {{ selectedTransaction.transaction_id }}
+                                </p>
+                            </div>
+                        </div>
+                        <button @click="closeModal"
+                                class="w-8 h-8 rounded-full flex items-center justify-center text-lg font-bold transition-colors hover:bg-red-500 hover:text-white"
+                                :style="{ color: themeColors.textSecondary }">×</button>
+                    </div>
+
+                    <!-- Body -->
+                    <div class="px-6 py-5 space-y-3">
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="rounded-lg p-3" :style="{ backgroundColor: themeColors.background }">
+                                <p class="text-xs font-medium mb-1" :style="{ color: themeColors.textSecondary }">Guest / Reference</p>
+                                <p class="text-sm font-semibold" :style="{ color: themeColors.textPrimary }">{{ selectedTransaction.guest_name || '—' }}</p>
+                                <p class="text-xs" :style="{ color: themeColors.textSecondary }">{{ selectedTransaction.reference || '—' }}</p>
+                            </div>
+                            <div class="rounded-lg p-3" :style="{ backgroundColor: themeColors.background }">
+                                <p class="text-xs font-medium mb-1" :style="{ color: themeColors.textSecondary }">Amount</p>
+                                <p class="text-lg font-bold"
+                                   :class="selectedTransaction.type === 'refund' ? 'text-red-500' : 'text-green-500'">
+                                    {{ selectedTransaction.type === 'refund' ? '-' : '+' }}{{ formatCurrency(selectedTransaction.amount || 0) }}
+                                </p>
+                            </div>
+                            <div class="rounded-lg p-3" :style="{ backgroundColor: themeColors.background }">
+                                <p class="text-xs font-medium mb-1" :style="{ color: themeColors.textSecondary }">Type</p>
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                                      :class="getTypeColor(selectedTransaction.type)">
+                                    {{ formatType(selectedTransaction.type) }}
+                                </span>
+                            </div>
+                            <div class="rounded-lg p-3" :style="{ backgroundColor: themeColors.background }">
+                                <p class="text-xs font-medium mb-1" :style="{ color: themeColors.textSecondary }">Status</p>
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                                      :class="getStatusColor(selectedTransaction.status)">
+                                    {{ formatStatus(selectedTransaction.status) }}
+                                </span>
+                            </div>
+                            <div class="rounded-lg p-3" :style="{ backgroundColor: themeColors.background }">
+                                <p class="text-xs font-medium mb-1" :style="{ color: themeColors.textSecondary }">Payment Method</p>
+                                <p class="text-sm font-semibold" :style="{ color: themeColors.textPrimary }">{{ formatPaymentMethod(selectedTransaction.payment_method) }}</p>
+                            </div>
+                            <div class="rounded-lg p-3" :style="{ backgroundColor: themeColors.background }">
+                                <p class="text-xs font-medium mb-1" :style="{ color: themeColors.textSecondary }">Date & Time</p>
+                                <p class="text-sm" :style="{ color: themeColors.textPrimary }">{{ formatDateTime(selectedTransaction.created_at) }}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Footer Actions -->
+                    <div class="flex items-center justify-end gap-3 px-6 py-4 border-t"
+                         :style="{ borderColor: themeColors.border }">
+                        <button @click="closeModal"
+                                class="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                                :style="{ backgroundColor: themeColors.background, color: themeColors.textSecondary, border: '1px solid ' + themeColors.border }">
+                            Close
+                        </button>
+                        <button v-if="selectedTransaction.type === 'payment' && selectedTransaction.status === 'pending'"
+                                @click="processTransaction(selectedTransaction)"
+                                class="px-4 py-2 rounded-lg text-sm font-medium text-white transition-colors bg-green-600 hover:bg-green-700">
+                            ✓ Mark as Processed
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </Teleport>
     </DashboardLayout>
 </template>
 
@@ -382,37 +475,64 @@ const pagination = computed(() => ({
     to: props.recentTransactions?.to || 0,
 }))
 const selectedFormat = ref('xlsx')
+const selectedTransaction = ref(null)
+
+const openModal = (transaction) => {
+    selectedTransaction.value = transaction
+}
+
+const closeModal = () => {
+    selectedTransaction.value = null
+}
 
 const getTypeColor = (type) => {
     const colors = {
-        payment: 'bg-green-100 text-green-800',
-        refund: 'bg-red-100 text-red-800',
-        deposit: 'bg-blue-100 text-blue-800',
-        fee: 'bg-yellow-100 text-yellow-800'
+        payment:      'bg-green-600 text-white',
+        refund:       'bg-red-600 text-white',
+        deposit:      'bg-blue-600 text-white',
+        fee:          'bg-yellow-500 text-white',
+        folio_charge: 'bg-purple-600 text-white',
+        room_charge:  'bg-indigo-600 text-white',
+        charge:       'bg-indigo-600 text-white',
+        sale:         'bg-teal-600 text-white',
+        expense:      'bg-orange-600 text-white',
+        transfer:     'bg-cyan-600 text-white',
+        adjustment:   'bg-pink-600 text-white',
     }
-    return colors[type] || 'bg-gray-100 text-gray-800'
+    return colors[type?.toLowerCase()] || 'bg-slate-500 text-white'
 }
 
 const getStatusColor = (status) => {
     const colors = {
-        completed: 'bg-green-100 text-green-800',
-        pending: 'bg-yellow-100 text-yellow-800',
-        failed: 'bg-red-100 text-red-800',
-        cancelled: 'bg-gray-100 text-gray-800'
+        completed: 'bg-green-600 text-white',
+        complete:  'bg-green-600 text-white',
+        paid:      'bg-green-600 text-white',
+        active:    'bg-blue-600 text-white',
+        pending:   'bg-yellow-500 text-white',
+        failed:    'bg-red-600 text-white',
+        cancelled: 'bg-slate-500 text-white',
+        canceled:  'bg-slate-500 text-white',
+        refunded:  'bg-red-500 text-white',
+        voided:    'bg-slate-500 text-white',
+        draft:     'bg-slate-500 text-white',
+        overdue:   'bg-orange-600 text-white',
     }
-    return colors[status] || 'bg-gray-100 text-gray-800'
+    return colors[status?.toLowerCase()] || 'bg-slate-500 text-white'
 }
 
 const formatType = (type) => {
-    return type.charAt(0).toUpperCase() + type.slice(1)
+    if (!type) return 'Unknown'
+    return type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
 }
 
 const formatStatus = (status) => {
-    return status.charAt(0).toUpperCase() + status.slice(1)
+    if (!status) return 'Unknown'
+    return status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
 }
 
 const formatPaymentMethod = (method) => {
-    return method.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())
+    if (!method) return '—'
+    return method.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
 }
 
 const formatDateTime = (date) => {
@@ -422,20 +542,20 @@ const formatDateTime = (date) => {
 const exportTransactions = () => {
     const params = new URLSearchParams()
     params.append('format', selectedFormat.value)
-    
+
     const queryString = params.toString()
     const url = queryString ? `?${queryString}` : ''
-    
+
     window.location.href = route('accountant.transactions.export') + url
 }
 
 const printTransactions = () => {
     const params = new URLSearchParams()
     params.append('format', 'print')
-    
+
     const queryString = params.toString()
     const url = queryString ? `?${queryString}` : ''
-    
+
     window.open(route('accountant.transactions.export') + url, '_blank')
 }
 
@@ -447,17 +567,16 @@ const reconcileTransactions = () => {
 }
 
 const viewTransaction = (transaction) => {
-    router.get(route('accountant.transactions.index'), {
-        transaction_id: transaction.id
-    }, {
-        preserveScroll: true,
-        preserveState: true
-    })
+    openModal(transaction)
 }
 
 const processTransaction = (transaction) => {
-    router.post(route('accountant.transactions.process', { payment: transaction.id }), {}, {
-        preserveScroll: true
+    if (!confirm(`Mark transaction ${transaction.transaction_id} as processed?`)) return
+    router.post(route('accountant.transactions.process', { payment: transaction.source_id }), {}, {
+        preserveScroll: true,
+        onSuccess: () => {
+            closeModal()
+        }
     })
 }
 </script>

@@ -110,6 +110,7 @@
                                 <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider" :style="{ color: themeColors.textSecondary }">Status</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider" :style="{ color: themeColors.textSecondary }">Payment Method</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider" :style="{ color: themeColors.textSecondary }">Date</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider" :style="{ color: themeColors.textSecondary }">Actions</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y" :style="{ borderColor: themeColors.border }">
@@ -144,6 +145,13 @@
                                 <td class="px-4 py-3 text-sm" :style="{ color: themeColors.textPrimary }">
                                     {{ formatDate(transaction.date) }}
                                 </td>
+                                <td class="px-4 py-3 text-sm font-medium">
+                                    <button @click="viewTransaction(transaction)"
+                                            class="px-3 py-1 rounded text-xs font-medium text-white transition-colors"
+                                            :style="{ backgroundColor: themeColors.primary }">
+                                        View
+                                    </button>
+                                </td>
                             </tr>
                         </tbody>
                     </table>
@@ -157,6 +165,78 @@
                 <p :style="{ color: themeColors.textSecondary }">No transactions match your current filters.</p>
             </div>
         </div>
+
+        <!-- Transaction Detail Modal -->
+        <Teleport to="body">
+            <div v-if="selectedTransaction" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+                <div class="absolute inset-0 bg-black bg-opacity-60" @click="closeModal"></div>
+                <div class="relative w-full max-w-lg rounded-xl shadow-2xl z-10"
+                     :style="{ backgroundColor: themeColors.card, border: '1px solid ' + themeColors.border }">
+                    <!-- Header -->
+                    <div class="flex items-center justify-between px-6 py-4 border-b"
+                         :style="{ borderColor: themeColors.border }">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold"
+                                 :style="{ backgroundColor: themeColors.primary + '20', color: themeColors.primary }">💳</div>
+                            <div>
+                                <h2 class="text-lg font-bold" :style="{ color: themeColors.textPrimary }">Transaction Details</h2>
+                                <p class="text-xs font-mono" :style="{ color: themeColors.textSecondary }">{{ selectedTransaction.transaction_id }}</p>
+                            </div>
+                        </div>
+                        <button @click="closeModal"
+                                class="w-8 h-8 rounded-full flex items-center justify-center text-xl font-bold transition-colors hover:bg-red-500 hover:text-white"
+                                :style="{ color: themeColors.textSecondary }">×</button>
+                    </div>
+                    <!-- Body -->
+                    <div class="px-6 py-5 space-y-3">
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="rounded-lg p-3" :style="{ backgroundColor: themeColors.background }">
+                                <p class="text-xs font-medium mb-1" :style="{ color: themeColors.textSecondary }">Guest / Reference</p>
+                                <p class="text-sm font-semibold" :style="{ color: themeColors.textPrimary }">{{ selectedTransaction.guest_name || '—' }}</p>
+                                <p class="text-xs" :style="{ color: themeColors.textSecondary }">{{ selectedTransaction.reference || '—' }}</p>
+                            </div>
+                            <div class="rounded-lg p-3" :style="{ backgroundColor: themeColors.background }">
+                                <p class="text-xs font-medium mb-1" :style="{ color: themeColors.textSecondary }">Amount</p>
+                                <p class="text-lg font-bold" :style="{ color: themeColors.success }">
+                                    +{{ formatCurrency(selectedTransaction.amount || 0) }}
+                                </p>
+                            </div>
+                            <div class="rounded-lg p-3" :style="{ backgroundColor: themeColors.background }">
+                                <p class="text-xs font-medium mb-1" :style="{ color: themeColors.textSecondary }">Type</p>
+                                <span class="px-2 py-1 rounded-full text-xs font-medium"
+                                      :style="getTypeStyle(selectedTransaction.type)">
+                                    {{ selectedTransaction.type }}
+                                </span>
+                            </div>
+                            <div class="rounded-lg p-3" :style="{ backgroundColor: themeColors.background }">
+                                <p class="text-xs font-medium mb-1" :style="{ color: themeColors.textSecondary }">Status</p>
+                                <span class="px-2 py-1 rounded-full text-xs font-medium"
+                                      :style="getStatusStyle(selectedTransaction.status)">
+                                    {{ selectedTransaction.status }}
+                                </span>
+                            </div>
+                            <div class="rounded-lg p-3" :style="{ backgroundColor: themeColors.background }">
+                                <p class="text-xs font-medium mb-1" :style="{ color: themeColors.textSecondary }">Payment Method</p>
+                                <p class="text-sm font-semibold" :style="{ color: themeColors.textPrimary }">{{ selectedTransaction.payment_method || '—' }}</p>
+                            </div>
+                            <div class="rounded-lg p-3" :style="{ backgroundColor: themeColors.background }">
+                                <p class="text-xs font-medium mb-1" :style="{ color: themeColors.textSecondary }">Date</p>
+                                <p class="text-sm" :style="{ color: themeColors.textPrimary }">{{ formatDate(selectedTransaction.date) }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Footer -->
+                    <div class="flex items-center justify-end gap-3 px-6 py-4 border-t"
+                         :style="{ borderColor: themeColors.border }">
+                        <button @click="closeModal"
+                                class="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                                :style="{ backgroundColor: themeColors.background, color: themeColors.textSecondary, border: '1px solid ' + themeColors.border }">
+                            Close
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </Teleport>
     </DashboardLayout>
 </template>
 
@@ -164,6 +244,7 @@
 import { usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 import { router } from '@inertiajs/vue3';
+import { formatCurrency } from '@/Utils/currency.js';
 
 export default {
     name: 'ManagerTransactions',
@@ -250,13 +331,6 @@ export default {
             return styles[status] || { backgroundColor: '#f3f4f6', color: '#374151' };
         };
 
-        const formatCurrency = (amount) => {
-            return new Intl.NumberFormat('en-US', {
-                style: 'currency',
-                currency: 'USD'
-            }).format(amount);
-        };
-
         const formatDate = (dateString) => {
             return new Date(dateString).toLocaleDateString('en-US', {
                 year: 'numeric',
@@ -292,6 +366,10 @@ export default {
             });
         };
 
+        const selectedTransaction = ref(null);
+        const viewTransaction = (transaction) => { selectedTransaction.value = transaction; };
+        const closeModal = () => { selectedTransaction.value = null; };
+
         return {
             themeColors,
             filters,
@@ -302,7 +380,10 @@ export default {
             formatDate,
             applyFilters,
             clearFilters,
-            exportTransactions
+            exportTransactions,
+            selectedTransaction,
+            viewTransaction,
+            closeModal,
         };
     }
 };

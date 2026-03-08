@@ -43,7 +43,7 @@ const loadSubmenuState = () => { const saved = localStorage.getItem('openSubmenu
 const initializeActiveSubmenu = () => {
     const currentPath = currentUrl.value
     if (!currentPath) return
-    
+
     if (currentPath?.includes('/hr/dashboard') || currentPath?.includes('/hr/employees') || currentPath?.includes('/hr/departments') || currentPath?.includes('/hr/attendance') || currentPath?.includes('/hr/payroll') || currentPath?.includes('/hr/reports')) openSubmenus.value = ['hr-management']
     else if (currentPath?.includes('/admin/reservations') || currentPath?.includes('/admin/guests') || currentPath?.includes('/admin/checkin') || currentPath?.includes('/admin/checkout') || currentPath?.includes('/admin/channel-manager') || currentPath?.includes('/admin/waitlist')) openSubmenus.value = ['operations']
     else if (currentPath?.includes('/admin/rooms') || currentPath?.includes('/admin/room-types') || currentPath?.includes('/admin/floors') || currentPath?.includes('/admin/building-wings') || currentPath?.includes('/admin/bed-types') || currentPath?.includes('/admin/halls') || currentPath?.includes('/admin/hall-bookings')) openSubmenus.value = ['property-management']
@@ -163,6 +163,8 @@ const primaryRole = computed(() => {
     if (userRoles.value.includes('front_desk') || userRoles.value.includes('frontdesk')) return 'front_desk'
     if (userRoles.value.includes('housekeeping')) return 'housekeeping'
     if (userRoles.value.includes('maintenance')) return 'maintenance'
+    if (userRoles.value.includes('bartender'))   return 'bartender'
+    if (userRoles.value.includes('server') || userRoles.value.includes('restaurant_staff')) return 'server'
     if (userRoles.value.includes('hr'))          return 'hr'
     return userRoles.value[0] || 'staff'
 })

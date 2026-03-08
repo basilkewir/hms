@@ -13,7 +13,7 @@ class ShareSettings
     {
         // Get all settings
         $allSettings = Setting::all();
-        
+
         $settings = [];
         foreach ($allSettings as $setting) {
             $settings[$setting->key] = $setting->value;
@@ -22,10 +22,10 @@ class ShareSettings
         // Use the 'currency' field as the primary currency code (XAF)
         // Fall back to currency_code if not available
         $currencyCode = $settings['currency'] ?? $settings['currency_code'] ?? 'USD';
-        
+
         // Get appropriate symbol for the currency
         $currencySymbol = $this->getCurrencySymbol($currencyCode);
-        
+
         // Structure hotel settings for frontend
         $hotelSettings = [
             'name' => $settings['hotel_name'] ?? 'Hotel',
@@ -33,7 +33,7 @@ class ShareSettings
             'currency' => [
                 'code' => $currencyCode,
                 'symbol' => $currencySymbol,
-                'position' => ($settings['currency_position'] ?? 'prefix') === 'suffix' ? 'after' : 'before',
+                'position' => $settings['currency_position'] ?? 'prefix',
                 'decimals' => 2,
                 'thousand_separator' => ',',
                 'decimal_separator' => '.',
@@ -46,7 +46,7 @@ class ShareSettings
 
         return $next($request);
     }
-    
+
     /**
      * Get currency symbol for given currency code
      */
@@ -164,7 +164,7 @@ class ShareSettings
             'AOA' => 'Kz',
             'ZWL' => 'Z$',
         ];
-        
+
         return $symbols[$currencyCode] ?? $currencyCode;
     }
 }

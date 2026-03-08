@@ -10,7 +10,7 @@
                             <p class="mt-1 text-sm text-gray-600">Manage guest payments and transactions</p>
                         </div>
                         <div class="flex space-x-3">
-                            <Link 
+                            <Link
                                 :href="route('front-desk.payments.process')"
                                 class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                             >
@@ -33,8 +33,8 @@
                                 No recent payments found.
                             </div>
                             <div v-else class="space-y-3">
-                                <div 
-                                    v-for="payment in recentPayments" 
+                                <div
+                                    v-for="payment in recentPayments"
                                     :key="payment.id"
                                     class="flex justify-between items-center bg-white p-3 rounded border"
                                 >
@@ -55,8 +55,8 @@
                     <div>
                         <h2 class="text-lg font-semibold text-gray-900 mb-4">Current Guests</h2>
                         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            <div 
-                                v-for="guest in currentGuests" 
+                            <div
+                                v-for="guest in currentGuests"
                                 :key="guest.id"
                                 class="bg-white rounded-lg border p-4 hover:shadow-md transition-shadow"
                             >
@@ -75,13 +75,13 @@
                                     </div>
                                 </div>
                                 <div class="flex space-x-2 mt-3">
-                                    <Link 
+                                    <Link
                                         :href="route('front-desk.payments.process')"
                                         class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded text-white bg-indigo-600 hover:bg-indigo-700"
                                     >
                                         Process Payment
                                     </Link>
-                                    <button 
+                                    <button
                                         @click="viewBill(guest)"
                                         class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50"
                                     >
@@ -99,7 +99,7 @@
         <Modal :show="showBillModal" @close="showBillModal = false">
             <div class="p-6">
                 <h3 class="text-lg font-semibold text-gray-900 mb-4">Guest Bill</h3>
-                
+
                 <div v-if="selectedGuest" class="space-y-4">
                     <div class="bg-gray-50 rounded-lg p-4">
                         <div class="grid grid-cols-2 gap-4 text-sm">
@@ -128,8 +128,8 @@
                             No charges found.
                         </div>
                         <div v-else class="space-y-2">
-                            <div 
-                                v-for="item in selectedGuest.billItems" 
+                            <div
+                                v-for="item in selectedGuest.billItems"
                                 :key="item.id"
                                 class="flex justify-between items-center bg-white border rounded p-3"
                             >
@@ -145,13 +145,13 @@
                     </div>
 
                     <div class="flex justify-end space-x-3 pt-4">
-                        <button 
+                        <button
                             @click="showBillModal = false"
                             class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
                         >
                             Close
                         </button>
-                        <Link 
+                        <Link
                             :href="route('front-desk.payments.process')"
                             class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
                         >
@@ -168,6 +168,7 @@
 import { defineComponent } from 'vue'
 import { Head, Link } from '@inertiajs/vue3'
 import Modal from '@/Components/Modal.vue'
+import { formatCurrency as formatCurrencyUtil } from '@/Utils/currency.js'
 
 export default defineComponent({
     components: {
@@ -191,10 +192,7 @@ export default defineComponent({
 
     methods: {
         formatCurrency(amount) {
-            return new Intl.NumberFormat('en-US', {
-                style: 'currency',
-                currency: 'USD'
-            }).format(amount)
+            return formatCurrencyUtil(amount || 0)
         },
 
         async viewBill(guest) {

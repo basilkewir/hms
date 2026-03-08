@@ -2,9 +2,9 @@
     <DashboardLayout title="Today's Arrivals" :user="user">
         <!-- Header Section -->
         <div class="shadow rounded-lg p-6 mb-8"
-             :style="{ 
+             :style="{
                  backgroundColor: themeColors.card,
-                 borderColor: themeColors.border 
+                 borderColor: themeColors.border
              }">
             <div class="flex items-center justify-between">
                 <div>
@@ -14,9 +14,9 @@
                        :style="{ color: themeColors.textSecondary }">Guests expected to check in today.</p>
                 </div>
                 <div class="flex items-center gap-3">
-                    <Link :href="route('front-desk.checkin')" 
+                    <Link :href="route('front-desk.checkin')"
                           class="px-4 py-2 rounded-md transition-colors font-medium text-white flex items-center"
-                          :style="{ 
+                          :style="{
                               backgroundColor: themeColors.primary,
                           }"
                           @mouseenter="$event.target.style.backgroundColor = themeColors.hover"
@@ -24,9 +24,9 @@
                         <CheckCircleIcon class="h-4 w-4 mr-2" />
                         Process Check-In
                     </Link>
-                    <Link :href="route('front-desk.reservations.index')" 
+                    <Link :href="route('front-desk.reservations.index')"
                           class="px-4 py-2 rounded-md transition-colors font-medium text-white flex items-center"
-                          :style="{ 
+                          :style="{
                               backgroundColor: themeColors.secondary,
                           }"
                           @mouseenter="$event.target.style.backgroundColor = themeColors.hover"
@@ -41,7 +41,7 @@
         <!-- Arrival Stats Cards -->
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <div class="rounded-lg p-6 border shadow-sm"
-                 :style="{ 
+                 :style="{
                      backgroundColor: themeColors.card,
                      borderColor: themeColors.border,
                      borderStyle: 'solid',
@@ -60,9 +60,9 @@
                     </div>
                 </div>
             </div>
-            
+
             <div class="rounded-lg p-6 border shadow-sm"
-                 :style="{ 
+                 :style="{
                      backgroundColor: themeColors.card,
                      borderColor: themeColors.border,
                      borderStyle: 'solid',
@@ -81,9 +81,9 @@
                     </div>
                 </div>
             </div>
-            
+
             <div class="rounded-lg p-6 border shadow-sm"
-                 :style="{ 
+                 :style="{
                      backgroundColor: themeColors.card,
                      borderColor: themeColors.border,
                      borderStyle: 'solid',
@@ -104,7 +104,7 @@
             </div>
 
             <div class="rounded-lg p-6 border shadow-sm"
-                 :style="{ 
+                 :style="{
                      backgroundColor: themeColors.card,
                      borderColor: themeColors.border,
                      borderStyle: 'solid',
@@ -127,14 +127,14 @@
 
         <!-- Arrivals Table -->
         <div class="shadow rounded-lg overflow-hidden"
-             :style="{ 
+             :style="{
                  backgroundColor: themeColors.card,
                  borderColor: themeColors.border,
                  borderStyle: 'solid',
                  borderWidth: '1px'
              }">
             <div class="px-6 py-4 border-b"
-                 :style="{ 
+                 :style="{
                      borderColor: themeColors.border,
                      borderBottomWidth: '1px'
                  }">
@@ -147,7 +147,7 @@
                     </div>
                 </div>
             </div>
-            
+
             <div class="overflow-x-auto">
                 <table class="w-full">
                     <thead>
@@ -183,9 +183,9 @@
                         </tr>
                     </thead>
                     <tbody>
-                        <tr v-for="arrival in arrivals" :key="arrival.id" 
+                        <tr v-for="arrival in arrivals" :key="arrival.id"
                             class="transition-colors"
-                            :style="{ 
+                            :style="{
                                 borderBottomStyle: 'solid',
                                 borderBottomWidth: '1px',
                                 borderColor: themeColors.border
@@ -243,7 +243,7 @@
                     </tbody>
                 </table>
             </div>
-            
+
             <!-- Empty State -->
             <div v-if="!arrivals || arrivals.length === 0" class="text-center py-12">
                 <CalendarDaysIcon class="mx-auto h-12 w-12 text-gray-400" />
@@ -258,6 +258,7 @@
 import { computed } from 'vue'
 import { Link } from '@inertiajs/vue3'
 import DashboardLayout from '@/Layouts/DashboardLayout.vue'
+import { formatCurrency } from '@/Utils/currency.js'
 import { useTheme } from '@/Composables/useTheme.js'
 import {
     CalendarDaysIcon,
@@ -318,7 +319,7 @@ const arrivalStats = computed(() => {
                 stats.pending++
                 break
         }
-        
+
         if (!arrival.room_number) {
             stats.noRoom++
         }
@@ -357,9 +358,9 @@ const formatDate = (date) => {
     if (!date) return 'N/A'
     try {
         const d = new Date(date)
-        return d.toLocaleDateString('en-US', { 
-            month: 'short', 
-            day: 'numeric', 
+        return d.toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
             year: 'numeric'
         })
     } catch (e) {
@@ -367,10 +368,4 @@ const formatDate = (date) => {
     }
 }
 
-const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: 'USD'
-    }).format(amount || 0)
-}
 </script>

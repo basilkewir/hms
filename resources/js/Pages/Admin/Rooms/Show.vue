@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue'
 import { Head, Link } from '@inertiajs/vue3'
 import DashboardLayout from '@/Layouts/DashboardLayout.vue'
+import { formatCurrency } from '@/Utils/currency.js'
 import {
     HomeIcon,
     UserIcon,
@@ -69,13 +70,6 @@ const housekeepingColor = computed(() => {
 })
 
 // Methods
-const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: 'USD'
-    }).format(amount || 0)
-}
-
 const formatDate = (date) => {
     return new Date(date).toLocaleDateString('en-US', {
         year: 'numeric',
@@ -89,7 +83,7 @@ const formatDate = (date) => {
 
 <template>
     <Head :title="`Room ${room.number} - Details`" />
-    
+
     <DashboardLayout>
         <div class="py-6">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

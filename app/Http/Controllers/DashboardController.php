@@ -54,6 +54,16 @@ class DashboardController extends Controller
             return redirect()->route('front-desk.dashboard');
         }
 
+        // Redirect server/restaurant_staff to server dashboard
+        if ($roleName === 'server' || $roleName === 'restaurant_staff') {
+            return redirect()->route('server.dashboard');
+        }
+
+        // Redirect bartender to bartender dashboard
+        if ($roleName === 'bartender') {
+            return redirect()->route('bartender.dashboard');
+        }
+
         // Get role-specific dashboard data
         $dashboardData = $this->getDashboardDataForRole($user);
 
@@ -161,6 +171,10 @@ class DashboardController extends Controller
                 return $this->getHousekeepingDashboard();
             case 'maintenance':
                 return $this->getMaintenanceDashboard();
+            case 'bartender':
+            case 'server':
+            case 'restaurant_staff':
+                return []; // These roles redirect, data comes from their specific controllers
             default:
                 return $this->getStaffDashboard($user);
         }
@@ -1482,6 +1496,12 @@ class DashboardController extends Controller
                     'name' => 'Process Payments',
                     'href' => '/front-desk/payments/process',
                     'icon' => 'CreditCardIcon',
+                    'current' => false
+                ],
+                [
+                    'name' => 'My Transactions',
+                    'href' => '/front-desk/transactions',
+                    'icon' => 'CurrencyDollarIcon',
                     'current' => false
                 ],
                 [

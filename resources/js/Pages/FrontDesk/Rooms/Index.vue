@@ -481,6 +481,12 @@
                             class="flex-1 min-w-[140px] bg-emerald-600/90 text-white py-3 px-4 rounded-lg hover:bg-emerald-600 font-medium transition border border-emerald-400/40">
                         Check In Guest
                     </button>
+                    <button v-if="selectedRoom.housekeeping_status !== 'dirty'"
+                            @click.stop="markRoomDirty(selectedRoom)"
+                            class="flex-1 min-w-[140px] bg-orange-600/90 text-white py-3 px-4 rounded-lg hover:bg-orange-600 font-medium transition border border-orange-400/40"
+                            title="Flag this room for housekeeping cleaning.">
+                        Mark Dirty
+                    </button>
                     <button @click="selectedRoom = null"
                             class="flex-1 min-w-[140px] bg-kotel-gray border border-kotel-yellow/30 text-kotel-yellow py-3 px-4 rounded-lg hover:bg-kotel-yellow/20 font-medium transition">
                         Close
@@ -724,6 +730,23 @@ const markRoomClean = (room) => {
             console.error('Mark clean error:', errors)
             statusType.value = 'error'
             statusMessage.value = errors?.message || 'Failed to mark room as clean. Please try again.'
+        }
+    })
+}
+
+const markRoomDirty = (room) => {
+    if (!confirm(`Mark room ${room.number} as dirty? Housekeeping will be assigned to clean it.`)) return
+    router.post(route('front-desk.rooms.mark-dirty', room.id), {}, {
+        onSuccess: () => {
+            selectedRoom.value = null
+            statusType.value = 'success'
+            statusMessage.value = `Room ${room.number} marked as dirty.`
+            router.reload({ only: ['rooms', 'roomStatus'], preserveState: true })
+        },
+        onError: (errors) => {
+            console.error('Mark dirty error:', errors)
+            statusType.value = 'error'
+            statusMessage.value = errors?.message || 'Failed to mark room as dirty. Please try again.'
         }
     })
 }

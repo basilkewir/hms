@@ -2,9 +2,9 @@
     <DashboardLayout title="Financial Reports">
         <!-- Page Header -->
         <div class="shadow rounded-lg p-6 mb-8"
-             :style="{ 
+             :style="{
                  backgroundColor: themeColors.card,
-                 borderColor: themeColors.border 
+                 borderColor: themeColors.border
              }">
             <div class="flex items-center justify-between mb-6">
                 <div>
@@ -14,11 +14,11 @@
                        :style="{ color: themeColors.textSecondary }">Monitor and analyze your hotel's financial performance.</p>
                 </div>
                 <div class="flex space-x-3">
-                    <button @click="exportFinancialReport" 
+                    <button @click="exportFinancialReport"
                             class="px-4 py-2 rounded-md transition-colors flex items-center space-x-2"
-                            :style="{ 
+                            :style="{
                                 backgroundColor: themeColors.primary,
-                                color: themeColors.textPrimary 
+                                color: themeColors.textPrimary
                             }"
                             @mouseenter="$event.target.style.backgroundColor = themeColors.hover"
                             @mouseleave="$event.target.style.backgroundColor = themeColors.primary">
@@ -27,9 +27,9 @@
                     </button>
                     <button @click="toggleFilters"
                             class="px-4 py-2 rounded-md transition-colors flex items-center space-x-2"
-                            :style="{ 
+                            :style="{
                                 backgroundColor: themeColors.secondary,
-                                color: themeColors.textPrimary 
+                                color: themeColors.textPrimary
                             }"
                             @mouseenter="$event.target.style.backgroundColor = themeColors.hover"
                             @mouseleave="$event.target.style.backgroundColor = themeColors.secondary">
@@ -46,7 +46,7 @@
                     <div>
                         <label class="block text-sm font-medium mb-2"
                                :style="{ color: themeColors.textSecondary }">Start Date</label>
-                        <DatePicker 
+                        <DatePicker
                             v-model="filters.start_date"
                             placeholder="Select start date"
                             :max="filters.end_date"
@@ -55,7 +55,7 @@
                     <div>
                         <label class="block text-sm font-medium mb-2"
                                :style="{ color: themeColors.textSecondary }">End Date</label>
-                        <DatePicker 
+                        <DatePicker
                             v-model="filters.end_date"
                             placeholder="Select end date"
                             :min="filters.start_date"
@@ -64,7 +64,7 @@
                     <div class="flex items-end space-x-2">
                         <button @click="applyFilters"
                                 class="flex-1 px-4 py-2 rounded-md transition-colors"
-                                :style="{ 
+                                :style="{
                                     backgroundColor: themeColors.success,
                                     color: 'white'
                                 }">
@@ -72,9 +72,9 @@
                         </button>
                         <button @click="clearFilters"
                                 class="px-4 py-2 rounded-md transition-colors"
-                                :style="{ 
+                                :style="{
                                     backgroundColor: themeColors.secondary,
-                                    color: themeColors.textPrimary 
+                                    color: themeColors.textPrimary
                                 }"
                                 @mouseenter="$event.target.style.backgroundColor = themeColors.hover"
                                 @mouseleave="$event.target.style.backgroundColor = themeColors.secondary">
@@ -89,9 +89,9 @@
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
             <!-- Revenue Summary -->
             <div class="shadow rounded-lg p-6"
-                 :style="{ 
+                 :style="{
                      backgroundColor: themeColors.card,
-                     borderColor: themeColors.border 
+                     borderColor: themeColors.border
                  }">
                 <div class="flex items-center justify-between mb-4">
                     <h3 class="text-lg font-semibold"
@@ -118,9 +118,9 @@
 
             <!-- Expenses Summary -->
             <div class="shadow rounded-lg p-6"
-                 :style="{ 
+                 :style="{
                      backgroundColor: themeColors.card,
-                     borderColor: themeColors.border 
+                     borderColor: themeColors.border
                  }">
                 <div class="flex items-center justify-between mb-4">
                     <h3 class="text-lg font-semibold"
@@ -147,9 +147,9 @@
 
             <!-- Net Profit Summary -->
             <div class="shadow rounded-lg p-6"
-                 :style="{ 
+                 :style="{
                      backgroundColor: themeColors.card,
-                     borderColor: themeColors.border 
+                     borderColor: themeColors.border
                  }">
                 <div class="flex items-center justify-between mb-4">
                     <h3 class="text-lg font-semibold"
@@ -179,9 +179,9 @@
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
             <!-- Revenue Chart -->
             <div class="shadow rounded-lg p-6"
-                 :style="{ 
+                 :style="{
                      backgroundColor: themeColors.card,
-                     borderColor: themeColors.border 
+                     borderColor: themeColors.border
                  }">
                 <h3 class="text-lg font-semibold mb-4"
                     :style="{ color: themeColors.textPrimary }">Revenue Trend</h3>
@@ -193,9 +193,9 @@
 
             <!-- Expense Breakdown -->
             <div class="shadow rounded-lg p-6"
-                 :style="{ 
+                 :style="{
                      backgroundColor: themeColors.card,
-                     borderColor: themeColors.border 
+                     borderColor: themeColors.border
                  }">
                 <h3 class="text-lg font-semibold mb-4"
                     :style="{ color: themeColors.textPrimary }">Expense Breakdown</h3>
@@ -218,9 +218,9 @@
 
         <!-- Department Analysis -->
         <div class="shadow rounded-lg p-6"
-             :style="{ 
+             :style="{
                  backgroundColor: themeColors.card,
-                 borderColor: themeColors.border 
+                 borderColor: themeColors.border
              }">
             <h3 class="text-lg font-semibold mb-4"
                 :style="{ color: themeColors.textPrimary }">Department Analysis</h3>
@@ -274,6 +274,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { Link, router } from '@inertiajs/vue3'
 import DashboardLayout from '@/Layouts/DashboardLayout.vue'
+import { formatCurrency } from '@/Utils/currency.js'
 import { useTheme } from '@/Composables/useTheme.js'
 import DatePicker from '@/Components/DatePicker.vue'
 import {
@@ -302,26 +303,6 @@ const themeColors = computed(() => ({
 
 // Load theme on mount
 loadTheme()
-
-// Custom formatCurrency function that uses database settings
-const formatCurrency = (amount, currency = null) => {
-    if (!amount) return '0.00'
-    
-    // Use currency from data if available, otherwise use default
-    const currencyData = currency || props.financialData?.currency || {
-        code: 'USD',
-        symbol: '$',
-        position: 'before'
-    }
-    
-    const formatted = new Intl.NumberFormat('en-US', {
-        minimumFractionDigits: 2
-    }).format(amount)
-    
-    return currencyData.position === 'before'
-        ? currencyData.symbol + formatted
-        : formatted + ' ' + currencyData.symbol
-}
 
 const props = defineProps({
     financialData: {
@@ -363,7 +344,7 @@ onMounted(() => {
         const today = new Date()
         const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1)
         const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0)
-        
+
         filters.value.start_date = firstDayOfMonth.toISOString().split('T')[0]
         filters.value.end_date = lastDayOfMonth.toISOString().split('T')[0]
     }
@@ -389,7 +370,7 @@ const clearFilters = () => {
     // Clear filters and reload data
     filters.value.start_date = ''
     filters.value.end_date = ''
-    
+
     router.get(route('admin.financial-reports.index'), {}, {
         preserveState: true,
         preserveScroll: true

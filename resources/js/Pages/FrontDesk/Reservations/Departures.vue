@@ -2,9 +2,9 @@
     <DashboardLayout title="Today's Departures" :user="user">
         <!-- Header Section -->
         <div class="shadow rounded-lg p-6 mb-8"
-             :style="{ 
+             :style="{
                  backgroundColor: themeColors.card,
-                 borderColor: themeColors.border 
+                 borderColor: themeColors.border
              }">
             <div class="flex items-center justify-between">
                 <div>
@@ -14,9 +14,9 @@
                        :style="{ color: themeColors.textSecondary }">Guests expected to check out today.</p>
                 </div>
                 <div class="flex items-center gap-3">
-                    <Link :href="route('front-desk.checkout')" 
+                    <Link :href="route('front-desk.checkout')"
                           class="px-4 py-2 rounded-md transition-colors font-medium text-white flex items-center"
-                          :style="{ 
+                          :style="{
                               backgroundColor: themeColors.danger,
                           }"
                           @mouseenter="$event.target.style.backgroundColor = '#dc2626'"
@@ -24,9 +24,9 @@
                         <XCircleIcon class="h-4 w-4 mr-2" />
                         Process Check-Out
                     </Link>
-                    <Link :href="route('front-desk.reservations.index')" 
+                    <Link :href="route('front-desk.reservations.index')"
                           class="px-4 py-2 rounded-md transition-colors font-medium text-white flex items-center"
-                          :style="{ 
+                          :style="{
                               backgroundColor: themeColors.secondary,
                           }"
                           @mouseenter="$event.target.style.backgroundColor = themeColors.hover"
@@ -41,7 +41,7 @@
         <!-- Departure Stats Cards -->
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <div class="rounded-lg p-6 border shadow-sm"
-                 :style="{ 
+                 :style="{
                      backgroundColor: themeColors.card,
                      borderColor: themeColors.border,
                      borderStyle: 'solid',
@@ -60,9 +60,9 @@
                     </div>
                 </div>
             </div>
-            
+
             <div class="rounded-lg p-6 border shadow-sm"
-                 :style="{ 
+                 :style="{
                      backgroundColor: themeColors.card,
                      borderColor: themeColors.border,
                      borderStyle: 'solid',
@@ -81,9 +81,9 @@
                     </div>
                 </div>
             </div>
-            
+
             <div class="rounded-lg p-6 border shadow-sm"
-                 :style="{ 
+                 :style="{
                      backgroundColor: themeColors.card,
                      borderColor: themeColors.border,
                      borderStyle: 'solid',
@@ -104,7 +104,7 @@
             </div>
 
             <div class="rounded-lg p-6 border shadow-sm"
-                 :style="{ 
+                 :style="{
                      backgroundColor: themeColors.card,
                      borderColor: themeColors.border,
                      borderStyle: 'solid',
@@ -127,14 +127,14 @@
 
         <!-- Departures Table -->
         <div class="shadow rounded-lg overflow-hidden"
-             :style="{ 
+             :style="{
                  backgroundColor: themeColors.card,
                  borderColor: themeColors.border,
                  borderStyle: 'solid',
                  borderWidth: '1px'
              }">
             <div class="px-6 py-4 border-b"
-                 :style="{ 
+                 :style="{
                      borderColor: themeColors.border,
                      borderBottomWidth: '1px'
                  }">
@@ -147,7 +147,7 @@
                     </div>
                 </div>
             </div>
-            
+
             <div class="overflow-x-auto">
                 <table class="w-full">
                     <thead>
@@ -187,9 +187,9 @@
                         </tr>
                     </thead>
                     <tbody>
-                        <tr v-for="departure in departures" :key="departure.id" 
+                        <tr v-for="departure in departures" :key="departure.id"
                             class="transition-colors"
-                            :style="{ 
+                            :style="{
                                 borderBottomStyle: 'solid',
                                 borderBottomWidth: '1px',
                                 borderColor: themeColors.border
@@ -253,7 +253,7 @@
                     </tbody>
                 </table>
             </div>
-            
+
             <!-- Empty State -->
             <div v-if="!departures || departures.length === 0" class="text-center py-12">
                 <CalendarDaysIcon class="mx-auto h-12 w-12 text-gray-400" />
@@ -268,6 +268,7 @@
 import { computed } from 'vue'
 import { Link, router } from '@inertiajs/vue3'
 import DashboardLayout from '@/Layouts/DashboardLayout.vue'
+import { formatCurrency } from '@/Utils/currency.js'
 import { useTheme } from '@/Composables/useTheme.js'
 import {
     CalendarDaysIcon,
@@ -330,7 +331,7 @@ const departureStats = computed(() => {
                 stats.pending++
                 break
         }
-        
+
         // Check if departure is late (past expected checkout time)
         if (departure.check_out_date) {
             const checkoutDate = new Date(departure.check_out_date)
@@ -376,21 +377,14 @@ const formatDate = (date) => {
     if (!date) return 'N/A'
     try {
         const d = new Date(date)
-        return d.toLocaleDateString('en-US', { 
-            month: 'short', 
-            day: 'numeric', 
+        return d.toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
             year: 'numeric'
         })
     } catch (e) {
         return date
     }
-}
-
-const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: 'USD'
-    }).format(amount || 0)
 }
 
 const getBalanceColor = (balance) => {

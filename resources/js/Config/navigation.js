@@ -794,6 +794,60 @@ export const navigationConfig = {
       ],
     },
   ],
+
+  /* ─────────────────────────────── BARTENDER ─────────────────────────────── */
+  bartender: [
+    {
+      section: 'Main',
+      condition: null,
+      flat: true,
+      items: [
+        { label: '🍹 Dashboard', href: '/bartender/dashboard', icon: 'home' },
+      ],
+    },
+    {
+      section: '🍸 Bar Operations',
+      condition: null,
+      groups: [
+        {
+          id: 'bartender-operations',
+          label: 'Operations',
+          icon: 'shopping',
+          items: [
+            { label: '🍹 Drinks Menu',     href: '/bartender/drinks' },
+            { label: '📦 Inventory',        href: '/bartender/inventory' },
+            { label: '📊 Sales Reports',    href: '/bartender/sales' },
+          ],
+        },
+      ],
+    },
+  ],
+
+  /* ─────────────────────────────── SERVER ─────────────────────────────── */
+  server: [
+    {
+      section: 'Main',
+      condition: null,
+      flat: true,
+      items: [
+        { label: '🍽️ Dashboard', href: '/server/dashboard', icon: 'home' },
+      ],
+    },
+    {
+      section: '🍽️ Restaurant Operations',
+      condition: null,
+      groups: [
+        {
+          id: 'server-operations',
+          label: 'Operations',
+          icon: 'shopping',
+          items: [
+            { label: '📊 Sales Reports',    href: '/server/sales' },
+          ],
+        },
+      ],
+    },
+  ],
 }
 
 /**
