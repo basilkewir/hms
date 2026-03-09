@@ -360,6 +360,16 @@
                             </select>
                             <p class="mt-1 text-xs text-kotel-text-tertiary">Choose whether the currency symbol appears before or after the amount</p>
                         </div>
+                        <!-- Interface Language -->
+                        <div>
+                            <label class="block text-sm font-medium text-kotel-text-secondary mb-2">{{ $t('settings.language_setting') }}</label>
+                            <select v-model="uiLocale" @change="handleLocaleChange"
+                                    class="w-full border border-kotel-border rounded-md px-3 py-2 bg-kotel-black text-kotel-text-primary focus:outline-none focus:ring-2 focus:ring-kotel-yellow">
+                                <option value="en">{{ $t('languages.en') }}</option>
+                                <option value="fr">{{ $t('languages.fr') }}</option>
+                            </select>
+                            <p class="mt-1 text-xs text-kotel-text-tertiary">{{ $t('settings.language_hint') }}</p>
+                        </div>
                         <div>
                             <label class="block text-sm font-medium text-kotel-text-secondary mb-2">Default POS Tax Rate (%)</label>
                             <input
@@ -920,6 +930,15 @@ import { ref, computed, onMounted } from 'vue'
 import DashboardLayout from '@/Layouts/DashboardLayout.vue'
 import { notify } from '@/Composables/useNotification.js'
 import { useTheme } from '@/Composables/useTheme.js'
+import { setLocale } from '@/i18n/index.js'
+import { useI18n } from 'vue-i18n'
+
+const { locale } = useI18n()
+const uiLocale = ref(locale.value)
+
+function handleLocaleChange() {
+    setLocale(uiLocale.value)
+}
 
 // Initialize theme
 const { loadTheme } = useTheme()

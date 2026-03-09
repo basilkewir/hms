@@ -3,6 +3,162 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { Link, usePage } from '@inertiajs/vue3'
 import { useTheme } from '@/Composables/useTheme.js'
 import { navigationConfig, iconPaths } from '@/Config/navigation.js'
+import LanguageSwitcher from '@/Components/LanguageSwitcher.vue'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
+
+// Map raw navigation label strings to i18n keys.
+// The label may have emoji prefixes (e.g. "📅 Reservations") — strip them first.
+const labelToKey = {
+    'Admin Dashboard': 'nav_items.admin_dashboard',
+    'Manager Dashboard': 'nav_items.manager_dashboard',
+    'Accountant Dashboard': 'nav_items.accountant_dashboard',
+    'Front Desk Dashboard': 'nav_items.front_desk_dashboard',
+    'Housekeeping Dashboard': 'nav_items.housekeeping_dashboard',
+    'Maintenance Dashboard': 'nav_items.maintenance_dashboard',
+    'HR Dashboard': 'nav_items.hr_dashboard',
+    'Dashboard': 'nav_items.dashboard',
+    'Reservations': 'nav_items.reservations',
+    'Hall Bookings': 'nav_items.hall_bookings',
+    'Guests': 'nav_items.guests',
+    'Check-ins': 'nav_items.check_ins',
+    'Check-outs': 'nav_items.check_outs',
+    'Room Status': 'nav_items.room_status',
+    'Waitlist': 'nav_items.waitlist',
+    'Rooms': 'nav_items.rooms',
+    'Room Types': 'nav_items.room_types',
+    'Floors': 'nav_items.floors',
+    'Building Wings': 'nav_items.building_wings',
+    'Bed Types': 'nav_items.bed_types',
+    'Halls': 'nav_items.halls',
+    'Expenses': 'nav_items.expenses',
+    'Expense Categories': 'nav_items.expense_categories',
+    'Locations': 'nav_items.locations',
+    'Suppliers': 'nav_items.suppliers',
+    'Purchase Orders': 'nav_items.purchase_orders',
+    'Products': 'nav_items.products',
+    'Product Categories': 'nav_items.product_categories',
+    'Categories': 'nav_items.categories',
+    'Brands': 'nav_items.brands',
+    'Units': 'nav_items.units',
+    'Stock Overview': 'nav_items.stock_overview',
+    'Stock Adjustments': 'nav_items.stock_adjustments',
+    'Stock Transfers': 'nav_items.stock_transfers',
+    'Stock Movements': 'nav_items.stock_movements',
+    'Sales Register': 'nav_items.sales_register',
+    'Orders': 'nav_items.orders',
+    'Transactions': 'nav_items.transactions',
+    'Sales Reports': 'nav_items.sales_reports',
+    'Analytics': 'nav_items.analytics',
+    'Users': 'nav_items.users',
+    'Roles': 'nav_items.roles',
+    'Customers': 'nav_items.customers',
+    'Customer Groups': 'nav_items.customer_groups',
+    'Guest Types': 'nav_items.guest_types',
+    'Memberships': 'nav_items.memberships',
+    'Services': 'nav_items.services',
+    'Concierge': 'nav_items.concierge',
+    'Service Charges': 'nav_items.service_charges',
+    'Laundry': 'nav_items.laundry',
+    'Packages': 'nav_items.packages',
+    'Group Bookings': 'nav_items.group_bookings',
+    'Maintenance Requests': 'nav_items.maintenance_requests',
+    'Maintenance Categories': 'nav_items.maintenance_categories',
+    'IPTV Devices': 'nav_items.iptv_devices',
+    'Preventive Maintenance': 'nav_items.preventive_maintenance',
+    'Work Shifts': 'nav_items.work_shifts',
+    'Staff Schedules': 'nav_items.staff_schedules',
+    'Housekeeping Schedules': 'nav_items.housekeeping_schedules',
+    'Housekeeping Tasks': 'nav_items.housekeeping_tasks',
+    'Time Tracking': 'nav_items.time_tracking',
+    'Employees': 'nav_items.employees',
+    'Departments': 'nav_items.departments',
+    'Attendance': 'nav_items.attendance',
+    'Payroll': 'nav_items.payroll',
+    'HR Reports': 'nav_items.hr_reports',
+    'Recruitment': 'nav_items.recruitment',
+    'Leave Management': 'nav_items.leave_management',
+    'Performance': 'nav_items.performance',
+    'Training': 'nav_items.training',
+    'Budget Dashboard': 'nav_items.budget_dashboard',
+    'All Budgets': 'nav_items.all_budgets',
+    'Create Budget': 'nav_items.create_budget',
+    'Pending Approvals': 'nav_items.pending_approvals',
+    'Reports': 'nav_items.grp_reports',
+    'All Reports': 'nav_items.all_reports',
+    'Occupancy Reports': 'nav_items.occupancy_reports',
+    'Revenue Reports': 'nav_items.revenue_reports',
+    'Alerts': 'nav_items.alerts',
+    'Archived': 'nav_items.archived',
+    'Invoices': 'nav_items.invoices',
+    'Quotes': 'nav_items.quotes',
+    'General Settings': 'nav_items.general_settings',
+    'System Backup': 'nav_items.system_backup',
+    'License': 'nav_items.license',
+    'Overview': 'nav_items.overview',
+    'All Reservations': 'nav_items.all_reservations',
+    'New Reservation': 'nav_items.new_reservation',
+    'Check In': 'nav_items.check_in',
+    'Check Out': 'nav_items.check_out',
+    'Channel Manager': 'nav_items.channel_manager',
+    'Staff Management': 'nav_items.staff_management',
+    'New Request': 'nav_items.new_request',
+    'New Category': 'nav_items.new_category',
+    'Comparison': 'nav_items.comparison',
+    'Forecast': 'nav_items.forecast',
+    'Profit & Loss': 'nav_items.profit_loss',
+    'Balance Sheet': 'nav_items.balance_sheet',
+    'Cash Flow': 'nav_items.cash_flow',
+    'Revenue': 'nav_items.revenue',
+    'Arrivals': 'nav_items.arrivals',
+    'Departures': 'nav_items.departures',
+    'Room Assignment': 'nav_items.room_assignment',
+    'Payments': 'nav_items.payments',
+    'Key Cards': 'nav_items.key_cards',
+    'Housekeeping': 'nav_items.housekeeping',
+    'Maintenance': 'nav_items.maintenance',
+    'To Clean': 'nav_items.to_clean',
+    'Daily Tasks': 'nav_items.daily_tasks',
+    'Weekly Tasks': 'nav_items.weekly_tasks',
+    'Task History': 'nav_items.task_history',
+    'Supplies': 'nav_items.supplies',
+    'Linens': 'nav_items.linens',
+    'Amenities': 'nav_items.amenities',
+    'Request Supplies': 'nav_items.request_supplies',
+    'Report Maintenance': 'nav_items.report_maintenance',
+    'Requests': 'nav_items.requests',
+    'IPTV': 'nav_items.iptv',
+    'Preventive': 'nav_items.preventive',
+    'Drinks Menu': 'nav_items.drinks_menu',
+    'Staff Reports': 'nav_items.staff_reports',
+    'Financial': 'nav_items.grp_financial',
+    'Accounting': 'nav_items.grp_accounting',
+    'Operations': 'nav_items.grp_operations',
+    'Property Management': 'nav_items.grp_property',
+    'Purchase Management': 'nav_items.grp_purchase',
+    'Employee': 'nav_items.grp_employee',
+    'HR Management': 'nav_items.grp_hr',
+    'Budget': 'nav_items.grp_budget',
+    'Settings': 'nav_items.grp_settings',
+    'Services & Requests': 'nav_items.grp_services_requests',
+    'Invoicing': 'nav_items.grp_invoicing',
+}
+
+// Strip leading emojis/special chars and whitespace from nav labels, then look up key
+function translateLabel(raw) {
+    if (!raw) return raw
+    // Remove leading emoji sequences and whitespace
+    const stripped = raw.replace(/^[\p{Emoji}\s🏢🨺🧹🧹💼📅📋📊💰🛒🛍️👤👥🔐💳🏭🛎️🔧⏰📺⏱️🔑🔓🏛️⏳🌐🛏️🏠🏷️🗂️➕🚚🔄📈📉🔮🏖️🎓📚🔍📦🏪📏📉💸🏷🛒💡💾🔑🍹🍸📊🍽️]+/u, '').trim()
+    const key = labelToKey[stripped]
+    if (key) {
+        const translated = t(key)
+        // Preserve original emoji prefix if present
+        const emojiMatch = raw.match(/^[\p{Emoji}\s🏢🨺🧹🧹💼📅📋📊💰🛒🛍️👤👥🔐💳🏭🛎️🔧⏰📺⏱️🔑🔓🏛️⏳🌐🛏️🏠🏷️🗂️➕🚚🔄📈📉🔮🏖️🎓📚🔍📦🏪📏📉💸🏷🛒💡💾🔑🍹🍸📊🍽️]+/u)
+        return emojiMatch ? `${emojiMatch[0].trimEnd()} ${translated}` : translated
+    }
+    return raw
+}
 
 const sidebarExpanded = ref(true), sidebarOpen = ref(false), sidebarHovered = ref(false), openSubmenus = ref([])
 const page = usePage(), currentUrl = computed(() => page.props.url)
@@ -216,7 +372,7 @@ const getIconPath = (iconName) => iconPaths[iconName] || iconPaths.home
                         <div v-if="checkCondition(section.condition)">
                             <h3 class="mb-2 text-xs font-semibold uppercase tracking-wider"
                                 v-show="sidebarExpanded || sidebarHovered"
-                                :style="{ color: themeColors.textTertiary }">{{ section.section }}</h3>
+                                :style="{ color: themeColors.textTertiary }">{{ translateLabel(section.section) }}</h3>
                             <!-- Flat direct-link items -->
                             <ul v-if="section.flat" class="space-y-1">
                                 <li v-for="item in section.items" :key="item.label">
@@ -228,7 +384,7 @@ const getIconPath = (iconName) => iconPaths[iconName] || iconPaths.home
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="getIconPath(item.icon || 'home')"/>
                                             </svg>
                                         </span>
-                                        <span class="sidebar-menu-text">{{ item.label }}</span>
+                                        <span class="sidebar-menu-text">{{ translateLabel(item.label) }}</span>
                                     </Link>
                                 </li>
                             </ul>
@@ -243,7 +399,7 @@ const getIconPath = (iconName) => iconPaths[iconName] || iconPaths.home
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="getIconPath(group.icon || 'home')"/>
                                             </svg>
                                         </span>
-                                        <span class="sidebar-menu-text">{{ group.label }}</span>
+                                        <span class="sidebar-menu-text">{{ translateLabel(group.label) }}</span>
                                         <span v-show="sidebarExpanded || sidebarHovered"
                                               class="sidebar-menu-arrow"
                                               :class="{ 'rotate-180': isSubmenuOpen(group.id) }">
@@ -259,7 +415,7 @@ const getIconPath = (iconName) => iconPaths[iconName] || iconPaths.home
                                                 <Link :href="resolveHref(item)"
                                                       class="sidebar-submenu-item"
                                                       :class="isActive(resolveHref(item)) ? 'sidebar-submenu-item-active' : 'sidebar-submenu-item-inactive'">
-                                                    {{ item.label }}
+                                                    {{ translateLabel(item.label) }}
                                                 </Link>
                                             </li>
                                         </ul>
@@ -288,6 +444,7 @@ const getIconPath = (iconName) => iconPaths[iconName] || iconPaths.home
                         </svg>
                     </Link>
                         <button @click="toggleTheme" class="p-2 rounded-lg" :style="{ color: themeColors.textTertiary }"><svg v-if="!isDark" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg><svg v-else class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg></button>
+                        <LanguageSwitcher :style="{ color: themeColors.textPrimary }" />
                         <button class="p-2 rounded-lg" :style="{ color: themeColors.textTertiary }"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg></button>
                         <div id="profile-menu-container" class="relative">
                             <button @click="profileMenuOpen = !profileMenuOpen" class="flex items-center gap-2 p-2 rounded-lg">
@@ -295,8 +452,8 @@ const getIconPath = (iconName) => iconPaths[iconName] || iconPaths.home
                             </button>
 
                             <div v-show="profileMenuOpen" class="absolute right-0 mt-2 w-48 rounded-lg border shadow-lg overflow-hidden" :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }">
-                                <Link href="/user/profile" class="block px-4 py-2 text-sm transition-colors" :style="{ color: themeColors.textPrimary }">Profile</Link>
-                                <Link href="/logout" method="post" as="button" class="w-full text-left px-4 py-2 text-sm transition-colors" :style="{ color: themeColors.textPrimary }">Logout</Link>
+                                <Link href="/user/profile" class="block px-4 py-2 text-sm transition-colors" :style="{ color: themeColors.textPrimary }">{{ $t('nav.profile') }}</Link>
+                                <Link href="/logout" method="post" as="button" class="w-full text-left px-4 py-2 text-sm transition-colors" :style="{ color: themeColors.textPrimary }">{{ $t('auth.logout') }}</Link>
                             </div>
                         </div>
                     </div>

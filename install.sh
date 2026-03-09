@@ -305,6 +305,10 @@ FILESYSTEM_DISK=local
 QUEUE_CONNECTION=database
 SESSION_DRIVER=database
 SESSION_LIFETIME=120
+SESSION_ENCRYPT=false
+SESSION_PATH=/
+SESSION_DOMAIN=${APP_DOMAIN}
+SESSION_SECURE_COOKIE=${INSTALL_SSL}
 
 MEMCACHED_HOST=127.0.0.1
 
@@ -427,10 +431,15 @@ success "Application key generated"
 info "Running npm install..."
 npm install --silent --legacy-peer-deps
 
-info "Building front-end assets (Vite)..."
-npm run build
+info "Building front-end assets (Vite production build)..."
+NODE_ENV=production npm run build
 
 success "Front-end assets built"
+
+# Remove node_modules — not needed at runtime, saves ~400 MB on the server
+info "Removing node_modules (not needed at runtime)..."
+rm -rf "${INSTALL_DIR}/node_modules"
+success "node_modules removed"
 
 # =============================================================================
 #  STEP 6 — Database Migrations
@@ -651,10 +660,43 @@ elif [[ -n "${HOTEL_LOGO_PATH}" ]]; then
 fi
 
 # ─── Cache optimise after seeding ─────────────────────────────────────────────
+info "Optimising Laravel for production..."
+
+# Clear any stale dev caches first
+sudo -u www-data php artisan optimize:clear --quiet 2>/dev/null || true
+
+# Build all production caches
 sudo -u www-data php artisan config:cache
 sudo -u www-data php artisan route:cache
 sudo -u www-data php artisan view:cache
-success "Laravel caches warmed"
+sudo -u www-data php artisan event:cache
+
+# Full optimise (bootstraps class map, combines above)
+sudo -u www-data php artisan optimize
+
+success "Laravel production caches built (config / route / view / event / optimize)"
+
+# ─── File permission hardening ─────────────────────────────────────────────────
+info "Hardening file permissions..."
+
+# Ownership: everything belongs to www-data
+chown -R www-data:www-data "${INSTALL_DIR}"
+
+# Directories: 755  |  Files: 644
+find "${INSTALL_DIR}" -type d -exec chmod 755 {} \;
+find "${INSTALL_DIR}" -type f -exec chmod 644 {} \;
+
+# .env must never be world-readable
+chmod 640 "${INSTALL_DIR}/.env"
+
+# Writable by the web server only
+chmod -R ug+w "${INSTALL_DIR}/storage"
+chmod -R ug+w "${INSTALL_DIR}/bootstrap/cache"
+
+# artisan must be executable
+chmod +x "${INSTALL_DIR}/artisan"
+
+success "File permissions hardened"
 
 # =============================================================================
 #  STEP 7 — Nginx Virtual Host

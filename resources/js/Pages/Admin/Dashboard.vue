@@ -9,9 +9,9 @@
             <div class="flex items-center justify-between">
                 <div>
                     <h1 class="text-2xl font-bold mb-2"
-                        :style="{ color: themeColors.textPrimary }">Admin Dashboard</h1>
+                        :style="{ color: themeColors.textPrimary }">{{ $t('nav_items.admin_dashboard') }}</h1>
                     <p class="text-sm"
-                       :style="{ color: themeColors.textSecondary }">Welcome back, {{ user.first_name }}! Monitor and manage all hotel operations.</p>
+                       :style="{ color: themeColors.textSecondary }">{{ $t('dashboard.welcome') }}, {{ user.first_name }}! {{ $t('dashboard.overview') }}</p>
                 </div>
                 <div class="flex items-center gap-3">
                     <div class="text-right">
@@ -31,7 +31,7 @@
                  borderColor: themeColors.border
              }">
             <h2 class="text-lg font-semibold mb-4"
-                :style="{ color: themeColors.textPrimary }">Critical Alerts</h2>
+                :style="{ color: themeColors.textPrimary }">{{ $t('common.warning') }} - {{ $t('common.status') }}</h2>
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div v-for="(alert, key) in alerts" :key="key"
                      v-if="alert > 0"
@@ -72,7 +72,7 @@
                     </div>
                     <div>
                         <p class="text-sm font-medium mb-1"
-                           :style="{ color: themeColors.textSecondary }">Total Rooms</p>
+                           :style="{ color: themeColors.textSecondary }">{{ $t('dashboard.total_rooms') }}</p>
                         <p class="text-2xl font-bold"
                            :style="{ color: themeColors.textPrimary }">{{ dashboardStats?.totalRooms || 0 }}</p>
                     </div>
@@ -93,7 +93,7 @@
                     </div>
                     <div>
                         <p class="text-sm font-medium mb-1"
-                           :style="{ color: themeColors.textSecondary }">Occupied</p>
+                           :style="{ color: themeColors.textSecondary }">{{ $t('rooms.occupied') }}</p>
                         <p class="text-2xl font-bold"
                            :style="{ color: themeColors.textPrimary }">{{ dashboardStats?.occupiedRooms || 0 }}</p>
                     </div>
@@ -114,7 +114,7 @@
                     </div>
                     <div>
                         <p class="text-sm font-medium mb-1"
-                           :style="{ color: themeColors.textSecondary }">Available</p>
+                           :style="{ color: themeColors.textSecondary }">{{ $t('rooms.available') }}</p>
                         <p class="text-2xl font-bold"
                            :style="{ color: themeColors.textPrimary }">{{ dashboardStats?.availableRooms || 0 }}</p>
                     </div>
@@ -135,7 +135,7 @@
                     </div>
                     <div>
                         <p class="text-sm font-medium mb-1"
-                           :style="{ color: themeColors.textSecondary }">Guests</p>
+                           :style="{ color: themeColors.textSecondary }">{{ $t('nav.guests') }}</p>
                         <p class="text-2xl font-bold"
                            :style="{ color: themeColors.textPrimary }">{{ dashboardStats?.totalGuests || 0 }}</p>
                     </div>
@@ -156,7 +156,7 @@
                     </div>
                     <div>
                         <p class="text-sm font-medium mb-1"
-                           :style="{ color: themeColors.textSecondary }">Reservations</p>
+                           :style="{ color: themeColors.textSecondary }">{{ $t('nav.reservations') }}</p>
                         <p class="text-2xl font-bold"
                            :style="{ color: themeColors.textPrimary }">{{ dashboardStats?.totalReservations || 0 }}</p>
                     </div>
@@ -177,7 +177,7 @@
                     </div>
                     <div>
                         <p class="text-sm font-medium mb-1"
-                           :style="{ color: themeColors.textSecondary }">Revenue</p>
+                           :style="{ color: themeColors.textSecondary }">{{ $t('dashboard.revenue_today') }}</p>
                         <p class="text-2xl font-bold"
                            :style="{ color: themeColors.textPrimary }">{{ formatCurrency(dashboardStats?.todayRevenue || 0) }}</p>
                     </div>
@@ -192,7 +192,7 @@
                  borderColor: themeColors.border
              }">
             <h2 class="text-lg font-semibold mb-6"
-                :style="{ color: themeColors.textPrimary }">Analytics</h2>
+                :style="{ color: themeColors.textPrimary }">{{ $t('nav.analytics') }}</h2>
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <!-- Revenue Chart -->
                 <div class="flex flex-col">
@@ -475,6 +475,7 @@ import { Link } from '@inertiajs/vue3'
 import DashboardLayout from '@/Layouts/DashboardLayout.vue'
 import { formatCurrency, initializeCurrencySettings } from '@/Utils/currency.js'
 import { useTheme } from '@/Composables/useTheme.js'
+import { useI18n } from 'vue-i18n'
 import {
     ExclamationTriangleIcon,
     HomeIcon,
@@ -525,6 +526,9 @@ let occupancyChartInstance = null
 const hoveredRevenueIndex = ref(null)
 const hoveredOccupancyIndex = ref(null)
 const tooltipX = ref(0)
+
+// Initialize i18n
+const { t } = useI18n()
 
 // Initialize theme
 const { loadTheme } = useTheme()
