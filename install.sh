@@ -113,7 +113,7 @@ DB_USERNAME="${DB_USERNAME:-hms_user}"
 
 # Generate a secure random password if user leaves blank
 RAND_PASS=$(tr -dc 'A-Za-z0-9@#!%' </dev/urandom | head -c 20)
-read -rsp "$(echo -e "${BOLD}Database password${RESET} [auto-generated — press Enter]: ")" DB_PASSWORD
+read -rsp "$(echo -e "${BOLD}Database password${RESET} [auto-generated — press Enter]: ")" DB_PASSWORD || true
 echo ""
 DB_PASSWORD="${DB_PASSWORD:-$RAND_PASS}"
 
@@ -136,6 +136,17 @@ echo -e "  SSL               : ${INSTALL_SSL}"
 echo -e "  License server    : ${LICENSE_SERVER_URL}"
 echo -e "${BOLD}────────────────────────────────────────────────────────────${RESET}"
 echo ""
+echo -e "${BOLD}─── The following will be installed on this server ─────────${RESET}"
+echo -e "  ${CYAN}•${RESET}  apt update + upgrade (full system update)"
+echo -e "  ${CYAN}•${RESET}  PHP ${PHP_VERSION} + all required extensions (FPM, MySQL, Redis, …)"
+echo -e "  ${CYAN}•${RESET}  Nginx web server"
+echo -e "  ${CYAN}•${RESET}  MySQL server"
+echo -e "  ${CYAN}•${RESET}  Node.js ${NODE_VERSION} (for front-end asset build)"
+echo -e "  ${CYAN}•${RESET}  Composer (PHP package manager)"
+echo -e "  ${CYAN}•${RESET}  UFW firewall (ports 22, 80, 443)"
+echo -e "  ${CYAN}•${RESET}  Systemd queue-worker service"
+echo -e "${BOLD}────────────────────────────────────────────────────────────${RESET}"
+echo ""
 read -rp "$(echo -e "${BOLD}Proceed with installation? (yes/no)${RESET} [yes]: ")" CONFIRM
 CONFIRM="${CONFIRM:-yes}"
 [[ ! "$CONFIRM" =~ ^[Yy] ]] && { info "Installation cancelled."; exit 0; }
@@ -146,10 +157,16 @@ CONFIRM="${CONFIRM:-yes}"
 step "1/8 — Installing System Dependencies"
 
 export DEBIAN_FRONTEND=noninteractive
-apt-get update -qq
+
+info "Updating package lists..."
+apt-get update -y
+
+info "Upgrading existing packages (this may take a few minutes on a fresh server)..."
+apt-get upgrade -y
 
 # ─── Software properties ─────────────────────────────────────────────────────
-apt-get install -y -qq \
+info "Installing base utilities..."
+apt-get install -y \
     software-properties-common \
     curl \
     wget \
@@ -163,10 +180,12 @@ apt-get install -y -qq \
     apt-transport-https
 
 # ─── PHP 8.2 via Ondrej PPA ──────────────────────────────────────────────────
+info "Adding PHP ${PHP_VERSION} PPA (Ondrej)..."
 add-apt-repository -y ppa:ondrej/php
-apt-get update -qq
+apt-get update -y
 
-apt-get install -y -qq \
+info "Installing PHP ${PHP_VERSION} and extensions..."
+apt-get install -y \
     php${PHP_VERSION} \
     php${PHP_VERSION}-fpm \
     php${PHP_VERSION}-cli \
@@ -186,19 +205,23 @@ apt-get install -y -qq \
 success "PHP ${PHP_VERSION} installed: $(php -v | head -1)"
 
 # ─── Nginx ───────────────────────────────────────────────────────────────────
-apt-get install -y -qq nginx
+info "Installing Nginx..."
+apt-get install -y nginx
 systemctl enable nginx --now
 success "Nginx installed"
 
 # ─── MySQL ───────────────────────────────────────────────────────────────────
-apt-get install -y -qq mysql-server
+info "Installing MySQL server..."
+apt-get install -y mysql-server
 systemctl enable mysql --now
 success "MySQL installed"
 
 # ─── Node.js ─────────────────────────────────────────────────────────────────
 if ! command -v node &>/dev/null || [[ $(node -v | tr -d 'v' | cut -d. -f1) -lt $NODE_VERSION ]]; then
-    curl -fsSL "https://deb.nodesource.com/setup_${NODE_VERSION}.x" | bash - >/dev/null
-    apt-get install -y -qq nodejs
+    info "Setting up Node.js ${NODE_VERSION} repository..."
+    curl -fsSL "https://deb.nodesource.com/setup_${NODE_VERSION}.x" | bash -
+    info "Installing Node.js ${NODE_VERSION}..."
+    apt-get install -y nodejs
 fi
 success "Node.js installed: $(node -v)"
 
@@ -418,8 +441,7 @@ sudo -u www-data composer install \
     --no-dev \
     --no-interaction \
     --optimize-autoloader \
-    --prefer-dist \
-    -q
+    --prefer-dist
 
 success "Composer dependencies installed"
 
@@ -429,7 +451,7 @@ success "Application key generated"
 
 # ─── npm install + build ─────────────────────────────────────────────────────
 info "Running npm install..."
-npm install --silent --legacy-peer-deps
+npm install --legacy-peer-deps
 
 info "Building front-end assets (Vite production build)..."
 NODE_ENV=production npm run build
@@ -769,7 +791,7 @@ success "Nginx virtual host configured"
 # ─── Optional: SSL with Let's Encrypt ────────────────────────────────────────
 if [[ "$INSTALL_SSL" == true ]]; then
     info "Installing Certbot for Let's Encrypt SSL..."
-    apt-get install -y -qq certbot python3-certbot-nginx
+    apt-get install -y certbot python3-certbot-nginx
 
     # Only attempt if domain is not an IP address
     if [[ "$APP_DOMAIN" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
