@@ -58,8 +58,9 @@ RAM_MB=$(free -m | awk '/Mem:/{print $2}')
 [[ $RAM_MB -lt $MIN_RAM_MB ]] && \
     warn "System has ${RAM_MB}MB RAM. Minimum recommended: ${MIN_RAM_MB}MB."
 
-# ─── Start logging ────────────────────────────────────────────────────────────
-exec > >(tee -a "$LOG_FILE") 2>&1
+# NOTE: Logging (exec > tee) is started AFTER interactive prompts to avoid
+#       breaking read -rsp (silent password input) which fails when stdout
+#       is a pipe instead of a real terminal.
 
 # =============================================================================
 #  STEP 0 — Interactive Setup
@@ -113,7 +114,8 @@ DB_USERNAME="${DB_USERNAME:-hms_user}"
 
 # Generate a secure random password if user leaves blank
 RAND_PASS=$(tr -dc 'A-Za-z0-9@#!%' </dev/urandom | head -c 20)
-read -rsp "$(echo -e "${BOLD}Database password${RESET} [auto-generated — press Enter]: ")" DB_PASSWORD || true
+echo -e "${BOLD}Database password${RESET} [auto-generated — press Enter]: " > /dev/tty
+read -rsp "" DB_PASSWORD < /dev/tty || true
 echo ""
 DB_PASSWORD="${DB_PASSWORD:-$RAND_PASS}"
 
@@ -150,6 +152,13 @@ echo ""
 read -rp "$(echo -e "${BOLD}Proceed with installation? (yes/no)${RESET} [yes]: ")" CONFIRM
 CONFIRM="${CONFIRM:-yes}"
 [[ ! "$CONFIRM" =~ ^[Yy] ]] && { info "Installation cancelled."; exit 0; }
+
+# ─── Start logging now (after all interactive prompts) ────────────────────────
+# Logging is deferred until here because exec > >(tee) makes stdout a pipe,
+# which breaks read -rsp (silent password read) on many terminal emulators.
+touch "$LOG_FILE"
+exec > >(tee -a "$LOG_FILE") 2>&1
+info "Installation log: ${LOG_FILE}"
 
 # =============================================================================
 #  STEP 1 — System Packages
