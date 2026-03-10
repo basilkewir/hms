@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # =============================================================================
 #  Hotel Management System — Ubuntu Installer
-#  Inspired by XtreamUI-style one-command installation
 #  Supports: Ubuntu 20.04 / 22.04 / 24.04 LTS
 # =============================================================================
-set -euo pipefail
+set -eo pipefail
+# NOTE: -u (nounset) intentionally omitted — vars may be conditionally set.
+# NOTE: pipefail kept but we use dd+base64 for random passwords to avoid
+#       the tr|head SIGPIPE issue that caused silent exits in earlier versions.
 
 # ─── Colours ─────────────────────────────────────────────────────────────────
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
@@ -13,10 +15,12 @@ CYAN='\033[0;36m'; BOLD='\033[1m'; RESET='\033[0m'
 info()    { echo -e "${CYAN}[INFO]${RESET}  $*"; }
 success() { echo -e "${GREEN}[OK]${RESET}    $*"; }
 warn()    { echo -e "${YELLOW}[WARN]${RESET}  $*"; }
-error()   { echo -e "${RED}[ERROR]${RESET} $*"; exit 1; }
-step()    { echo -e "\n${BOLD}${CYAN}══════════════════════════════════════════${RESET}"; \
-            echo -e "${BOLD} $*${RESET}"; \
-            echo -e "${BOLD}${CYAN}══════════════════════════════════════════${RESET}"; }
+error()   { echo -e "${RED}[ERROR]${RESET} $*" >&2; exit 1; }
+step()    {
+    echo -e "\n${BOLD}${CYAN}══════════════════════════════════════════${RESET}"
+    echo -e "${BOLD} $*${RESET}"
+    echo -e "${BOLD}${CYAN}══════════════════════════════════════════${RESET}"
+}
 
 # ─── ASCII Banner ─────────────────────────────────────────────────────────────
 banner() {
@@ -35,6 +39,15 @@ cat <<'EOF'
 EOF
 }
 
+# ─── Safe random password generator ──────────────────────────────────────────
+# Uses dd+base64 — avoids the tr|head SIGPIPE issue under set -eo pipefail
+# which was the root cause of the silent exit bug.
+gen_password() {
+    local raw
+    raw=$(dd if=/dev/urandom bs=64 count=1 2>/dev/null | base64 | tr -d '/+=' | tr -d '\n')
+    echo "${raw:0:20}"
+}
+
 # ─── Constants ────────────────────────────────────────────────────────────────
 INSTALL_DIR="/opt/hms"
 NGINX_SITE="hms"
@@ -48,25 +61,100 @@ LOG_FILE="/var/log/hms_install.log"
 [[ $EUID -ne 0 ]] && error "This installer must be run as root. Use: sudo bash install.sh"
 
 # ─── OS check ─────────────────────────────────────────────────────────────────
-. /etc/os-release
-[[ "$ID" != "ubuntu" ]] && error "Only Ubuntu is supported. Detected: $ID"
-[[ $(echo "$VERSION_ID >= 20.04" | bc -l) -ne 1 ]] && \
-    error "Ubuntu 20.04+ required. Detected: $VERSION_ID"
+if [[ -f /etc/os-release ]]; then
+    . /etc/os-release
+else
+    error "Cannot detect OS. /etc/os-release not found."
+fi
+[[ "$ID" != "ubuntu" ]] && error "Only Ubuntu is supported. Detected: ${ID:-unknown}"
+VER_OK=$(awk "BEGIN{print (${VERSION_ID:-0} >= 20.04) ? 1 : 0}")
+[[ "$VER_OK" -ne 1 ]] && error "Ubuntu 20.04+ required. Detected: ${VERSION_ID:-unknown}"
 
 # ─── RAM check ────────────────────────────────────────────────────────────────
 RAM_MB=$(free -m | awk '/Mem:/{print $2}')
-[[ $RAM_MB -lt $MIN_RAM_MB ]] && \
+if [[ $RAM_MB -lt $MIN_RAM_MB ]]; then
     warn "System has ${RAM_MB}MB RAM. Minimum recommended: ${MIN_RAM_MB}MB."
+fi
 
-# NOTE: Logging (exec > tee) is started AFTER interactive prompts to avoid
-#       breaking read -rsp (silent password input) which fails when stdout
-#       is a pipe instead of a real terminal.
+# =============================================================================
+#  PRE-FLIGHT: Detect what is already installed
+# =============================================================================
+banner
+
+echo -e "${BOLD}${CYAN}══════════════════════════════════════════${RESET}"
+echo -e "${BOLD} Pre-flight System Check${RESET}"
+echo -e "${BOLD}${CYAN}══════════════════════════════════════════${RESET}"
+echo ""
+
+has_cmd() { command -v "$1" &>/dev/null; }
+
+NEED_PHP=false
+NEED_NGINX=false
+NEED_MYSQL=false
+NEED_NODE=false
+NEED_COMPOSER=false
+MYSQL_EXISTS=false
+
+# PHP
+if has_cmd "php${PHP_VERSION}"; then
+    echo -e "  ${GREEN}✓${RESET}  PHP ${PHP_VERSION}: $(php${PHP_VERSION} -r 'echo PHP_VERSION;' 2>/dev/null)"
+elif has_cmd php && php -r "exit(PHP_MAJOR_VERSION >= 8 && PHP_MINOR_VERSION >= 2 ? 0 : 1);" 2>/dev/null; then
+    echo -e "  ${GREEN}✓${RESET}  PHP: $(php -r 'echo PHP_VERSION;' 2>/dev/null)"
+else
+    echo -e "  ${RED}✗${RESET}  PHP ${PHP_VERSION}: NOT installed — will be installed"
+    NEED_PHP=true
+fi
+
+# Nginx
+if has_cmd nginx; then
+    echo -e "  ${GREEN}✓${RESET}  Nginx: $(nginx -v 2>&1)"
+else
+    echo -e "  ${RED}✗${RESET}  Nginx: NOT installed — will be installed"
+    NEED_NGINX=true
+fi
+
+# MySQL
+if has_cmd mysql && (has_cmd mysqld || has_cmd mysqld_safe || systemctl list-units --type=service 2>/dev/null | grep -q mysql); then
+    echo -e "  ${GREEN}✓${RESET}  MySQL: $(mysql --version 2>/dev/null | awk '{print $1,$2,$3}')"
+    MYSQL_EXISTS=true
+else
+    echo -e "  ${RED}✗${RESET}  MySQL: NOT installed — will be installed"
+    NEED_MYSQL=true
+fi
+
+# Node.js
+NODE_OK=false
+if has_cmd node; then
+    NODE_MAJOR=$(node -v 2>/dev/null | tr -d 'v' | cut -d. -f1 || echo "0")
+    if [[ "$NODE_MAJOR" -ge "$NODE_VERSION" ]]; then
+        echo -e "  ${GREEN}✓${RESET}  Node.js: $(node -v)"
+        NODE_OK=true
+    else
+        echo -e "  ${YELLOW}!${RESET}  Node.js: $(node -v) — too old (need v${NODE_VERSION}+) — will upgrade"
+    fi
+fi
+[[ "$NODE_OK" == false ]] && NEED_NODE=true
+
+# Composer
+if has_cmd composer; then
+    echo -e "  ${GREEN}✓${RESET}  Composer: $(composer --version --no-ansi 2>/dev/null | head -1)"
+else
+    echo -e "  ${RED}✗${RESET}  Composer: NOT installed — will be installed"
+    NEED_COMPOSER=true
+fi
+
+echo ""
+if [[ "$NEED_PHP" == false && "$NEED_NGINX" == false && "$NEED_MYSQL" == false && \
+      "$NEED_NODE" == false && "$NEED_COMPOSER" == false ]]; then
+    echo -e "  ${GREEN}All dependencies already installed.${RESET}"
+else
+    echo -e "  ${YELLOW}Missing dependencies will be installed automatically in Step 1.${RESET}"
+fi
+echo ""
 
 # =============================================================================
 #  STEP 0 — Interactive Setup
 # =============================================================================
-banner
-
 step "0/8 — Installation Setup"
 echo ""
 
@@ -75,7 +163,7 @@ SERVER_IP=$(hostname -I | awk '{print $1}')
 read -rp "$(echo -e "${BOLD}Enter your domain or server IP${RESET} [${SERVER_IP}]: ")" APP_DOMAIN
 APP_DOMAIN="${APP_DOMAIN:-$SERVER_IP}"
 
-# ─── App URL (http or https) ──────────────────────────────────────────────────
+# ─── HTTPS ────────────────────────────────────────────────────────────────────
 read -rp "$(echo -e "${BOLD}Use HTTPS? (yes/no)${RESET} [no]: ")" USE_HTTPS
 USE_HTTPS="${USE_HTTPS:-no}"
 if [[ "$USE_HTTPS" =~ ^[Yy] ]]; then
@@ -112,12 +200,55 @@ DB_DATABASE="${DB_DATABASE:-hms_db}"
 read -rp "$(echo -e "${BOLD}Database user${RESET} [hms_user]: ")" DB_USERNAME
 DB_USERNAME="${DB_USERNAME:-hms_user}"
 
-# Generate a secure random password if user leaves blank
-RAND_PASS=$(tr -dc 'A-Za-z0-9@#!%' </dev/urandom | head -c 20)
-echo -e "${BOLD}Database password${RESET} [auto-generated — press Enter]: " > /dev/tty
-read -rsp "" DB_PASSWORD < /dev/tty || true
-echo ""
+# Safe password generation (dd+base64 avoids SIGPIPE from tr|head)
+RAND_PASS=$(gen_password)
+
+# Silent password read — write prompt and read via /dev/tty to bypass any redirects
+printf "${BOLD}Database password${RESET} [auto-generated, press Enter to use]: " > /dev/tty
+DB_PASSWORD=""
+read -rs DB_PASSWORD < /dev/tty || true
+echo "" > /dev/tty
 DB_PASSWORD="${DB_PASSWORD:-$RAND_PASS}"
+
+# ─── MySQL root password (only when MySQL already exists) ─────────────────────
+MYSQL_ROOT_PASS=""
+MYSQL_ROOT_ARGS="-u root"
+
+if [[ "$MYSQL_EXISTS" == true ]]; then
+    echo ""
+    info "MySQL is already installed on this server."
+    # Test socket/no-password auth first
+    if mysql -u root -e "SELECT 1;" &>/dev/null 2>&1; then
+        info "MySQL root: using Unix socket auth (no password needed)"
+    else
+        echo ""
+        printf "${BOLD}MySQL root password${RESET} (needed to create the HMS database): " > /dev/tty
+        read -rs MYSQL_ROOT_PASS < /dev/tty || true
+        echo "" > /dev/tty
+        # Verify the password
+        if ! mysql -u root -p"${MYSQL_ROOT_PASS}" -e "SELECT 1;" &>/dev/null 2>&1; then
+            echo ""
+            error "MySQL root password incorrect. Re-run the installer with the correct password."
+        fi
+        MYSQL_ROOT_ARGS="-u root -p${MYSQL_ROOT_PASS}"
+        info "MySQL root password verified."
+    fi
+fi
+
+# ─── Check if target database already exists ──────────────────────────────────
+DB_EXISTS=false
+RECREATE_DB="no"
+if [[ "$MYSQL_EXISTS" == true ]]; then
+    DB_CHECK=$(mysql ${MYSQL_ROOT_ARGS} -e "SHOW DATABASES LIKE '${DB_DATABASE}';" \
+               --silent --skip-column-names 2>/dev/null || true)
+    if [[ -n "$DB_CHECK" ]]; then
+        DB_EXISTS=true
+        echo ""
+        warn "Database '${DB_DATABASE}' already exists on this server."
+        read -rp "$(echo -e "${BOLD}Drop and recreate it? (yes/no)${RESET} [no]: ")" RECREATE_DB
+        RECREATE_DB="${RECREATE_DB:-no}"
+    fi
+fi
 
 # ─── License Server ───────────────────────────────────────────────────────────
 echo ""
@@ -138,13 +269,16 @@ echo -e "  SSL               : ${INSTALL_SSL}"
 echo -e "  License server    : ${LICENSE_SERVER_URL}"
 echo -e "${BOLD}────────────────────────────────────────────────────────────${RESET}"
 echo ""
-echo -e "${BOLD}─── The following will be installed on this server ─────────${RESET}"
-echo -e "  ${CYAN}•${RESET}  apt update + upgrade (full system update)"
-echo -e "  ${CYAN}•${RESET}  PHP ${PHP_VERSION} + all required extensions (FPM, MySQL, Redis, …)"
-echo -e "  ${CYAN}•${RESET}  Nginx web server"
-echo -e "  ${CYAN}•${RESET}  MySQL server"
-echo -e "  ${CYAN}•${RESET}  Node.js ${NODE_VERSION} (for front-end asset build)"
-echo -e "  ${CYAN}•${RESET}  Composer (PHP package manager)"
+echo -e "${BOLD}─── Will be installed / configured ─────────────────────────${RESET}"
+echo -e "  ${CYAN}•${RESET}  Full system update (apt update + upgrade)"
+[[ "$NEED_PHP"      == true ]] && echo -e "  ${CYAN}•${RESET}  PHP ${PHP_VERSION} + extensions"
+[[ "$NEED_NGINX"    == true ]] && echo -e "  ${CYAN}•${RESET}  Nginx web server"
+[[ "$NEED_MYSQL"    == true ]] && echo -e "  ${CYAN}•${RESET}  MySQL server"
+[[ "$NEED_NODE"     == true ]] && echo -e "  ${CYAN}•${RESET}  Node.js ${NODE_VERSION}"
+[[ "$NEED_COMPOSER" == true ]] && echo -e "  ${CYAN}•${RESET}  Composer"
+echo -e "  ${CYAN}•${RESET}  HMS application → ${INSTALL_DIR}"
+echo -e "  ${CYAN}•${RESET}  Database: ${DB_DATABASE} (user: ${DB_USERNAME})"
+echo -e "  ${CYAN}•${RESET}  Nginx virtual host for ${APP_DOMAIN}"
 echo -e "  ${CYAN}•${RESET}  UFW firewall (ports 22, 80, 443)"
 echo -e "  ${CYAN}•${RESET}  Systemd queue-worker service"
 echo -e "${BOLD}────────────────────────────────────────────────────────────${RESET}"
@@ -153,12 +287,14 @@ read -rp "$(echo -e "${BOLD}Proceed with installation? (yes/no)${RESET} [yes]: "
 CONFIRM="${CONFIRM:-yes}"
 [[ ! "$CONFIRM" =~ ^[Yy] ]] && { info "Installation cancelled."; exit 0; }
 
-# ─── Start logging now (after all interactive prompts) ────────────────────────
-# Logging is deferred until here because exec > >(tee) makes stdout a pipe,
-# which breaks read -rsp (silent password read) on many terminal emulators.
+# ─── Start logging NOW — after all interactive prompts ────────────────────────
+# exec > >(tee) makes stdout a pipe. Pipe stdout breaks read -rs (silent reads).
+# By deferring it until here, all password prompts run on the real terminal.
 touch "$LOG_FILE"
 exec > >(tee -a "$LOG_FILE") 2>&1
-info "Installation log: ${LOG_FILE}"
+echo ""
+info "Installation started at $(date)"
+info "Log: ${LOG_FILE}"
 
 # =============================================================================
 #  STEP 1 — System Packages
@@ -167,13 +303,13 @@ step "1/8 — Installing System Dependencies"
 
 export DEBIAN_FRONTEND=noninteractive
 
-info "Updating package lists..."
+info "Running apt update..."
 apt-get update -y
 
-info "Upgrading existing packages (this may take a few minutes on a fresh server)..."
-apt-get upgrade -y
+info "Running apt upgrade (may take a few minutes on a fresh server)..."
+apt-get upgrade -y -o Dpkg::Options::="--force-confold"
 
-# ─── Software properties ─────────────────────────────────────────────────────
+# Always ensure base utilities are present
 info "Installing base utilities..."
 apt-get install -y \
     software-properties-common \
@@ -186,119 +322,141 @@ apt-get install -y \
     gnupg2 \
     ca-certificates \
     lsb-release \
-    apt-transport-https
+    apt-transport-https \
+    rsync \
+    file
 
-# ─── PHP 8.2 via Ondrej PPA ──────────────────────────────────────────────────
-info "Adding PHP ${PHP_VERSION} PPA (Ondrej)..."
-add-apt-repository -y ppa:ondrej/php
-apt-get update -y
+# ─── PHP ──────────────────────────────────────────────────────────────────────
+if [[ "$NEED_PHP" == true ]]; then
+    info "Adding PHP ${PHP_VERSION} PPA (Ondrej)..."
+    add-apt-repository -y ppa:ondrej/php
+    apt-get update -y
+    info "Installing PHP ${PHP_VERSION} and extensions..."
+    apt-get install -y \
+        php${PHP_VERSION} \
+        php${PHP_VERSION}-fpm \
+        php${PHP_VERSION}-cli \
+        php${PHP_VERSION}-mysql \
+        php${PHP_VERSION}-mbstring \
+        php${PHP_VERSION}-xml \
+        php${PHP_VERSION}-zip \
+        php${PHP_VERSION}-curl \
+        php${PHP_VERSION}-gd \
+        php${PHP_VERSION}-intl \
+        php${PHP_VERSION}-bcmath \
+        php${PHP_VERSION}-redis \
+        php${PHP_VERSION}-opcache \
+        php${PHP_VERSION}-tokenizer \
+        php${PHP_VERSION}-fileinfo
+    success "PHP ${PHP_VERSION} installed"
+else
+    success "PHP ${PHP_VERSION} already installed — skipping"
+fi
 
-info "Installing PHP ${PHP_VERSION} and extensions..."
-apt-get install -y \
-    php${PHP_VERSION} \
-    php${PHP_VERSION}-fpm \
-    php${PHP_VERSION}-cli \
-    php${PHP_VERSION}-mysql \
-    php${PHP_VERSION}-mbstring \
-    php${PHP_VERSION}-xml \
-    php${PHP_VERSION}-zip \
-    php${PHP_VERSION}-curl \
-    php${PHP_VERSION}-gd \
-    php${PHP_VERSION}-intl \
-    php${PHP_VERSION}-bcmath \
-    php${PHP_VERSION}-redis \
-    php${PHP_VERSION}-opcache \
-    php${PHP_VERSION}-tokenizer \
-    php${PHP_VERSION}-fileinfo
+# ─── Nginx ────────────────────────────────────────────────────────────────────
+if [[ "$NEED_NGINX" == true ]]; then
+    info "Installing Nginx..."
+    apt-get install -y nginx
+    systemctl enable nginx --now
+    success "Nginx installed"
+else
+    success "Nginx already installed — skipping"
+    systemctl enable nginx --now 2>/dev/null || true
+fi
 
-success "PHP ${PHP_VERSION} installed: $(php -v | head -1)"
+# ─── MySQL ────────────────────────────────────────────────────────────────────
+if [[ "$NEED_MYSQL" == true ]]; then
+    info "Installing MySQL server..."
+    apt-get install -y mysql-server
+    systemctl enable mysql --now
+    # After fresh install, root uses socket auth — set MYSQL_ROOT_ARGS accordingly
+    MYSQL_ROOT_ARGS="-u root"
+    success "MySQL installed"
+else
+    success "MySQL already installed — skipping"
+    systemctl enable mysql --now 2>/dev/null || true
+fi
 
-# ─── Nginx ───────────────────────────────────────────────────────────────────
-info "Installing Nginx..."
-apt-get install -y nginx
-systemctl enable nginx --now
-success "Nginx installed"
-
-# ─── MySQL ───────────────────────────────────────────────────────────────────
-info "Installing MySQL server..."
-apt-get install -y mysql-server
-systemctl enable mysql --now
-success "MySQL installed"
-
-# ─── Node.js ─────────────────────────────────────────────────────────────────
-if ! command -v node &>/dev/null || [[ $(node -v | tr -d 'v' | cut -d. -f1) -lt $NODE_VERSION ]]; then
+# ─── Node.js ──────────────────────────────────────────────────────────────────
+if [[ "$NEED_NODE" == true ]]; then
     info "Setting up Node.js ${NODE_VERSION} repository..."
     curl -fsSL "https://deb.nodesource.com/setup_${NODE_VERSION}.x" | bash -
     info "Installing Node.js ${NODE_VERSION}..."
     apt-get install -y nodejs
+    success "Node.js installed: $(node -v)"
+else
+    success "Node.js already installed: $(node -v)"
 fi
-success "Node.js installed: $(node -v)"
 
-# ─── Composer ────────────────────────────────────────────────────────────────
-if ! command -v composer &>/dev/null; then
+# ─── Composer ─────────────────────────────────────────────────────────────────
+if [[ "$NEED_COMPOSER" == true ]]; then
+    info "Installing Composer..."
     EXPECTED_CHECKSUM="$(php -r 'copy("https://composer.github.io/installer.sig", "php://stdout");')"
     php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"
     ACTUAL_CHECKSUM="$(php -r "echo hash_file('sha384', 'composer-setup.php');")"
-    [[ "$EXPECTED_CHECKSUM" != "$ACTUAL_CHECKSUM" ]] && { rm composer-setup.php; error "Composer installer checksum mismatch!"; }
-    php composer-setup.php --quiet --install-dir=/usr/local/bin --filename=composer
-    rm composer-setup.php
+    if [[ "$EXPECTED_CHECKSUM" != "$ACTUAL_CHECKSUM" ]]; then
+        rm -f composer-setup.php
+        error "Composer installer checksum mismatch! Possible download error."
+    fi
+    php composer-setup.php --install-dir=/usr/local/bin --filename=composer
+    rm -f composer-setup.php
+    success "Composer installed: $(composer --version --no-ansi | head -1)"
+else
+    success "Composer already installed — skipping"
 fi
-success "Composer installed: $(composer --version --no-ansi | head -1)"
 
 # =============================================================================
 #  STEP 2 — Database Setup
 # =============================================================================
 step "2/8 — Setting Up Database"
 
-# Secure MySQL and create DB + user
-mysql -u root <<SQL
--- Create database
-CREATE DATABASE IF NOT EXISTS \`${DB_DATABASE}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+# Drop database if user requested recreation
+if [[ "$DB_EXISTS" == true && "$RECREATE_DB" =~ ^[Yy] ]]; then
+    info "Dropping existing database '${DB_DATABASE}'..."
+    mysql ${MYSQL_ROOT_ARGS} -e "DROP DATABASE IF EXISTS \`${DB_DATABASE}\`;" 2>/dev/null
+    success "Database '${DB_DATABASE}' dropped"
+fi
 
--- Create user (drop first to allow re-runs)
+# Create database + HMS user
+mysql ${MYSQL_ROOT_ARGS} <<SQL
+CREATE DATABASE IF NOT EXISTS \`${DB_DATABASE}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 DROP USER IF EXISTS '${DB_USERNAME}'@'localhost';
 CREATE USER '${DB_USERNAME}'@'localhost' IDENTIFIED BY '${DB_PASSWORD}';
 GRANT ALL PRIVILEGES ON \`${DB_DATABASE}\`.* TO '${DB_USERNAME}'@'localhost';
 FLUSH PRIVILEGES;
 SQL
-
-success "Database '${DB_DATABASE}' created, user '${DB_USERNAME}' granted access"
+success "Database '${DB_DATABASE}' ready, user '${DB_USERNAME}' granted access"
 
 # =============================================================================
 #  STEP 3 — Deploy Application Files
 # =============================================================================
 step "3/8 — Deploying Application"
 
-# ─── Copy files ──────────────────────────────────────────────────────────────
 mkdir -p "${INSTALL_DIR}"
-
-# Detect if we're running from the app directory or from a separate location
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-if [[ -f "${SCRIPT_DIR}/artisan" ]]; then
-    # Running install.sh from inside the project directory
-    info "Copying application files to ${INSTALL_DIR}..."
-    rsync -a --exclude='.git' \
-              --exclude='node_modules' \
-              --exclude='vendor' \
-              --exclude='.env' \
-              --exclude='storage/logs/*.log' \
-              --exclude='*.md' \
-              --exclude='install.sh' \
-              --exclude='check_license.php' \
-              --exclude='*.py' \
-              --exclude='*.bat' \
-              --exclude='*.rsc' \
-              --exclude='*.ps1' \
-              "${SCRIPT_DIR}/" "${INSTALL_DIR}/"
-    success "Files copied to ${INSTALL_DIR}"
-else
-    error "Please run this installer from the project root directory (where artisan lives)."
+if [[ ! -f "${SCRIPT_DIR}/artisan" ]]; then
+    error "Run this installer from the project root directory (where artisan lives)."
 fi
 
-cd "${INSTALL_DIR}"
+info "Copying application files to ${INSTALL_DIR}..."
+rsync -a \
+      --exclude='.git' \
+      --exclude='node_modules' \
+      --exclude='vendor' \
+      --exclude='.env' \
+      --exclude='storage/logs/*.log' \
+      --exclude='*.md' \
+      --exclude='install.sh' \
+      --exclude='check_license.php' \
+      --exclude='*.py' \
+      --exclude='*.bat' \
+      --exclude='*.rsc' \
+      --exclude='*.ps1' \
+      "${SCRIPT_DIR}/" "${INSTALL_DIR}/"
+success "Files copied to ${INSTALL_DIR}"
 
-# ─── Set ownership ───────────────────────────────────────────────────────────
+cd "${INSTALL_DIR}"
 chown -R www-data:www-data "${INSTALL_DIR}"
 find "${INSTALL_DIR}" -type f -exec chmod 644 {} \;
 find "${INSTALL_DIR}" -type d -exec chmod 755 {} \;
@@ -310,8 +468,7 @@ chmod +x "${INSTALL_DIR}/artisan"
 # =============================================================================
 step "4/8 — Writing .env Configuration"
 
-# Generate a random APP_KEY base64 value (will be replaced by artisan key:generate)
-APP_KEY_PLACEHOLDER="base64:$(head -c 32 /dev/urandom | base64)"
+APP_KEY_PLACEHOLDER="base64:$(dd if=/dev/urandom bs=32 count=1 2>/dev/null | base64 | tr -d '\n')"
 
 cat > "${INSTALL_DIR}/.env" <<ENVEOF
 APP_NAME="Hotel Management System"
@@ -434,8 +591,7 @@ ENVEOF
 
 chown www-data:www-data "${INSTALL_DIR}/.env"
 chmod 640 "${INSTALL_DIR}/.env"
-
-success ".env written to ${INSTALL_DIR}/.env"
+success ".env written"
 
 # =============================================================================
 #  STEP 5 — PHP Dependencies & Build
@@ -444,30 +600,24 @@ step "5/8 — Installing PHP & Node Dependencies"
 
 cd "${INSTALL_DIR}"
 
-# ─── Composer install ────────────────────────────────────────────────────────
 info "Running composer install (production)..."
 sudo -u www-data composer install \
     --no-dev \
     --no-interaction \
     --optimize-autoloader \
     --prefer-dist
-
 success "Composer dependencies installed"
 
-# ─── Generate APP_KEY ────────────────────────────────────────────────────────
 sudo -u www-data php artisan key:generate --force
 success "Application key generated"
 
-# ─── npm install + build ─────────────────────────────────────────────────────
 info "Running npm install..."
 npm install --legacy-peer-deps
 
 info "Building front-end assets (Vite production build)..."
 NODE_ENV=production npm run build
-
 success "Front-end assets built"
 
-# Remove node_modules — not needed at runtime, saves ~400 MB on the server
 info "Removing node_modules (not needed at runtime)..."
 rm -rf "${INSTALL_DIR}/node_modules"
 success "node_modules removed"
@@ -478,16 +628,13 @@ success "node_modules removed"
 step "6/8 — Running Database Migrations"
 
 cd "${INSTALL_DIR}"
-
-# ─── Storage link ─────────────────────────────────────────────────────────────
 sudo -u www-data php artisan storage:link --force
 
-# ─── Pre-flight: count migration files and check PHP syntax ───────────────────
+# PHP syntax check
 info "Checking migration file syntax..."
 MIGRATION_DIR="${INSTALL_DIR}/database/migrations"
 SYNTAX_ERRORS=0
 SYNTAX_BAD_FILES=()
-
 while IFS= read -r -d '' FILE; do
     if ! php -l "$FILE" >/dev/null 2>&1; then
         SYNTAX_ERRORS=$((SYNTAX_ERRORS + 1))
@@ -496,126 +643,49 @@ while IFS= read -r -d '' FILE; do
 done < <(find "$MIGRATION_DIR" -name "*.php" -print0)
 
 if [[ $SYNTAX_ERRORS -gt 0 ]]; then
-    echo ""
-    echo -e "${RED}${BOLD}╔══════════════════════════════════════════════════╗${RESET}"
-    echo -e "${RED}${BOLD}║  MIGRATION SYNTAX ERRORS — Installation halted  ║${RESET}"
-    echo -e "${RED}${BOLD}╚══════════════════════════════════════════════════╝${RESET}"
-    echo ""
-    echo -e "  The following migration files have PHP syntax errors:"
-    for f in "${SYNTAX_BAD_FILES[@]}"; do
-        echo -e "  ${RED}✗${RESET}  $f"
-    done
-    echo ""
-    echo -e "  Fix the errors above and re-run the installer."
-    echo -e "  Install log: ${LOG_FILE}"
+    echo -e "${RED}${BOLD}Migration syntax errors found:${RESET}"
+    for f in "${SYNTAX_BAD_FILES[@]}"; do echo -e "  ${RED}✗${RESET}  $f"; done
     exit 1
 fi
-
 TOTAL_MIGRATIONS=$(find "$MIGRATION_DIR" -name "*.php" | wc -l)
-success "Syntax check passed — ${TOTAL_MIGRATIONS} migration files are valid"
+success "Syntax check passed — ${TOTAL_MIGRATIONS} migration files valid"
 
-# ─── Check for duplicate timestamps (potential ordering conflicts) ─────────────
-info "Checking for duplicate migration timestamps..."
-DUP_STAMPS=$(find "$MIGRATION_DIR" -name "*.php" -printf '%f\n' \
-    | sed 's/^\([0-9]\{4\}_[0-9]\{2\}_[0-9]\{2\}_[0-9]\{6\}\).*/\1/' \
-    | sort | uniq -d)
-
-if [[ -n "$DUP_STAMPS" ]]; then
-    warn "Duplicate migration timestamps detected (may cause ordering issues):"
-    echo "$DUP_STAMPS" | while read -r stamp; do
-        warn "  → Timestamp: $stamp"
-        find "$MIGRATION_DIR" -name "${stamp}*.php" -printf '    %f\n'
-    done
-    echo ""
-    warn "Continuing — conflicts were patched during installation."
-fi
-
-# ─── Run migrations with output captured for error detection ──────────────────
+# Run migrations
 info "Running database migrations..."
 MIGRATE_OUTPUT=$(sudo -u www-data php artisan migrate --force 2>&1)
 MIGRATE_EXIT=$?
-
 echo "$MIGRATE_OUTPUT"
-
 if [[ $MIGRATE_EXIT -ne 0 ]]; then
-    echo ""
-    echo -e "${RED}${BOLD}╔══════════════════════════════════════════════════════╗${RESET}"
-    echo -e "${RED}${BOLD}║  MIGRATION FAILED                                    ║${RESET}"
-    echo -e "${RED}${BOLD}╚══════════════════════════════════════════════════════╝${RESET}"
-    echo ""
-    echo -e "  Migration exited with code ${MIGRATE_EXIT}."
-    echo ""
-
-    # Show last 20 lines of the artisan error output
-    echo -e "${YELLOW}Error details:${RESET}"
-    echo "$MIGRATE_OUTPUT" | tail -20
-
-    # Check for common known causes and give guidance
-    if echo "$MIGRATE_OUTPUT" | grep -qi "already exists"; then
-        echo ""
-        warn "Cause: A table or column already exists in the database."
-        warn "       The migration does not guard against pre-existing schema."
-        warn "       Check the migration files listed above and add Schema::hasTable / Schema::hasColumn guards."
-    fi
-
-    if echo "$MIGRATE_OUTPUT" | grep -qi "doesn't exist\|does not exist\|Unknown table\|Table.*not found"; then
-        echo ""
-        warn "Cause: A migration references a table or column that hasn't been created yet."
-        warn "       Check the migration execution order (timestamps) and foreign key references."
-    fi
-
-    if echo "$MIGRATE_OUTPUT" | grep -qi "foreign key constraint"; then
-        echo ""
-        warn "Cause: A foreign key constraint failed."
-        warn "       Ensure parent tables are created before child tables."
-        warn "       Consider using ->nullable()->constrained() or deferring FK creation."
-    fi
-
-    if echo "$MIGRATE_OUTPUT" | grep -qi "syntax error\|parse error"; then
-        echo ""
-        warn "Cause: A PHP parse/syntax error in a migration file."
-        warn "       Run: php -l database/migrations/<filename>.php"
-    fi
-
-    echo ""
-    echo -e "  ${BOLD}Full migration output saved to:${RESET} ${LOG_FILE}"
-    echo -e "  ${BOLD}Fix the issue and re-run:${RESET}  sudo bash install.sh"
-    echo ""
+    echo -e "${RED}${BOLD}Migration FAILED (exit code ${MIGRATE_EXIT})${RESET}"
+    echo -e "Fix the error and re-run: sudo bash install.sh"
+    echo -e "Log: ${LOG_FILE}"
     exit 1
 fi
 
-# ─── Verify tables were actually created ──────────────────────────────────────
-info "Verifying core tables exist..."
+# Verify core tables
+info "Verifying core tables..."
 REQUIRED_TABLES=("users" "rooms" "reservations" "guests" "room_types" "roles" "permissions" "settings" "licenses")
 TABLE_ERRORS=0
-
 for TABLE in "${REQUIRED_TABLES[@]}"; do
     RESULT=$(mysql -u"${DB_USERNAME}" -p"${DB_PASSWORD}" "${DB_DATABASE}" \
         -e "SELECT 1 FROM information_schema.tables WHERE table_schema='${DB_DATABASE}' AND table_name='${TABLE}';" \
-        --silent --skip-column-names 2>/dev/null)
+        --silent --skip-column-names 2>/dev/null || true)
     if [[ -z "$RESULT" ]]; then
-        echo -e "  ${RED}✗${RESET}  Missing table: ${TABLE}"
-        TABLE_ERRORS=$((TABLE_ERRORS + 1))
+        echo -e "  ${RED}✗${RESET}  Missing: ${TABLE}"; TABLE_ERRORS=$((TABLE_ERRORS + 1))
     else
         echo -e "  ${GREEN}✓${RESET}  ${TABLE}"
     fi
 done
-
-if [[ $TABLE_ERRORS -gt 0 ]]; then
-    echo ""
-    error "${TABLE_ERRORS} required table(s) missing after migration. Check ${LOG_FILE} for details."
-fi
-
-success "All core tables verified — migration complete"
+[[ $TABLE_ERRORS -gt 0 ]] && error "${TABLE_ERRORS} required table(s) missing after migration."
+success "All core tables verified"
 
 # =============================================================================
-#  STEP 6b — Essential Seeders (roles, permissions, users, settings, currencies)
+#  STEP 6b — Essential Seeders
 # =============================================================================
 step "6b/8 — Seeding Essential Data"
 
 cd "${INSTALL_DIR}"
 
-# Helper: run a seeder, print result, abort installer on failure
 run_seeder() {
     local CLASS="$1"
     local LABEL="$2"
@@ -625,48 +695,30 @@ run_seeder() {
     if [[ $SEED_EXIT -ne 0 ]]; then
         echo -e "${RED}  ✗ ${LABEL} failed${RESET}"
         echo "$SEED_OUT" | tail -10
-        echo ""
-        echo -e "${RED}${BOLD}Seeder '${CLASS}' failed. Aborting.${RESET}"
-        echo -e "Fix the error above and re-run: sudo bash install.sh"
-        exit 1
+        error "Seeder '${CLASS}' failed. Fix the error and re-run: sudo bash install.sh"
     fi
     echo -e "  ${GREEN}✓${RESET}  ${LABEL}"
 }
 
-# ─── 1. Settings (currencies, hotel config, policies) ─────────────────────────
-run_seeder "SettingsSeeder" "Settings & currencies"
-
-# ─── 2. Roles & permissions ───────────────────────────────────────────────────
-run_seeder "AdminPermissionsSeeder"   "Admin permissions"
-run_seeder "ManagerPermissionsSeeder" "Manager permissions"
-
-# ─── 3. User accounts (admin, manager, frontdesk, etc.) ──────────────────────
-run_seeder "UserAccountsSeeder" "User accounts & role assignments"
-
-# ─── 4. Hotel record ──────────────────────────────────────────────────────────
-run_seeder "HotelSeeder" "Hotel record"
-
-# ─── 5. Property structure ────────────────────────────────────────────────────
-run_seeder "FloorSeeder"        "Floors"
-run_seeder "BuildingWingSeeder" "Building wings"
-run_seeder "BedTypeSeeder"      "Bed types"
-run_seeder "RoomTypeSeeder"     "Room types"
-
-# ─── 6. Guests & guest types ──────────────────────────────────────────────────
-run_seeder "GuestTypeSeeder" "Guest types"
-
-# ─── 7. Staff structure ───────────────────────────────────────────────────────
+run_seeder "SettingsSeeder"               "Settings & currencies"
+run_seeder "AdminPermissionsSeeder"       "Admin permissions"
+run_seeder "ManagerPermissionsSeeder"     "Manager permissions"
+run_seeder "UserAccountsSeeder"           "User accounts & role assignments"
+run_seeder "HotelSeeder"                  "Hotel record"
+run_seeder "FloorSeeder"                  "Floors"
+run_seeder "BuildingWingSeeder"           "Building wings"
+run_seeder "BedTypeSeeder"                "Bed types"
+run_seeder "RoomTypeSeeder"               "Room types"
+run_seeder "GuestTypeSeeder"              "Guest types"
 run_seeder "DepartmentsAndPositionsSeeder" "Departments & positions"
 run_seeder "WorkShiftsSeeder"             "Work shifts"
+run_seeder "RoomAmenitiesSeeder"          "Room amenities"
+run_seeder "HotelServiceSeeder"           "Hotel services"
+run_seeder "MaintenanceCategoriesSeeder"  "Maintenance categories"
 
-# ─── 8. Operational data ──────────────────────────────────────────────────────
-run_seeder "RoomAmenitiesSeeder"        "Room amenities"
-run_seeder "HotelServiceSeeder"         "Hotel services"
-run_seeder "MaintenanceCategoriesSeeder" "Maintenance categories"
-
-# ─── Post-seeder: update .env hotel details from installer answers ─────────────
-info "Updating Settings table with your hotel details..."
-mysql -u"${DB_USERNAME}" -p"${DB_PASSWORD}" "${DB_DATABASE}" <<SQL 2>/dev/null || true
+# Update settings table with hotel details
+info "Updating Settings table with hotel details..."
+mysql -u"${DB_USERNAME}" -p"${DB_PASSWORD}" "${DB_DATABASE}" 2>/dev/null <<SQL || true
 UPDATE settings SET value='${HOTEL_NAME}'    WHERE \`key\`='hotel_name';
 UPDATE settings SET value='${HOTEL_EMAIL}'   WHERE \`key\`='hotel_email';
 UPDATE settings SET value='${HOTEL_PHONE}'   WHERE \`key\`='hotel_phone';
@@ -674,59 +726,41 @@ UPDATE settings SET value='${HOTEL_ADDRESS}' WHERE \`key\`='hotel_address';
 SQL
 success "Hotel details written to settings table"
 
-# ─── Post-seeder: upload hotel logo if provided ───────────────────────────────
+# Upload hotel logo if provided
 if [[ -n "${HOTEL_LOGO_PATH}" && -f "${HOTEL_LOGO_PATH}" ]]; then
     info "Encoding and storing hotel logo..."
     LOGO_MIME=$(file --mime-type -b "${HOTEL_LOGO_PATH}")
     LOGO_B64=$(base64 -w 0 "${HOTEL_LOGO_PATH}")
     LOGO_DATA_URI="data:${LOGO_MIME};base64,${LOGO_B64}"
-    mysql -u"${DB_USERNAME}" -p"${DB_PASSWORD}" "${DB_DATABASE}" <<LOGSQL 2>/dev/null || true
+    mysql -u"${DB_USERNAME}" -p"${DB_PASSWORD}" "${DB_DATABASE}" 2>/dev/null <<LOGSQL || true
 INSERT INTO settings (\`key\`, value, type, \`group\`, created_at, updated_at)
   VALUES ('hotel_logo', '${LOGO_DATA_URI}', 'string', 'general', NOW(), NOW())
   ON DUPLICATE KEY UPDATE value='${LOGO_DATA_URI}', updated_at=NOW();
 LOGSQL
-    success "Hotel logo stored in settings table"
+    success "Hotel logo stored"
 elif [[ -n "${HOTEL_LOGO_PATH}" ]]; then
-    warn "Logo file '${HOTEL_LOGO_PATH}' not found — skipping logo upload"
+    warn "Logo file '${HOTEL_LOGO_PATH}' not found — skipping"
 fi
 
-# ─── Cache optimise after seeding ─────────────────────────────────────────────
-info "Optimising Laravel for production..."
-
-# Clear any stale dev caches first
-sudo -u www-data php artisan optimize:clear --quiet 2>/dev/null || true
-
-# Build all production caches
+# Laravel production caches
+info "Building Laravel production caches..."
+sudo -u www-data php artisan optimize:clear 2>/dev/null || true
 sudo -u www-data php artisan config:cache
 sudo -u www-data php artisan route:cache
 sudo -u www-data php artisan view:cache
 sudo -u www-data php artisan event:cache
-
-# Full optimise (bootstraps class map, combines above)
 sudo -u www-data php artisan optimize
+success "Laravel production caches built"
 
-success "Laravel production caches built (config / route / view / event / optimize)"
-
-# ─── File permission hardening ─────────────────────────────────────────────────
+# File permission hardening
 info "Hardening file permissions..."
-
-# Ownership: everything belongs to www-data
 chown -R www-data:www-data "${INSTALL_DIR}"
-
-# Directories: 755  |  Files: 644
 find "${INSTALL_DIR}" -type d -exec chmod 755 {} \;
 find "${INSTALL_DIR}" -type f -exec chmod 644 {} \;
-
-# .env must never be world-readable
 chmod 640 "${INSTALL_DIR}/.env"
-
-# Writable by the web server only
 chmod -R ug+w "${INSTALL_DIR}/storage"
 chmod -R ug+w "${INSTALL_DIR}/bootstrap/cache"
-
-# artisan must be executable
 chmod +x "${INSTALL_DIR}/artisan"
-
 success "File permissions hardened"
 
 # =============================================================================
@@ -735,7 +769,6 @@ success "File permissions hardened"
 step "7/8 — Configuring Nginx"
 
 NGINX_CONF="/etc/nginx/sites-available/${NGINX_SITE}"
-
 cat > "$NGINX_CONF" <<NGINX
 server {
     listen 80;
@@ -745,18 +778,14 @@ server {
     root ${INSTALL_DIR}/public;
     index index.php;
 
-    # Security headers
     add_header X-Frame-Options "SAMEORIGIN";
     add_header X-Content-Type-Options "nosniff";
     add_header X-XSS-Protection "1; mode=block";
     add_header Referrer-Policy "strict-origin-when-cross-origin";
 
-    # Gzip
     gzip on;
     gzip_types text/plain text/css application/json application/javascript text/xml application/xml;
     gzip_min_length 1024;
-
-    # Max upload size
     client_max_body_size 100M;
 
     location / {
@@ -766,7 +795,6 @@ server {
     location = /favicon.ico { access_log off; log_not_found off; }
     location = /robots.txt  { access_log off; log_not_found off; }
 
-    # Static assets caching
     location ~* \.(css|js|jpg|jpeg|png|gif|ico|svg|woff|woff2|ttf|eot)$ {
         expires 30d;
         add_header Cache-Control "public, immutable";
@@ -789,39 +817,31 @@ server {
 }
 NGINX
 
-# Enable site
 ln -sf "$NGINX_CONF" "/etc/nginx/sites-enabled/${NGINX_SITE}"
-rm -f /etc/nginx/sites-enabled/default   # remove default site
-
+rm -f /etc/nginx/sites-enabled/default
 nginx -t
 systemctl reload nginx
 success "Nginx virtual host configured"
 
-# ─── Optional: SSL with Let's Encrypt ────────────────────────────────────────
+# Optional SSL
 if [[ "$INSTALL_SSL" == true ]]; then
-    info "Installing Certbot for Let's Encrypt SSL..."
+    info "Installing Certbot..."
     apt-get install -y certbot python3-certbot-nginx
-
-    # Only attempt if domain is not an IP address
     if [[ "$APP_DOMAIN" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-        warn "Cannot issue SSL certificate for an IP address. Skipping Let's Encrypt."
-        warn "Once you have a real domain, run: certbot --nginx -d ${APP_DOMAIN}"
+        warn "Cannot issue SSL for an IP address. Run later: certbot --nginx -d ${APP_DOMAIN}"
     else
-        certbot --nginx \
-            -d "${APP_DOMAIN}" \
-            --non-interactive \
-            --agree-tos \
-            --email "${HOTEL_EMAIL}" \
-            --redirect || warn "SSL certificate failed — site still accessible over HTTP."
+        certbot --nginx -d "${APP_DOMAIN}" \
+            --non-interactive --agree-tos \
+            --email "${HOTEL_EMAIL}" --redirect \
+            || warn "SSL failed — site accessible over HTTP."
     fi
 fi
 
 # =============================================================================
-#  STEP 8 — Services (Queue Worker + Scheduler)
+#  STEP 8 — Services
 # =============================================================================
 step "8/8 — Setting Up System Services"
 
-# ─── Queue worker systemd service ────────────────────────────────────────────
 cat > "/etc/systemd/system/${SERVICE_NAME}.service" <<UNIT
 [Unit]
 Description=HMS Laravel Queue Worker
@@ -842,17 +862,15 @@ StandardError=append:/var/log/hms-queue.log
 WantedBy=multi-user.target
 UNIT
 
-# ─── Scheduler cron (every minute) ───────────────────────────────────────────
-CRON_JOB="* * * * * www-data cd ${INSTALL_DIR} && php artisan schedule:run >> /dev/null 2>&1"
-echo "$CRON_JOB" > /etc/cron.d/hms-scheduler
+echo "* * * * * www-data cd ${INSTALL_DIR} && php artisan schedule:run >> /dev/null 2>&1" \
+    > /etc/cron.d/hms-scheduler
 chmod 644 /etc/cron.d/hms-scheduler
 
-# ─── Enable & start queue worker ─────────────────────────────────────────────
 systemctl daemon-reload
 systemctl enable "${SERVICE_NAME}" --now
 success "Queue worker service started"
 
-# ─── PHP-FPM opcache tuning ───────────────────────────────────────────────────
+# PHP-FPM tuning
 PHP_INI_DIR="/etc/php/${PHP_VERSION}/fpm/conf.d"
 cat > "${PHP_INI_DIR}/99-hms.ini" <<PHPINI
 ; HMS Production Tuning
@@ -866,21 +884,20 @@ post_max_size=100M
 memory_limit=512M
 max_execution_time=300
 PHPINI
-
 systemctl reload "php${PHP_VERSION}-fpm"
 success "PHP-FPM tuned for production"
 
-# ─── Firewall ─────────────────────────────────────────────────────────────────
+# UFW Firewall
 if command -v ufw &>/dev/null; then
-    ufw allow 22/tcp   >/dev/null 2>&1 || true
-    ufw allow 80/tcp   >/dev/null 2>&1 || true
-    ufw allow 443/tcp  >/dev/null 2>&1 || true
+    ufw allow 22/tcp  >/dev/null 2>&1 || true
+    ufw allow 80/tcp  >/dev/null 2>&1 || true
+    ufw allow 443/tcp >/dev/null 2>&1 || true
     ufw --force enable >/dev/null 2>&1 || true
     success "UFW firewall: SSH, HTTP, HTTPS allowed"
 fi
 
-# ─── MySQL security: remove anonymous users ───────────────────────────────────
-mysql -u root <<SQL2
+# MySQL security hardening
+mysql ${MYSQL_ROOT_ARGS} 2>/dev/null <<SQL2 || true
 DELETE FROM mysql.user WHERE User='';
 DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');
 DROP DATABASE IF EXISTS test;
@@ -936,7 +953,6 @@ cat > "$CREDS_FILE" <<CREDS
 
 ====================================================
 CREDS
-
 chmod 600 "$CREDS_FILE"
 
 # =============================================================================
