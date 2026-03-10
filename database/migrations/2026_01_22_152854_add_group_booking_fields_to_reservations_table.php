@@ -10,7 +10,8 @@ return new class extends Migration
     {
         Schema::table('reservations', function (Blueprint $table) {
             if (!Schema::hasColumn('reservations', 'group_booking_id')) {
-                $table->foreignId('group_booking_id')->nullable()->after('guest_id')->constrained('group_bookings')->onDelete('set null');
+                // Add column without constraint (constraint will be added after group_bookings table is created)
+                $table->unsignedBigInteger('group_booking_id')->nullable()->after('guest_id');
             }
             if (!Schema::hasColumn('reservations', 'is_group_booking')) {
                 $table->boolean('is_group_booking')->default(false)->after('group_booking_id');
