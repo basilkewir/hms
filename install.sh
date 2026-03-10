@@ -62,7 +62,7 @@ step "1/8 - Pre-flight Check & System Packages"
 # Check dependencies
 echo "Checking dependencies..."
 NEED_PKG=""
-has_cmd "php${PHP_VERSION}" || NEED_PKG="$NEED_PKG php${PHP_VERSION}"
+has_cmd "php" || NEED_PKG="$NEED_PKG php${PHP_VERSION}"
 has_cmd nginx || NEED_PKG="$NEED_PKG nginx"
 has_cmd mysql || NEED_PKG="$NEED_PKG mysql-server"
 has_cmd node || NEED_PKG="$NEED_PKG nodejs"
@@ -97,14 +97,17 @@ else
     # Install language-specific packages
     [[ "$NEED_PKG" == *"php"* ]] && {
         info "Installing PHP ${PHP_VERSION}..."
+        # Update apt cache again after adding PPA to ensure packages are available
+        apt-get update -y 2>&1 | grep -v "^Get:" | grep -v "^Hit:" || true
+        
         # Install core PHP first
         apt-get install -y php${PHP_VERSION} php${PHP_VERSION}-fpm php${PHP_VERSION}-cli 2>&1 | tail -3 || true
-        
+
         # Install extensions one at a time, skip if not available
         for ext in mysql mbstring xml zip curl gd intl; do
             apt-get install -y "php${PHP_VERSION}-${ext}" 2>&1 | grep -E "(Setting|done|Processing)" | tail -1 || true
         done
-        
+
         success "PHP ${PHP_VERSION} installed"
     }
 
@@ -129,7 +132,7 @@ else
 
     [[ "$NEED_PKG" == *"composer"* ]] && {
         info "Installing Composer..."
-        
+
         # Check if PHP is available
         if ! command -v php &>/dev/null; then
             warn "PHP not available, skipping Composer installation"
@@ -137,13 +140,13 @@ else
             EXPECTED_CHECKSUM="$(curl -s https://composer.github.io/installer.sig)"
             php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');" || error "Failed to download Composer installer"
             ACTUAL_CHECKSUM="$(php -r "echo hash_file('SHA384', 'composer-setup.php');")"
-            
+
             if [ "$EXPECTED_CHECKSUM" != "$ACTUAL_CHECKSUM" ]; then
                 >&2 echo 'ERROR: Invalid installer checksum'
                 rm composer-setup.php
                 error "Composer installation failed - checksum mismatch"
             fi
-            
+
             php composer-setup.php --quiet --install-dir=/usr/local/bin --filename=composer
             RESULT=$?
             rm -f composer-setup.php
