@@ -4216,7 +4216,7 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
             switch ($format) {
                 case 'excel':
                     return response()->streamDownload(function () use ($users, $filename) {
-                        echo generateUsersExcelExport($users, $filename);
+                        echo \App\Helpers\ExportHelper::generateUsersExcelExport($users, $filename);
                     }, $filename . '.html', [
                         'Content-Type' => 'text/html',
                         'Content-Disposition' => 'attachment; filename="' . $filename . '.html"'
@@ -4224,7 +4224,7 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
 
                 case 'pdf':
                     return response()->streamDownload(function () use ($users, $filename) {
-                        echo generateUsersPDFExport($users, $filename);
+                        echo \App\Helpers\ExportHelper::generateUsersPDFExport($users, $filename);
                     }, $filename . '.pdf', [
                         'Content-Type' => 'application/pdf',
                         'Content-Disposition' => 'attachment; filename="' . $filename . '.pdf"'
@@ -4232,7 +4232,7 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
 
                 case 'word':
                     return response()->streamDownload(function () use ($users, $filename) {
-                        echo generateUsersWordExport($users, $filename);
+                        echo \App\Helpers\ExportHelper::generateUsersWordExport($users, $filename);
                     }, $filename . '.doc', [
                         'Content-Type' => 'application/msword',
                         'Content-Disposition' => 'attachment; filename="' . $filename . '.doc"'
@@ -4248,113 +4248,8 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
         }
     })->name('users.export');
 
-    // Helper functions for export formats
-    function generateUsersExcelExport($data, $filename) {
-        $headers = ['ID', 'First Name', 'Last Name', 'Email', 'Phone', 'Employee ID', 'Department', 'Position', 'Status', 'Role', 'Hire Date', 'Created At'];
-
-        $html = '<!DOCTYPE html>';
-        $html .= '<html>';
-        $html .= '<head>';
-        $html .= '<meta charset="utf-8">';
-        $html .= '<title>' . htmlspecialchars($filename) . '</title>';
-        $html .= '<style>';
-        $html .= 'table { border-collapse: collapse; width: 100%; } ';
-        $html .= 'th, td { border: 1px solid #ddd; padding: 8px; text-align: left; } ';
-        $html .= 'th { background-color: #f2f2f2; font-weight: bold; } ';
-        $html .= '</style>';
-        $html .= '</head>';
-        $html .= '<body>';
-        $html .= '<h1>' . $filename . '</h1>';
-        $html .= '<table><thead><tr>';
-        foreach ($headers as $header) {
-            $html .= '<th>' . htmlspecialchars($header) . '</th>';
-        }
-        $html .= '</tr></thead><tbody>';
-
-        foreach ($data as $row) {
-            $html .= '<tr>';
-            foreach ($row as $key => $value) {
-                $html .= '<td>' . htmlspecialchars($value) . '</td>';
-            }
-            $html .= '</tr>';
-        }
-
-        $html .= '</tbody></table></body>';
-        $html .= '</html>';
-        return $html;
-    }
-
-    function generateUsersPDFExport($data, $filename) {
-        // Generate PDF-optimized HTML document
-        $headers = ['ID', 'First Name', 'Last Name', 'Email', 'Phone', 'Employee ID', 'Department', 'Position', 'Status', 'Role', 'Hire Date', 'Created At'];
-
-        $html = '<!DOCTYPE html>';
-        $html .= '<html>';
-        $html .= '<head>';
-        $html .= '<meta charset="utf-8">';
-        $html .= '<title>' . htmlspecialchars($filename) . '</title>';
-        $html .= '<style>';
-        $html .= 'body { font-family: Arial, sans-serif; margin: 20px; }';
-        $html .= 'table { border-collapse: collapse; width: 100%; } ';
-        $html .= 'th, td { border: 1px solid #ddd; padding: 8px; text-align: left; } ';
-        $html .= 'th { background-color: #f2f2f2; font-weight: bold; } ';
-        $html .= '</style>';
-        $html .= '</head>';
-        $html .= '<body>';
-        $html .= '<h1>' . $filename . '</h1>';
-        $html .= '<table><thead><tr>';
-        foreach ($headers as $header) {
-            $html .= '<th>' . htmlspecialchars($header) . '</th>';
-        }
-        $html .= '</tr></thead><tbody>';
-
-        foreach ($data as $row) {
-            $html .= '<tr>';
-            foreach ($row as $key => $value) {
-                $html .= '<td>' . htmlspecialchars($value) . '</td>';
-            }
-            $html .= '</tr>';
-        }
-
-        $html .= '</tbody></table></body>';
-        $html .= '</html>';
-        return $html;
-    }
-
-    function generateUsersWordExport($data, $filename) {
-        // Word-compatible HTML
-        $headers = ['ID', 'First Name', 'Last Name', 'Email', 'Phone', 'Employee ID', 'Department', 'Position', 'Status', 'Role', 'Hire Date', 'Created At'];
-
-        $html = '<html xmlns:o="urn:schemas-microsoft-com:office:office">';
-        $html .= '<head>';
-        $html .= '<meta charset="utf-8">';
-        $html .= '<title>' . htmlspecialchars($filename) . '</title>';
-        $html .= '<style>';
-        $html .= 'table { border-collapse: collapse; width: 100%; } ';
-        $html .= 'th, td { border: 1px solid #ddd; padding: 8px; text-align: left; } ';
-        $html .= 'th { background-color: #f2f2f2; font-weight: bold; } ';
-        $html .= '</style>';
-        $html .= '</head>';
-        $html .= '<body>';
-        $html .= '<h1>' . $filename . '</h1>';
-        $html .= '<table><thead><tr>';
-        foreach ($headers as $header) {
-            $html .= '<th>' . htmlspecialchars($header) . '</th>';
-        }
-        $html .= '</tr></thead><tbody>';
-
-        foreach ($data as $row) {
-            $html .= '<tr>';
-            foreach ($row as $key => $value) {
-                $html .= '<td>' . htmlspecialchars($value) . '</td>';
-            }
-            $html .= '</tr>';
-        }
-
-        $html .= '</tbody></table></body>';
-        $html .= '</html>';
-        return $html;
-    }
+    // Helper functions have been moved to App\Helpers\ExportHelper
+    // This prevents function redeclaration errors when route caching is enabled
 
     // ── Budget ────────────────────────────────────────────────────────────────
     Route::get('/budget', [\App\Http\Controllers\Admin\BudgetController::class, 'index'])->name('budget.index');

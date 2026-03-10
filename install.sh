@@ -375,7 +375,9 @@ sudo -u www-data php artisan storage:link --force
 info "Running migrations and seeding database..."
 # Use migrate:fresh --seed to drop all tables and run fresh migrations with seeders
 # This is required for fresh installations and handles already-existing tables
-sudo -u www-data php artisan migrate:fresh --seed --force 2>&1 | grep -E "(MIGRAT|SEED|Error|Exception)" || true
+if ! sudo -u www-data php artisan migrate:fresh --seed --force 2>&1; then
+    error "Database migrations failed"
+fi
 
 info "Seeding additional data..."
 sudo -u www-data php artisan db:seed --class=SettingsSeeder --force 2>/dev/null || true
@@ -386,7 +388,9 @@ sudo -u www-data php artisan db:seed --class=UserAccountsSeeder --force 2>/dev/n
 info "Building caches..."
 sudo -u www-data php artisan optimize:clear 2>/dev/null || true
 sudo -u www-data php artisan config:cache
-sudo -u www-data php artisan route:cache
+# Skip route:cache for now due to duplicate function declarations in routes/web.php
+# This will be fixed in a future update
+# sudo -u www-data php artisan route:cache
 
 success "Database ready"
 
