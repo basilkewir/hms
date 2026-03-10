@@ -110,7 +110,7 @@ else
         info "Installing PHP ${PHP_VERSION}..."
         # Update apt cache again after adding PPA to ensure packages are available
         apt-get update -y 2>&1 | grep -v "^Get:" | grep -v "^Hit:" || true
-        
+
         # Install core PHP first
         apt-get install -y php${PHP_VERSION} php${PHP_VERSION}-fpm php${PHP_VERSION}-cli 2>&1 | tail -3 || true
 
