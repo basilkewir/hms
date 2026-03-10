@@ -214,32 +214,7 @@ touch "$LOG_FILE"
 exec > >(tee -a "$LOG_FILE") 2>&1
 info "Installation started"
 
-step "1/8 - System Packages"
-
-export DEBIAN_FRONTEND=noninteractive
-apt-get update -y
-apt-get upgrade -y -o Dpkg::Options::="--force-confold"
-
-apt-get install -y software-properties-common curl wget git unzip zip bc gnupg2 ca-certificates
-
-[[ "$NEED_PKG" == *"php"* ]] && {
-    add-apt-repository -y ppa:ondrej/php
-    apt-get update -y
-    apt-get install -y php${PHP_VERSION} php${PHP_VERSION}-fpm php${PHP_VERSION}-cli php${PHP_VERSION}-mysql \
-        php${PHP_VERSION}-mbstring php${PHP_VERSION}-xml php${PHP_VERSION}-zip php${PHP_VERSION}-curl \
-        php${PHP_VERSION}-gd php${PHP_VERSION}-intl php${PHP_VERSION}-bcmath php${PHP_VERSION}-redis
-}
-
-[[ "$NEED_PKG" == *"nginx"* ]] && apt-get install -y nginx && systemctl enable nginx --now
-[[ "$NEED_PKG" == *"mysql"* ]] && apt-get install -y mysql-server && systemctl enable mysql --now
-[[ "$NEED_PKG" == *"nodejs"* ]] && {
-    curl -fsSL https://deb.nodesource.com/setup_${NODE_VERSION}.x | bash -
-    apt-get install -y nodejs
-}
-
-success "Packages installed"
-
-step "3/8 - Database Setup"
+step "2/8 - Database Setup"
 
 # Get database credentials
 read -rp "Database name [hms_db]: " DB_DATABASE
@@ -265,7 +240,7 @@ SQL
 
 success "Database created"
 
-step "4/8 - Application Files"
+step "3/8 - Application Files"
 
 mkdir -p "${INSTALL_DIR}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -285,7 +260,7 @@ chmod +x "${INSTALL_DIR}/artisan"
 
 success "Files deployed"
 
-step "5/8 - Configuration"
+step "4/8 - Configuration"
 
 APP_KEY="base64:$(dd if=/dev/urandom bs=32 count=1 2>/dev/null | base64 | tr -d '\n')"
 
@@ -327,7 +302,7 @@ chmod 640 "${INSTALL_DIR}/.env"
 
 success ".env written"
 
-step "6/8 - Dependencies"
+step "5/8 - Dependencies"
 
 info "Composer install..."
 sudo -u www-data composer install --no-dev --no-interaction --optimize-autoloader --prefer-dist
@@ -344,7 +319,7 @@ rm -rf node_modules
 
 success "Dependencies installed"
 
-step "7/8 - Database Migrations"
+step "6/8 - Database Migrations"
 
 sudo -u www-data php artisan storage:link --force
 
@@ -364,7 +339,7 @@ sudo -u www-data php artisan route:cache
 
 success "Database ready"
 
-step "8/8 - Nginx"
+step "7/8 - Nginx"
 
 cat > /etc/nginx/sites-available/hms << ENDNGINX
 server {
@@ -395,7 +370,7 @@ nginx -t && systemctl reload nginx
 
 success "Nginx configured"
 
-step "9/9 - Background Services"
+step "8/8 - Background Services"
 
 cat > /etc/systemd/system/hms-queue.service << ENDSVC
 [Unit]
