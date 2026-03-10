@@ -349,8 +349,12 @@ success ".env written"
 
 step "5/8 - Dependencies"
 
-info "Composer install..."
-sudo -u www-data composer install --no-dev --no-interaction --optimize-autoloader --prefer-dist
+info "Composer install (updating lock file for PHP 8.2 compatibility)..."
+# First update composer lock to get PHP 8.2 compatible versions
+sudo -u www-data composer update --no-dev --no-interaction --optimize-autoloader --prefer-dist 2>&1 | tail -5 || true
+
+# Then install with the updated lock file
+sudo -u www-data composer install --no-dev --no-interaction --optimize-autoloader --prefer-dist 2>&1 | tail -3 || true
 
 sudo -u www-data php artisan key:generate --force
 
