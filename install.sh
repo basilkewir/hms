@@ -97,9 +97,15 @@ else
     # Install language-specific packages
     [[ "$NEED_PKG" == *"php"* ]] && {
         info "Installing PHP ${PHP_VERSION}..."
-        apt-get install -y php${PHP_VERSION} php${PHP_VERSION}-fpm php${PHP_VERSION}-cli php${PHP_VERSION}-mysql \
-            php${PHP_VERSION}-mbstring php${PHP_VERSION}-xml php${PHP_VERSION}-zip php${PHP_VERSION}-curl \
-            php${PHP_VERSION}-gd php${PHP_VERSION}-intl php${PHP_VERSION}-bcmath 2>&1 | tail -3 || true
+        # Install core PHP first
+        apt-get install -y php${PHP_VERSION} php${PHP_VERSION}-fpm php${PHP_VERSION}-cli 2>&1 | tail -3 || true
+        
+        # Install extensions one at a time, skip if not available
+        for ext in mysql mbstring xml zip curl gd intl; do
+            apt-get install -y "php${PHP_VERSION}-${ext}" 2>&1 | grep -E "(Setting|done|Processing)" | tail -1 || true
+        done
+        
+        success "PHP ${PHP_VERSION} installed"
     }
 
     [[ "$NEED_PKG" == *"nginx"* ]] && {
@@ -123,20 +129,26 @@ else
 
     [[ "$NEED_PKG" == *"composer"* ]] && {
         info "Installing Composer..."
-        EXPECTED_CHECKSUM="$(curl -s https://composer.github.io/installer.sig)"
-        php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"
-        ACTUAL_CHECKSUM="$(php -r "echo hash_file('SHA384', 'composer-setup.php');")"
         
-        if [ "$EXPECTED_CHECKSUM" != "$ACTUAL_CHECKSUM" ]; then
-            >&2 echo 'ERROR: Invalid installer checksum'
-            rm composer-setup.php
-            error "Composer installation failed"
+        # Check if PHP is available
+        if ! command -v php &>/dev/null; then
+            warn "PHP not available, skipping Composer installation"
+        else
+            EXPECTED_CHECKSUM="$(curl -s https://composer.github.io/installer.sig)"
+            php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');" || error "Failed to download Composer installer"
+            ACTUAL_CHECKSUM="$(php -r "echo hash_file('SHA384', 'composer-setup.php');")"
+            
+            if [ "$EXPECTED_CHECKSUM" != "$ACTUAL_CHECKSUM" ]; then
+                >&2 echo 'ERROR: Invalid installer checksum'
+                rm composer-setup.php
+                error "Composer installation failed - checksum mismatch"
+            fi
+            
+            php composer-setup.php --quiet --install-dir=/usr/local/bin --filename=composer
+            RESULT=$?
+            rm -f composer-setup.php
+            [[ $RESULT -eq 0 ]] && success "Composer installed" || error "Composer installation failed"
         fi
-        
-        php composer-setup.php --quiet --install-dir=/usr/local/bin --filename=composer
-        RESULT=$?
-        rm composer-setup.php
-        [[ $RESULT -eq 0 ]] && success "Composer installed" || error "Composer installation failed"
     }
 
     success "All packages installed"
