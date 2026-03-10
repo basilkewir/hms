@@ -71,7 +71,7 @@ ls -la
 
 ## Step 4: (Optional) Clean Up Previous Installation
 
-If you had a previous installation, clean it completely:
+If you had a previous installation and want a completely fresh start:
 
 ```bash
 # Stop all services
@@ -91,6 +91,8 @@ sudo composer cache clear 2>/dev/null || true
 ```
 
 **⚠️ WARNING**: This deletes all previous HMS data. Only do if you want a fresh start.
+
+**Prefer updating instead?** See the [Update Existing Installation](#updating-existing-installation) section below.
 
 **Time**: ~1 minute
 
@@ -425,6 +427,149 @@ Check these in order:
 2. Application log: `/opt/hms/storage/logs/laravel.log`
 3. Nginx error log: `/var/log/nginx/error.log`
 4. MySQL log: `sudo tail -50 /var/log/mysql/error.log`
+
+---
+
+**You're ready to install!** 🚀
+
+Run this command to start:
+```bash
+sudo bash install.sh
+```
+
+---
+
+## Updating Existing Installation
+
+Instead of reinstalling from scratch, you can update your existing HMS installation:
+
+### Update Only (Recommended)
+
+```bash
+cd /root/hms
+git pull origin master
+sudo bash update.sh
+```
+
+The update script will:
+1. Pull latest code
+2. Copy updated files
+3. Run database migrations
+4. Update dependencies
+5. Rebuild assets
+6. Restart services
+7. **Preserve your database and .env file**
+
+**Time**: ~5-10 minutes
+
+### Backup Before Update
+
+Always backup your database before updating:
+
+```bash
+sudo bash backup.sh "before_update"
+```
+
+This creates a timestamped SQL backup in `/root/hms_backups/`
+
+### Restore From Backup
+
+If something goes wrong during update:
+
+```bash
+# List available backups
+ls -lh /root/hms_backups/
+
+# Restore from a specific backup
+sudo bash restore.sh /root/hms_backups/hms_db_before_update_20260310_143022.sql
+```
+
+---
+
+## Maintenance Scripts
+
+HMS includes three maintenance scripts:
+
+### 1. Update Script (`update.sh`)
+Update existing installation without reinstalling:
+```bash
+sudo bash update.sh
+```
+
+Features:
+- Pulls latest code
+- Updates application files
+- Runs new migrations
+- Updates dependencies
+- Restarts services
+- **Preserves database and .env**
+
+### 2. Backup Script (`backup.sh`)
+Create database backups:
+```bash
+# Auto-named backup
+sudo bash backup.sh
+
+# Named backup
+sudo bash backup.sh "before_update"
+```
+
+Creates: `/root/hms_backups/hms_db_[name]_[timestamp].sql`
+
+### 3. Restore Script (`restore.sh`)
+Restore from backup:
+```bash
+# List backups
+ls -lh /root/hms_backups/
+
+# Restore
+sudo bash restore.sh /root/hms_backups/hms_db_[filename].sql
+```
+
+Features:
+- Creates safety backup before restore
+- Restores database
+- Shows restore instructions
+
+---
+
+## Comparing Install vs Update
+
+| Task | Fresh Install | Update |
+|------|---------------|--------|
+| Time | ~30 minutes | ~5-10 minutes |
+| Database | Creates new | Preserves |
+| .env | Creates new | Preserves |
+| Code | Downloads all | Pulls changes only |
+| Use Case | New server | Existing system |
+
+**Use Update script if**: You already have HMS running and just want the latest code
+**Use Fresh Install if**: Starting completely from scratch
+
+---
+
+## Typical Update Workflow
+
+```bash
+# 1. Backup database
+sudo bash backup.sh "before_update"
+
+# 2. Pull latest code
+cd /root/hms
+git pull origin master
+
+# 3. Update application
+sudo bash update.sh
+
+# 4. Verify
+curl -I http://192.168.20.85
+
+# 5. Check logs if issues
+tail -50 /opt/hms/storage/logs/laravel.log
+
+# 6. If problems, restore
+sudo bash restore.sh /root/hms_backups/hms_db_before_update_[timestamp].sql
+```
 
 ---
 
