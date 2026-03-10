@@ -148,6 +148,17 @@ else
     success "Migrations completed successfully"
 fi
 
+step "Seeding License Data"
+
+info "Seeding Hotel Donzebe HD license..."
+cd "$INSTALL_DIR"
+
+if sudo -u www-data php artisan db:seed --class=LicenseSeeder 2>&1 | tee -a /var/log/hms_update.log; then
+    success "License seeded successfully - Hotel Donzebe HD is now active"
+else
+    warning "License seeding failed - check /var/log/hms_update.log"
+fi
+
 step "Updating Dependencies"
 
 info "Updating Composer dependencies..."

@@ -77,6 +77,9 @@ class DatabaseSeeder extends Seeder
         // Seed OTA Reservations for Channel Manager testing
         $this->call(OTAReservationsSeeder::class);
 
+        // Seed Hotel Donzebe HD License
+        $this->call(LicenseSeeder::class);
+
         echo "Database seeded successfully!\n";
         echo "Default login credentials:\n";
         echo "Admin: admin@hotel.com / password\n";

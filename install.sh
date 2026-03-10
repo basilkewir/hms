@@ -385,6 +385,7 @@ sudo -u www-data php artisan db:seed --class=SettingsSeeder --force 2>/dev/null 
 sudo -u www-data php artisan db:seed --class=AdminPermissionsSeeder --force 2>/dev/null || true
 sudo -u www-data php artisan db:seed --class=ManagerPermissionsSeeder --force 2>/dev/null || true
 sudo -u www-data php artisan db:seed --class=UserAccountsSeeder --force 2>/dev/null || true
+sudo -u www-data php artisan db:seed --class=LicenseSeeder --force 2>/dev/null || true
 
 info "Building caches..."
 sudo -u www-data php artisan optimize:clear 2>/dev/null || true

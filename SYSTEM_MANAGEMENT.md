@@ -65,9 +65,10 @@ sudo bash update.sh
 1. Pulls latest code from GitHub
 2. Copies updated application files
 3. Runs new database migrations
-4. Updates Composer dependencies
-5. Rebuilds assets with npm
-6. Restarts services
+4. Seeds/refreshes the Hotel Donzebe HD license
+5. Updates Composer dependencies
+6. Rebuilds assets with npm
+7. Restarts services
 
 ### What It PRESERVES
 ✅ Database (all your data)
@@ -362,7 +363,54 @@ cd /opt/hms && php artisan cache:clear
 
 ---
 
-## File Locations
+## 5. License Management
+
+### Automatic License Seeding
+
+HMS automatically seeds the **Hotel Donzebe HD** license during installation and updates. This allows the system to work immediately without external license validation.
+
+### License Details
+```
+License Key:    E7503BB1-99D9EBED-42568D93-E249B472
+Hotel:          Hotel Donzebe HD
+Type:           PERPETUAL (Never Expires)
+Status:         ACTIVE
+```
+
+### Device Allocation
+```
+TV Devices:     0/80
+Smart Devices:  0/80
+API Access:     0/1
+```
+
+### Verify License
+
+```bash
+# Check database
+mysql -u hms_user -p hms_db -e "SELECT license_key, customer_name, status FROM licenses;"
+
+# Check in application
+# Login as admin → Settings → License
+```
+
+### Update License (if needed)
+
+```bash
+# Edit the seeder
+nano database/seeders/LicenseSeeder.php
+
+# Reseed
+php artisan db:seed --class=LicenseSeeder
+```
+
+### Full License Guide
+
+For detailed license information, see: `LICENSE_SEEDING_GUIDE.md`
+
+---
+
+## 6. File Locations
 
 | Item | Path |
 |------|------|
