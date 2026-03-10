@@ -108,6 +108,14 @@ else
     # Install language-specific packages
     [[ "$NEED_PKG" == *"php"* ]] && {
         info "Installing PHP ${PHP_VERSION}..."
+        
+        # If old PHP exists, make sure it won't be the default
+        if [[ -f /usr/bin/php8.1 ]]; then
+            info "Removing PHP 8.1 as default..."
+            update-alternatives --remove php /usr/bin/php8.1 2>/dev/null || true
+            update-alternatives --remove php-fpm /usr/sbin/php-fpm8.1 2>/dev/null || true
+        fi
+        
         # Update apt cache again after adding PPA to ensure packages are available
         apt-get update -y 2>&1 | grep -v "^Get:" | grep -v "^Hit:" || true
 
@@ -119,13 +127,30 @@ else
             apt-get install -y "php${PHP_VERSION}-${ext}" 2>&1 | grep -E "(Setting|done|Processing)" | tail -1 || true
         done
 
-        # Set PHP 8.2 as default for cli and fpm
-        update-alternatives --install /usr/bin/php php /usr/bin/php${PHP_VERSION} 100 > /dev/null 2>&1 || true
-        update-alternatives --install /usr/bin/php-fpm php-fpm /usr/sbin/php-fpm${PHP_VERSION} 100 > /dev/null 2>&1 || true
+        # Also install dom for any existing old PHP versions to prevent issues
+        for old_ver in 7.4 8.0 8.1; do
+            if [[ -f /usr/bin/php${old_ver} ]]; then
+                apt-get install -y "php${old_ver}-dom" 2>&1 | grep -E "(Setting|done|Processing)" | tail -1 || true
+            fi
+        done
+
+        # Set PHP 8.2 as default - use --force-all to override
+        update-alternatives --remove php /usr/bin/php8.1 2>/dev/null || true
+        update-alternatives --remove php-fpm /usr/sbin/php-fpm8.1 2>/dev/null || true
+        
+        update-alternatives --install /usr/bin/php php /usr/bin/php${PHP_VERSION} 1000 --force > /dev/null 2>&1 || true
+        update-alternatives --install /usr/bin/php-fpm php-fpm /usr/sbin/php-fpm${PHP_VERSION} 1000 --force > /dev/null 2>&1 || true
+        
+        # Also set as CLI alternatives
+        update-alternatives --install /usr/bin/php-cli php-cli /usr/bin/php${PHP_VERSION} 1000 --force > /dev/null 2>&1 || true
 
         # Verify PHP version
         INSTALLED_PHP=$(php -r "echo PHP_VERSION;" 2>/dev/null | cut -d. -f1-2)
-        success "PHP ${INSTALLED_PHP} installed"
+        if [[ "$INSTALLED_PHP" == "8.2" ]]; then
+            success "PHP ${INSTALLED_PHP} installed and set as default"
+        else
+            warn "PHP 8.2 installed but current php command is ${INSTALLED_PHP} - please run: sudo update-alternatives --config php"
+        fi
     }
 
     [[ "$NEED_PKG" == *"nginx"* ]] && {
