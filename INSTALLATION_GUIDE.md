@@ -32,7 +32,28 @@ git clone https://github.com/basilkewir/hms.git /root/hms
 cd /root/hms
 ```
 
-### Step 2: Run Installer
+### Step 2: Complete System Cleanup (Recommended)
+
+Before first installation, clean up completely:
+
+```bash
+# Stop all services
+sudo systemctl stop nginx mysql php8.2-fpm 2>/dev/null || true
+
+# Remove old files
+sudo rm -rf /opt/hms
+sudo rm -f /root/hms_credentials.txt /var/log/hms_install.log
+
+# Clean database
+mysql -u root -e "DROP DATABASE IF EXISTS hms_db; DROP USER IF EXISTS 'hms_user'@'localhost';" 2>/dev/null || true
+
+# Clear caches
+sudo rm -rf /var/lib/php/sessions/*
+npm cache clean --force 2>/dev/null || true
+sudo composer cache clear 2>/dev/null || true
+```
+
+### Step 3: Run Installer
 
 ```bash
 sudo bash install.sh
