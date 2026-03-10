@@ -62,7 +62,18 @@ step "1/8 - Pre-flight Check & System Packages"
 # Check dependencies
 echo "Checking dependencies..."
 NEED_PKG=""
-has_cmd "php" || NEED_PKG="$NEED_PKG php${PHP_VERSION}"
+
+# Check PHP version specifically - need 8.2 or higher
+if has_cmd "php"; then
+    PHP_CURRENT=$(php -r "echo PHP_VERSION;" 2>/dev/null | cut -d. -f1-2)
+    if [[ "$PHP_CURRENT" != "8.2" && "$PHP_CURRENT" != "8.3" && "$PHP_CURRENT" != "8.4" ]]; then
+        info "Found PHP ${PHP_CURRENT}, but need PHP 8.2+"
+        NEED_PKG="$NEED_PKG php${PHP_VERSION}"
+    fi
+else
+    NEED_PKG="$NEED_PKG php${PHP_VERSION}"
+fi
+
 has_cmd nginx || NEED_PKG="$NEED_PKG nginx"
 has_cmd mysql || NEED_PKG="$NEED_PKG mysql-server"
 has_cmd node || NEED_PKG="$NEED_PKG nodejs"
@@ -104,11 +115,17 @@ else
         apt-get install -y php${PHP_VERSION} php${PHP_VERSION}-fpm php${PHP_VERSION}-cli 2>&1 | tail -3 || true
 
         # Install extensions one at a time, skip if not available
-        for ext in mysql mbstring xml zip curl gd intl; do
+        for ext in mysql mbstring xml zip curl gd intl dom; do
             apt-get install -y "php${PHP_VERSION}-${ext}" 2>&1 | grep -E "(Setting|done|Processing)" | tail -1 || true
         done
 
-        success "PHP ${PHP_VERSION} installed"
+        # Set PHP 8.2 as default for cli and fpm
+        update-alternatives --install /usr/bin/php php /usr/bin/php${PHP_VERSION} 100 > /dev/null 2>&1 || true
+        update-alternatives --install /usr/bin/php-fpm php-fpm /usr/sbin/php-fpm${PHP_VERSION} 100 > /dev/null 2>&1 || true
+
+        # Verify PHP version
+        INSTALLED_PHP=$(php -r "echo PHP_VERSION;" 2>/dev/null | cut -d. -f1-2)
+        success "PHP ${INSTALLED_PHP} installed"
     }
 
     [[ "$NEED_PKG" == *"nginx"* ]] && {
