@@ -73,26 +73,57 @@ if [[ -z "$NEED_PKG" ]]; then
 else
     info "Installing:$NEED_PKG"
     export DEBIAN_FRONTEND=noninteractive
-    apt-get update -y
-    apt-get upgrade -y -o Dpkg::Options::="--force-confold"
-    apt-get install -y software-properties-common curl wget git unzip zip bc gnupg2 ca-certificates
-
+    
+    # Add PPAs and update cache FIRST
+    apt-get update -y 2>&1 | grep -v "^Get:" | grep -v "^Hit:" || true
+    
     [[ "$NEED_PKG" == *"php"* ]] && {
+        info "Adding PHP PPA..."
         add-apt-repository -y ppa:ondrej/php
-        apt-get update -y
+        apt-get update -y 2>&1 | grep -v "^Get:" | grep -v "^Hit:" || true
+    }
+    
+    [[ "$NEED_PKG" == *"nodejs"* ]] && {
+        info "Setting up Node.js repository..."
+        curl -fsSL https://deb.nodesource.com/setup_${NODE_VERSION}.x | bash - > /dev/null 2>&1
+        apt-get update -y 2>&1 | grep -v "^Get:" | grep -v "^Hit:" || true
+    }
+    
+    # Install base packages
+    info "Installing system packages..."
+    apt-get upgrade -y -o Dpkg::Options::="--force-confold" 2>&1 | grep -v "^Reading" | grep -v "^Building" | grep -v "^Calculating" | tail -5 || true
+    apt-get install -y software-properties-common curl wget git unzip zip bc gnupg2 ca-certificates 2>&1 | grep -E "^(Setting|Processing|Done)" || true
+
+    # Install language-specific packages
+    [[ "$NEED_PKG" == *"php"* ]] && {
+        info "Installing PHP ${PHP_VERSION}..."
         apt-get install -y php${PHP_VERSION} php${PHP_VERSION}-fpm php${PHP_VERSION}-cli php${PHP_VERSION}-mysql \
             php${PHP_VERSION}-mbstring php${PHP_VERSION}-xml php${PHP_VERSION}-zip php${PHP_VERSION}-curl \
-            php${PHP_VERSION}-gd php${PHP_VERSION}-intl php${PHP_VERSION}-bcmath php${PHP_VERSION}-redis
+            php${PHP_VERSION}-gd php${PHP_VERSION}-intl php${PHP_VERSION}-bcmath php${PHP_VERSION}-redis 2>&1 | tail -3 || true
     }
 
-    [[ "$NEED_PKG" == *"nginx"* ]] && apt-get install -y nginx && systemctl enable nginx --now
-    [[ "$NEED_PKG" == *"mysql"* ]] && apt-get install -y mysql-server && systemctl enable mysql --now
-    [[ "$NEED_PKG" == *"nodejs"* ]] && {
-        curl -fsSL https://deb.nodesource.com/setup_${NODE_VERSION}.x | bash -
-        apt-get install -y nodejs
+    [[ "$NEED_PKG" == *"nginx"* ]] && {
+        info "Installing Nginx..."
+        apt-get install -y nginx 2>&1 | tail -2 || true
+        systemctl enable nginx > /dev/null 2>&1
+        systemctl start nginx > /dev/null 2>&1
     }
+    
+    [[ "$NEED_PKG" == *"mysql"* ]] && {
+        info "Installing MySQL Server..."
+        apt-get install -y mysql-server 2>&1 | tail -2 || true
+        systemctl enable mysql > /dev/null 2>&1
+        systemctl start mysql > /dev/null 2>&1
+    }
+    
+    [[ "$NEED_PKG" == *"nodejs"* ]] && {
+        info "Installing Node.js..."
+        apt-get install -y nodejs 2>&1 | tail -2 || true
+    }
+    
     [[ "$NEED_PKG" == *"composer"* ]] && {
-        curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+        info "Installing Composer..."
+        curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer > /dev/null 2>&1
     }
 
     success "All packages installed"
