@@ -56,7 +56,8 @@ if [[ ! -f /etc/os-release ]]; then error "Cannot detect OS"; fi
 [[ "$ID" != "ubuntu" ]] && error "Only Ubuntu supported"
 
 banner
-step "Pre-flight Check"
+
+step "1/8 - Pre-flight Check & System Packages"
 
 # Check dependencies
 echo "Checking dependencies..."
@@ -68,12 +69,36 @@ has_cmd node || NEED_PKG="$NEED_PKG nodejs"
 has_cmd composer || NEED_PKG="$NEED_PKG composer"
 
 if [[ -z "$NEED_PKG" ]]; then
-    echo "All dependencies found"
+    success "All dependencies already installed"
 else
-    echo "Will install:$NEED_PKG"
+    info "Installing:$NEED_PKG"
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update -y
+    apt-get upgrade -y -o Dpkg::Options::="--force-confold"
+    apt-get install -y software-properties-common curl wget git unzip zip bc gnupg2 ca-certificates
+
+    [[ "$NEED_PKG" == *"php"* ]] && {
+        add-apt-repository -y ppa:ondrej/php
+        apt-get update -y
+        apt-get install -y php${PHP_VERSION} php${PHP_VERSION}-fpm php${PHP_VERSION}-cli php${PHP_VERSION}-mysql \
+            php${PHP_VERSION}-mbstring php${PHP_VERSION}-xml php${PHP_VERSION}-zip php${PHP_VERSION}-curl \
+            php${PHP_VERSION}-gd php${PHP_VERSION}-intl php${PHP_VERSION}-bcmath php${PHP_VERSION}-redis
+    }
+
+    [[ "$NEED_PKG" == *"nginx"* ]] && apt-get install -y nginx && systemctl enable nginx --now
+    [[ "$NEED_PKG" == *"mysql"* ]] && apt-get install -y mysql-server && systemctl enable mysql --now
+    [[ "$NEED_PKG" == *"nodejs"* ]] && {
+        curl -fsSL https://deb.nodesource.com/setup_${NODE_VERSION}.x | bash -
+        apt-get install -y nodejs
+    }
+    [[ "$NEED_PKG" == *"composer"* ]] && {
+        curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+    }
+
+    success "All packages installed"
 fi
 
-step "0/8 - Configuration"
+step "2/8 - Configuration"
 
 # Get domain
 SERVER_IP=$(hostname -I | awk '{print $1}')
@@ -158,7 +183,21 @@ apt-get install -y software-properties-common curl wget git unzip zip bc gnupg2 
 
 success "Packages installed"
 
-step "2/8 - Database"
+step "3/8 - Database Setup"
+
+# Get database credentials
+read -rp "Database name [hms_db]: " DB_DATABASE
+DB_DATABASE="${DB_DATABASE:-hms_db}"
+
+read -rp "Database user [hms_user]: " DB_USERNAME
+DB_USERNAME="${DB_USERNAME:-hms_user}"
+
+RAND_PASS=$(gen_password)
+printf "Database password [auto, press Enter]: " > /dev/tty
+DB_PASSWORD=""
+read -rs DB_PASSWORD < /dev/tty || true
+echo "" > /dev/tty
+DB_PASSWORD="${DB_PASSWORD:-$RAND_PASS}"
 
 mysql -u root <<SQL
 CREATE DATABASE IF NOT EXISTS \`${DB_DATABASE}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -168,9 +207,9 @@ GRANT ALL PRIVILEGES ON \`${DB_DATABASE}\`.* TO '${DB_USERNAME}'@'localhost';
 FLUSH PRIVILEGES;
 SQL
 
-success "Database ready"
+success "Database created"
 
-step "3/8 - Application Files"
+step "4/8 - Application Files"
 
 mkdir -p "${INSTALL_DIR}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -190,7 +229,7 @@ chmod +x "${INSTALL_DIR}/artisan"
 
 success "Files deployed"
 
-step "4/8 - Configuration"
+step "5/8 - Configuration"
 
 APP_KEY="base64:$(dd if=/dev/urandom bs=32 count=1 2>/dev/null | base64 | tr -d '\n')"
 
@@ -232,7 +271,7 @@ chmod 640 "${INSTALL_DIR}/.env"
 
 success ".env written"
 
-step "5/8 - Dependencies"
+step "6/8 - Dependencies"
 
 info "Composer install..."
 sudo -u www-data composer install --no-dev --no-interaction --optimize-autoloader --prefer-dist
@@ -249,7 +288,7 @@ rm -rf node_modules
 
 success "Dependencies installed"
 
-step "6/8 - Database Migrations"
+step "7/8 - Database Migrations"
 
 sudo -u www-data php artisan storage:link --force
 
@@ -269,7 +308,7 @@ sudo -u www-data php artisan route:cache
 
 success "Database ready"
 
-step "7/8 - Nginx"
+step "8/8 - Nginx"
 
 cat > /etc/nginx/sites-available/hms << ENDNGINX
 server {
@@ -300,7 +339,7 @@ nginx -t && systemctl reload nginx
 
 success "Nginx configured"
 
-step "8/8 - Services"
+step "9/9 - Background Services"
 
 cat > /etc/systemd/system/hms-queue.service << ENDSVC
 [Unit]
@@ -328,26 +367,85 @@ success "Services started"
 # Credentials
 cat > /root/hms_credentials.txt << ENDCREDS
 ════════════════════════════════════════
-  HMS Installation Credentials
+  HMS Installation Complete!
   Date: $(date)
 ════════════════════════════════════════
 
-URL      : ${APP_URL}
-Admin    : admin@hotel.com / password
-Database : ${DB_DATABASE} / ${DB_USERNAME} / ${DB_PASSWORD}
+🌐 Access URL:
+   ${APP_URL}
 
-Change admin password immediately!
+👤 Admin Account:
+   Email    : admin@hotel.com
+   Password : password
+
+💾 Database:
+   Host     : localhost
+   Database : ${DB_DATABASE}
+   User     : ${DB_USERNAME}
+   Password : ${DB_PASSWORD}
+
+⚠️  IMPORTANT:
+   1. Change admin password immediately
+   2. Update hotel information in settings
+   3. Configure payment gateway
+   4. Set up email notifications
+
 ════════════════════════════════════════
 ENDCREDS
 
 chmod 600 /root/hms_credentials.txt
 
+# Clear screen and show summary
+clear
 echo ""
-echo -e "${GREEN}${BOLD}✓ Installation Complete!${RESET}"
+echo -e "${GREEN}${BOLD}"
+cat << 'EOF'
+
+  ██╗  ██╗███╗   ███╗███████╗
+  ██║  ██║████╗ ████║██╔════╝
+  ███████║██╔████╔██║███████╗
+  ██╔══██║██║╚██╔╝██║╚════██║
+  ██║  ██║██║ ╚═╝ ██║███████║
+  ╚═╝  ╚═╝╚═╝     ╚═╝╚══════╝
+
+   ✓ Installation Complete!
+
+EOF
+echo -e "${RESET}"
+
+echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+echo -e "${BOLD}Access Information:${RESET}"
+echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
 echo ""
-echo "  URL      : $APP_URL"
-echo "  Admin    : admin@hotel.com / password"
-echo "  Database : $DB_DATABASE"
+echo -e "  ${BOLD}URL:${RESET}      ${GREEN}${APP_URL}${RESET}"
 echo ""
-echo -e "${YELLOW}⚠ Change the admin password immediately!${RESET}"
+echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+echo -e "${BOLD}Admin Login:${RESET}"
+echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+echo ""
+echo -e "  ${BOLD}Email:${RESET}    admin@hotel.com"
+echo -e "  ${BOLD}Password:${RESET} password"
+echo ""
+echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+echo -e "${BOLD}Database Details:${RESET}"
+echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+echo ""
+echo -e "  ${BOLD}Database:${RESET}  ${DB_DATABASE}"
+echo -e "  ${BOLD}User:${RESET}     ${DB_USERNAME}"
+echo -e "  ${BOLD}Password:${RESET} ${DB_PASSWORD}"
+echo ""
+echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+echo -e "${YELLOW}⚠️  NEXT STEPS:${RESET}"
+echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+echo ""
+echo "  1. Open your browser and navigate to the URL above"
+echo "  2. Login with the admin credentials above"
+echo "  3. Change the admin password immediately"
+echo "  4. Update hotel information in Settings"
+echo "  5. Configure payment gateway"
+echo "  6. Set up email notifications"
+echo ""
+echo "  📝 All credentials saved to: /root/hms_credentials.txt"
+echo ""
+echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
 echo ""
