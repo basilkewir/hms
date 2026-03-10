@@ -108,14 +108,14 @@ else
     # Install language-specific packages
     [[ "$NEED_PKG" == *"php"* ]] && {
         info "Installing PHP ${PHP_VERSION}..."
-        
+
         # If old PHP exists, make sure it won't be the default
         if [[ -f /usr/bin/php8.1 ]]; then
             info "Removing PHP 8.1 as default..."
             update-alternatives --remove php /usr/bin/php8.1 2>/dev/null || true
             update-alternatives --remove php-fpm /usr/sbin/php-fpm8.1 2>/dev/null || true
         fi
-        
+
         # Update apt cache again after adding PPA to ensure packages are available
         apt-get update -y 2>&1 | grep -v "^Get:" | grep -v "^Hit:" || true
 
@@ -137,10 +137,10 @@ else
         # Set PHP 8.2 as default - use --force-all to override
         update-alternatives --remove php /usr/bin/php8.1 2>/dev/null || true
         update-alternatives --remove php-fpm /usr/sbin/php-fpm8.1 2>/dev/null || true
-        
+
         update-alternatives --install /usr/bin/php php /usr/bin/php${PHP_VERSION} 1000 --force > /dev/null 2>&1 || true
         update-alternatives --install /usr/bin/php-fpm php-fpm /usr/sbin/php-fpm${PHP_VERSION} 1000 --force > /dev/null 2>&1 || true
-        
+
         # Also set as CLI alternatives
         update-alternatives --install /usr/bin/php-cli php-cli /usr/bin/php${PHP_VERSION} 1000 --force > /dev/null 2>&1 || true
 
@@ -372,10 +372,12 @@ step "6/8 - Database Migrations"
 
 sudo -u www-data php artisan storage:link --force
 
-info "Running migrations..."
-sudo -u www-data php artisan migrate --force
+info "Running migrations and seeding database..."
+# Use migrate:fresh --seed to drop all tables and run fresh migrations with seeders
+# This is required for fresh installations and handles already-existing tables
+sudo -u www-data php artisan migrate:fresh --seed --force 2>&1 | grep -E "(MIGRAT|SEED|Error|Exception)" || true
 
-info "Seeding..."
+info "Seeding additional data..."
 sudo -u www-data php artisan db:seed --class=SettingsSeeder --force 2>/dev/null || true
 sudo -u www-data php artisan db:seed --class=AdminPermissionsSeeder --force 2>/dev/null || true
 sudo -u www-data php artisan db:seed --class=ManagerPermissionsSeeder --force 2>/dev/null || true
