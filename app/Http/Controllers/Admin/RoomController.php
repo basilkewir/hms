@@ -583,7 +583,9 @@ class RoomController extends Controller
      */
     public function manualCheckout(Request $request, Room $room)
     {
-        if ($room->status !== 'occupied') {
+        $hasActiveReservation = $room->currentReservation()->exists();
+
+        if ($room->status !== 'occupied' && !$hasActiveReservation) {
             return back()->with('error', 'Room is not occupied. Manual checkout only applies to occupied rooms.');
         }
 
@@ -600,21 +602,38 @@ class RoomController extends Controller
      */
     public function markClean(Request $request, Room $room)
     {
-        // If room is in cleaning status or waiting_for_check, change to available
-        $newStatus = 'available';
-        if ($room->status === 'occupied') {
-            $newStatus = 'occupied'; // Don't change occupied rooms
-        } elseif ($room->status !== 'cleaning' && $room->housekeeping_status !== 'waiting_for_check') {
-            $newStatus = $room->status; // Keep current status if not cleaning or waiting_for_check
+        $hasActiveReservation = $room->currentReservation()->exists();
+        $newStatus = $room->status;
+
+        if ($room->status === 'occupied' || $hasActiveReservation) {
+            $newStatus = 'occupied';
+        } elseif (
+            $room->status === 'cleaning'
+            || $room->status === 'available'
+            || in_array($room->housekeeping_status, ['dirty', 'waiting_for_check'], true)
+        ) {
+            $newStatus = 'available';
         }
 
-        $room->update([
+        $updateData = [
             'housekeeping_status' => 'clean',
             'status' => $newStatus,
-            'last_cleaned_at' => now(),
-            'last_cleaned_by' => auth()->id(),
-        ]);
+        ];
 
-        return back()->with('success', "Room {$room->room_number} has been marked as clean and is now available.");
+        if (Schema::hasColumn('rooms', 'last_cleaned_at')) {
+            $updateData['last_cleaned_at'] = now();
+        }
+
+        if (Schema::hasColumn('rooms', 'last_cleaned_by')) {
+            $updateData['last_cleaned_by'] = auth()->id();
+        }
+
+        $room->update($updateData);
+
+        $statusMessage = $newStatus === 'occupied'
+            ? "Room {$room->room_number} has been marked as clean and remains occupied."
+            : "Room {$room->room_number} has been marked as clean and is now available.";
+
+        return back()->with('success', $statusMessage);
     }
 }
