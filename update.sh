@@ -128,6 +128,24 @@ cp /root/hms/.env.example "$INSTALL_DIR/" 2>/dev/null || true
 
 success "Application files copied"
 
+step "Patching .env License Settings"
+
+info "Ensuring LICENSE_SERVER_URL is set..."
+if grep -q "^LICENSE_SERVER_URL=" "$INSTALL_DIR/.env"; then
+    sed -i 's|^LICENSE_SERVER_URL=.*|LICENSE_SERVER_URL=https://kewirdev.com/api/license|' "$INSTALL_DIR/.env"
+else
+    echo "LICENSE_SERVER_URL=https://kewirdev.com/api/license" >> "$INSTALL_DIR/.env"
+fi
+
+info "Ensuring LICENSE_SIGNATURE_SECRET is set..."
+if grep -q "^LICENSE_SIGNATURE_SECRET=" "$INSTALL_DIR/.env"; then
+    sed -i 's|^LICENSE_SIGNATURE_SECRET=.*|LICENSE_SIGNATURE_SECRET=E0FMIZdSNTtywmB6psxK4pqWSVRs8eo1ogPsePEmzXU=|' "$INSTALL_DIR/.env"
+else
+    echo "LICENSE_SIGNATURE_SECRET=E0FMIZdSNTtywmB6psxK4pqWSVRs8eo1ogPsePEmzXU=" >> "$INSTALL_DIR/.env"
+fi
+
+success ".env license settings patched"
+
 # Set permissions
 chown -R www-data:www-data "$INSTALL_DIR"
 find "$INSTALL_DIR" -type d -exec chmod 755 {} \;

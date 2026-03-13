@@ -147,8 +147,7 @@ class LicenseValidationService
                 'verify'          => false,
                 'timeout'         => 20,
                 'connect_timeout' => 10,
-            ])->withHeaders([
-                'Content-Type'        => 'application/json',
+            ])->asJson()->withHeaders([
                 'User-Agent'          => 'HotelManagementSystem/1.0.0',
                 'Accept'              => 'application/json',
                 'X-License-Signature' => $this->computeSignature($payload),
@@ -384,8 +383,7 @@ class LicenseValidationService
                 'verify'          => false,
                 'timeout'         => 12,
                 'connect_timeout' => 6,
-            ])->withHeaders([
-                'Content-Type'        => 'application/json',
+            ])->asJson()->withHeaders([
                 'User-Agent'          => 'HotelManagementSystem/1.0.0',
                 'Accept'              => 'application/json',
                 'X-License-Signature' => $this->computeSignature($payload),

@@ -439,6 +439,132 @@ sudo bash install.sh
 
 ---
 
+## Going Online (Access from Anywhere — Free)
+
+HMS runs locally on your server, but with one script you can expose it to the internet for **zero cost** using **Cloudflare Tunnel**. No open router ports, no static IP, no paid plan.
+
+This gives you:
+- **Booking website integration** — your website calls the HMS booking API to show live availability and create reservations
+- **Remote admin access** — view reports, manage rooms, and check-ins from anywhere
+- **Room availability sync** — real-time availability shown on your booking site
+
+### How It Works
+
+```
+Your Server (local)  ←──tunnel──→  Cloudflare (free)  ←──→  Internet
+   HMS on port 80                   Handles SSL/HTTPS          Your guests
+                                    Hides your IP              Your booking site
+                                    No firewall rules           Your phone
+```
+
+### Run the Expose Script
+
+```bash
+cd /root/hms
+sudo bash expose.sh
+```
+
+You'll be asked to choose:
+
+**Mode 1 — Quick (no account, ready in 60 seconds)**
+- Gets a URL like `https://abc-xyz.trycloudflare.com`
+- URL changes when the tunnel restarts
+- Good for testing or short-term use
+
+**Mode 2 — Named (free Cloudflare account, permanent)**
+- Gets a permanent URL like `https://hms.yourhotel.com`
+- Starts automatically on server boot
+- Best for production
+
+### What You Need for Mode 2
+
+1. Free account at https://cloudflare.com (no credit card)
+2. A domain name on Cloudflare (or a free domain from https://register.us.kg)
+3. Run `sudo bash expose.sh` and follow the prompts
+
+### Booking Website API Endpoints
+
+Once online, your booking website can call these endpoints:
+
+| Endpoint | Method | Auth | Description |
+|----------|--------|------|-------------|
+| `/api/public/hotel-info` | GET | None | Hotel name, address, contact |
+| `/api/public/room-types` | GET | None | Room types with prices |
+| `/api/booking/availability` | GET | None | Available rooms for dates |
+| `/api/booking/services` | GET | None | Hotel services and extras |
+| `/api/booking/create` | POST | X-Booking-Token | Create a reservation |
+| `/api/booking/confirmation` | GET | confirmation token | Get booking details |
+| `/api/booking/webhook` | POST | X-Booking-Token | Status update from website |
+
+**Check availability example:**
+```
+GET https://hms.yourhotel.com/api/booking/availability
+    ?check_in=2026-03-20
+    &check_out=2026-03-23
+    &adults=2
+    &children=0
+```
+
+**Create booking example:**
+```
+POST https://hms.yourhotel.com/api/booking/create
+Headers:
+  Content-Type: application/json
+  X-Booking-Token: your-token-from-settings
+
+Body:
+{
+  "room_type_id": 1,
+  "check_in": "2026-03-20",
+  "check_out": "2026-03-23",
+  "adults": 2,
+  "children": 0,
+  "guest": {
+    "first_name": "John",
+    "last_name": "Doe",
+    "email": "john@example.com",
+    "phone": "+237123456789"
+  }
+}
+```
+
+**Generate your booking API token:**
+1. Login to admin panel
+2. Go to **Settings → Integration**
+3. Generate and copy the Booking API Token
+4. Use that as `X-Booking-Token` header in your website
+
+### CORS — Restrict Access to Your Booking Site
+
+By default the booking API accepts requests from any domain. To lock it down to only your booking website, set this in `/opt/hms/.env`:
+
+```env
+CORS_ALLOWED_ORIGINS=https://yourbookingsite.com,https://www.yourbookingsite.com
+```
+
+Then clear the cache:
+```bash
+cd /opt/hms && php artisan config:clear
+```
+
+### Manage the Tunnel
+
+```bash
+# Check tunnel status
+systemctl status hms-tunnel
+
+# View live logs (see public URL for quick tunnels)
+journalctl -u hms-tunnel -f
+
+# Restart tunnel
+sudo systemctl restart hms-tunnel
+
+# Stop tunnel
+sudo systemctl stop hms-tunnel
+```
+
+---
+
 ## Updating Existing Installation
 
 Instead of reinstalling from scratch, you can update your existing HMS installation:
