@@ -461,6 +461,10 @@ class ReservationController extends Controller
             Room::where('id', $validated['room_id'])->update(['status' => 'reserved']);
         }
 
+        // Map number_of_adults/number_of_children to the DB columns adults/children
+        $validated['adults'] = $validated['number_of_adults'] ?? 1;
+        $validated['children'] = $validated['number_of_children'] ?? 0;
+
         $reservation = Reservation::create($validated);
 
         // Handle multiple rooms - attach rooms to reservation
@@ -817,6 +821,10 @@ class ReservationController extends Controller
         $validated['total_amount'] = $totalAmount;
         $validated['balance_amount'] = $totalAmount - ($reservation->paid_amount ?? 0);
         $validated['updated_by'] = auth()->id();
+
+        // Sync adults/children DB columns with number_of_adults/number_of_children
+        $validated['adults'] = $validated['number_of_adults'] ?? 1;
+        $validated['children'] = $validated['number_of_children'] ?? 0;
 
         $reservation->update($validated);
 
