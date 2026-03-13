@@ -140,7 +140,7 @@ class OTAReservationsSeeder extends Seeder
                 }
 
                 // Calculate amounts
-                $roomRate = $roomType ? $roomType->price_per_night : 50000;
+                $roomRate = $roomType ? ($roomType->price_per_night ?? $roomType->base_price ?? 50000) : 50000;
                 $totalAmount = $roomRate * $nights;
 
                 // Generate OTA confirmation number
@@ -149,20 +149,24 @@ class OTAReservationsSeeder extends Seeder
                 // Create reservation
                 try {
                     Reservation::create([
-                        'guest_id' => $guest->id,
+                            'reservation_number' => 'OTA-' . strtoupper(uniqid()),
+                            'guest_id' => $guest->id,
                         'room_id' => $room->id,
                         'room_type_id' => $roomType ? $roomType->id : null,
                         'check_in_date' => $checkIn->format('Y-m-d'),
                         'check_out_date' => $checkOut->format('Y-m-d'),
-                        'adults' => rand(1, 2),
+                                'nights' => $nights,
+                                'adults' => rand(1, 2),
                         'children' => rand(0, 2),
                         'room_rate' => $roomRate,
-                        'total_amount' => $totalAmount,
+                                    'total_room_charges' => $totalAmount,
+                                    'total_amount' => $totalAmount,
                         'status' => $status,
                         'payment_status' => $status === 'checked_in' ? 'paid' : 'pending',
                         'source' => $source,
                         'ota_confirmation_number' => $otaConfirmationNumber,
                         'special_requests' => $this->getRandomSpecialRequest(),
+                                        'created_by' => 1,
                         'created_at' => Carbon::now()->subDays(rand(1, 30)),
                         'updated_at' => Carbon::now(),
                     ]);

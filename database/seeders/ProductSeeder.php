@@ -10,15 +10,7 @@ class ProductSeeder extends Seeder
 {
     public function run()
     {
-        // Disable foreign key checks
-        \DB::statement('SET FOREIGN_KEY_CHECKS=0;');
-        
-        // Clear existing data
-        Product::truncate();
-        ProductCategory::truncate();
-        
-        // Re-enable foreign key checks
-        \DB::statement('SET FOREIGN_KEY_CHECKS=1;');
+        // Use firstOrCreate so re-runs are safe (no truncate = no data loss)
 
         // Create Categories
         $categories = [
@@ -97,28 +89,30 @@ class ProductSeeder extends Seeder
         ];
 
         foreach ($categories as $categoryData) {
-            $category = ProductCategory::create([
-                'name' => $categoryData['name'],
-                'color' => $categoryData['color'],
-                'is_active' => $categoryData['is_active']
-            ]);
+            $category = ProductCategory::firstOrCreate(
+                ['name' => $categoryData['name']],
+                ['color' => $categoryData['color'], 'is_active' => $categoryData['is_active']]
+            );
 
             foreach ($categoryData['products'] as $index => $productData) {
-                Product::create([
-                    'name' => $productData['name'],
-                    'code' => strtoupper(substr($categoryData['name'], 0, 3)) . str_pad($index + 1, 3, '0', STR_PAD_LEFT),
-                    'category_id' => $category->id,
-                    'description' => 'Delicious ' . $productData['name'],
-                    'price' => $productData['price'],
-                    'cost_price' => $productData['cost'],
-                    'stock_quantity' => rand(20, 100),
-                    'min_stock_level' => rand(5, 15),
-                    'unit' => 'piece',
-                    'is_active' => true,
-                    'is_service' => false,
-                    'tax_rate' => 7.5,
-                    'emoji' => $productData['emoji'] ?? '🍽️'
-                ]);
+                $code = strtoupper(substr($categoryData['name'], 0, 3)) . str_pad($index + 1, 3, '0', STR_PAD_LEFT);
+                Product::firstOrCreate(
+                    ['code' => $code],
+                    [
+                        'name'            => $productData['name'],
+                        'category_id'     => $category->id,
+                        'description'     => $productData['name'],
+                        'price'           => $productData['price'],
+                        'cost_price'      => $productData['cost'],
+                        'stock_quantity'  => 0,   // start at 0 — stock added via purchases
+                        'min_stock_level' => 5,
+                        'unit'            => 'piece',
+                        'is_active'       => true,
+                        'is_service'      => false,
+                        'tax_rate'        => 7.5,
+                        'emoji'           => $productData['emoji'] ?? '🍽️',
+                    ]
+                );
             }
         }
     }

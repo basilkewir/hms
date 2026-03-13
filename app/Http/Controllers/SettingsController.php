@@ -10,6 +10,7 @@ use Inertia\Inertia;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 
 class SettingsController extends Controller
 {
@@ -208,29 +209,38 @@ class SettingsController extends Controller
 
     /**
      * Upload hotel logo (dedicated endpoint — accepts multipart/form-data)
+     * Stores the file on disk (storage/app/public/logos/) and saves the public URL.
      */
     public function uploadLogo(Request $request)
     {
         $request->validate([
-            'logo' => 'required|image|mimes:jpeg,png,jpg,gif,webp,svg|max:2048',
+            'logo' => 'required|file|mimes:jpeg,png,jpg,gif,webp,svg|max:2048',
         ]);
 
         try {
-            $logo = $request->file('logo');
-            $logoData = base64_encode(file_get_contents($logo->getRealPath()));
-            $logoType = $logo->getClientMimeType();
-            $logoBase64 = 'data:' . $logoType . ';base64,' . $logoData;
+            // Delete any old logo file from disk
+            $oldUrl = Setting::get('hotel_logo', '');
+            if ($oldUrl && str_contains($oldUrl, '/storage/logos/')) {
+                $oldPath = 'logos/' . basename($oldUrl);
+                Storage::disk('public')->delete($oldPath);
+            }
 
-            Setting::set('hotel_logo', $logoBase64, 'string', 'general');
+            $logo = $request->file('logo');
+            $filename = 'hotel_logo_' . time() . '.' . $logo->getClientOriginalExtension();
+            $path = $logo->storeAs('logos', $filename, 'public');
+
+            $logoUrl = asset('storage/' . $path);
+
+            Setting::set('hotel_logo', $logoUrl, 'string', 'general');
 
             return response()->json([
-                'success' => true,
-                'message' => 'Logo uploaded successfully',
-                'logo_url' => $logoBase64,
+                'success'  => true,
+                'message'  => 'Logo uploaded successfully',
+                'logo_url' => $logoUrl,
             ]);
         } catch (\Exception $e) {
             Log::error('Error uploading logo: ' . $e->getMessage());
-            return response()->json(['success' => false, 'message' => 'Failed to upload logo.'], 500);
+            return response()->json(['success' => false, 'message' => 'Failed to upload logo: ' . $e->getMessage()], 500);
         }
     }
 
@@ -239,6 +249,12 @@ class SettingsController extends Controller
      */
     public function removeLogo()
     {
+        $oldUrl = Setting::get('hotel_logo', '');
+        if ($oldUrl && str_contains($oldUrl, '/storage/logos/')) {
+            $oldPath = 'logos/' . basename($oldUrl);
+            Storage::disk('public')->delete($oldPath);
+        }
+
         Setting::set('hotel_logo', '', 'string', 'general');
         return response()->json(['success' => true, 'message' => 'Logo removed successfully']);
     }

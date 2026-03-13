@@ -56,7 +56,8 @@ Route::post('/register', function () {
 
 // License Activation Gate (public — accessible when system is unlicensed)
 Route::get('/license/activate', function () {
-    return Inertia::render('Auth/LicenseActivate');
+    $trial = app(\App\Services\LicenseValidationService::class)->getTrialStatus();
+    return Inertia::render('Auth/LicenseActivate', ['trial' => $trial]);
 })->name('license.activate');
 
 Route::post('/license/activate', function (Request $request) {
@@ -2658,65 +2659,59 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
     Route::get('/checkout/print', [\App\Http\Controllers\FrontDesk\CheckOutController::class, 'printReceipt'])->name('checkout.print');
 
     // Check-outs
-    Route::get('/checkout', function () {
+    Route::get('/checkout', function (\Illuminate\Http\Request $request) {
         $user = auth()->user()->load('roles');
-        $role = $user->roles->first()?->name ?? 'staff';
+        $role = $user->roles->first()?->name ?? 'admin';
 
-        // Get active check-outs (guests who have checked out today)
-        $activeCheckouts = \App\Models\Reservation::with(['guest', 'room', 'roomType'])
-            ->where('status', 'checked_out')
-            ->whereDate('check_out_date', today())
-            ->orderBy('check_out_date', 'desc')
-            ->get()
-            ->map(function ($reservation) {
-                $checkIn = \Carbon\Carbon::parse($reservation->check_in_date);
-                $checkOut = \Carbon\Carbon::parse($reservation->check_out_date);
-                $nights = $checkIn->diffInDays($checkOut);
+        $mapReservation = fn($r) => [
+            'id'                   => $r->id,
+            'guestName'            => optional($r->guest)->full_name ?? (optional($r->guest)->first_name . ' ' . optional($r->guest)->last_name),
+            'roomNumber'           => optional($r->room)->room_number ?? 'N/A',
+            'roomType'             => optional(optional($r->room)->roomType)->name ?? 'Standard',
+            'reservation_number'   => $r->reservation_number ?? '#' . $r->id,
+            'nights'               => $r->check_in_date && $r->check_out_date
+                                        ? max(1, \Carbon\Carbon::parse($r->check_in_date)->diffInDays(\Carbon\Carbon::parse($r->check_out_date)))
+                                        : 0,
+            'check_in_date'        => $r->check_in_date,
+            'check_out_date'       => $r->check_out_date,
+            'departureTime'        => $r->check_out_date,
+            'status'               => $r->status,
+            'totalAmount'          => number_format((float) ($r->total_amount ?? 0), 2),
+            'paidAmount'           => number_format((float) ($r->paid_amount ?? 0), 2),
+            'balanceAmount'        => number_format(max(0, (float) ($r->total_amount ?? 0) - (float) ($r->paid_amount ?? 0)), 2),
+            'unifiedTotal'         => number_format((float) ($r->total_amount ?? 0), 2),
+            'unifiedBalance'       => number_format(max(0, (float) ($r->total_amount ?? 0) - (float) ($r->paid_amount ?? 0)), 2),
+            'roomCharges'          => number_format((float) ($r->total_room_charges ?? $r->total_amount ?? 0), 2),
+            'posCharges'           => '0.00',
+            'serviceCharges'       => '0.00',
+            'is_early_checkout'    => false,
+            'actual_nights'        => 0,
+            'scheduled_nights'     => 0,
+            'key_card'             => null,
+            'hasUnpaidBills'       => false,
+            'posSales'             => [],
+            'folio'                => null,
+            'guest'                => $r->guest,
+            'room'                 => $r->room,
+        ];
 
-                return [
-                    'id' => $reservation->id,
-                    'guest_name' => $reservation->guest ? $reservation->guest->first_name . ' ' . $reservation->guest->last_name : 'Unknown Guest',
-                    'guest_email' => $reservation->guest ? $reservation->guest->email : 'N/A',
-                    'room_number' => $reservation->room ? $reservation->room->room_number : 'N/A',
-                    'room_type' => $reservation->roomType ? $reservation->roomType->name : 'Standard',
-                    'check_in_date' => $reservation->check_in_date,
-                    'check_out_date' => $reservation->check_out_date,
-                    'total_amount' => $reservation->total_amount,
-                    'total_nights' => $nights,
-                    'status' => $reservation->status,
-                    'created_at' => $reservation->created_at
-                ];
-            });
-
-        // Get pending check-outs (guests scheduled to check out today)
-        $pendingCheckouts = \App\Models\Reservation::with(['guest', 'room'])
+        $todaysDepartures = \App\Models\Reservation::with(['guest', 'room.roomType'])
             ->where('status', 'checked_in')
             ->whereDate('check_out_date', today())
-            ->orderBy('check_out_date', 'asc')
-            ->get()
-            ->map(function ($reservation) {
-                $checkIn = \Carbon\Carbon::parse($reservation->check_in_date);
-                $checkOut = \Carbon\Carbon::parse($reservation->check_out_date);
-                $nights = $checkIn->diffInDays($checkOut);
+            ->orderBy('check_out_date')
+            ->get()->map($mapReservation)->values()->all();
 
-                return [
-                    'id' => $reservation->id,
-                    'guest_name' => $reservation->guest ? $reservation->guest->first_name . ' ' . $reservation->guest->last_name : 'Unknown Guest',
-                    'guest_email' => $reservation->guest ? $reservation->guest->email : 'N/A',
-                    'room_number' => $reservation->room ? $reservation->room->room_number : 'N/A',
-                    'check_in_date' => $reservation->check_in_date,
-                    'check_out_date' => $reservation->check_out_date,
-                    'total_amount' => $reservation->total_amount,
-                    'total_nights' => $nights,
-                    'status' => $reservation->status
-                ];
-            });
+        $allCheckedIn = \App\Models\Reservation::with(['guest', 'room.roomType'])
+            ->where('status', 'checked_in')
+            ->orderBy('check_out_date')
+            ->get()->map($mapReservation)->values()->all();
 
-        return Inertia::render('Admin/Checkout/Index', [
-            'user' => $user,
-            'navigation' => app(DashboardController::class)->getNavigationForRole($role),
-            'activeCheckouts' => $activeCheckouts,
-            'pendingCheckouts' => $pendingCheckouts
+        return Inertia::render('Admin/CheckOut', [
+            'user'                  => $user,
+            'navigation'            => app(DashboardController::class)->getNavigationForRole($role),
+            'selectedReservationId' => $request->query('reservation_id'),
+            'todaysDepartures'      => $todaysDepartures,
+            'allCheckedIn'          => $allCheckedIn,
         ]);
     })->name('checkout');
 

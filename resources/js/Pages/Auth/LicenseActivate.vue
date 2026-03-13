@@ -2,6 +2,13 @@
 import { ref, computed, onMounted } from 'vue'
 import { useForm, usePage } from '@inertiajs/vue3'
 
+const props = defineProps({
+    trial: {
+        type: Object,
+        default: () => ({ in_trial: false, days_remaining: 0, expires_at: null, expired: true }),
+    },
+})
+
 const page  = usePage()
 const flash = computed(() => page.props.flash ?? {})
 
@@ -28,6 +35,13 @@ const maskedKey = computed(() => {
     const v = form.license_key
     if (!v || showKey.value) return v
     return v.replace(/./g, (c, i) => (i < 4 || c === '-') ? c : '•')
+})
+
+const trialBannerColor = computed(() => {
+    if (!props.trial.in_trial) return null
+    if (props.trial.days_remaining <= 3) return { bg: 'rgba(248,81,73,0.1)', border: 'rgba(248,81,73,0.3)', text: '#f85149', icon: '🚨' }
+    if (props.trial.days_remaining <= 7) return { bg: 'rgba(255,165,0,0.1)',  border: 'rgba(255,165,0,0.3)',  text: '#ffa500', icon: '⚠️' }
+    return { bg: 'rgba(63,185,80,0.1)', border: 'rgba(63,185,80,0.3)', text: '#3fb950', icon: '🕐' }
 })
 
 const submit = () => {
@@ -116,6 +130,27 @@ const submit = () => {
                     <div class="mb-8">
                         <h2 class="text-3xl font-bold mb-2" style="color: #e6edf3;">License Activation</h2>
                         <p style="color: #8b949e;">Enter your license key to unlock the system.</p>
+                    </div>
+
+                <!-- Trial status banner -->
+                    <div v-if="trial.in_trial || trial.expired" class="mb-6 px-4 py-4 rounded-xl"
+                         :style="trial.expired
+                            ? 'background: rgba(248,81,73,0.1); border: 1px solid rgba(248,81,73,0.3);'
+                            : `background: ${trialBannerColor.bg}; border: 1px solid ${trialBannerColor.border};`">
+                        <div class="flex items-start gap-3">
+                            <span class="text-xl flex-shrink-0 mt-0.5">{{ trial.expired ? '🔒' : trialBannerColor.icon }}</span>
+                            <div class="flex-1 min-w-0">
+                                <p class="font-semibold text-sm"
+                                   :style="trial.expired ? 'color:#f85149;' : `color:${trialBannerColor.text};`">
+                                    {{ trial.expired ? 'Trial Period Expired' : `Trial License — ${trial.days_remaining} day${trial.days_remaining === 1 ? '' : 's'} remaining` }}
+                                </p>
+                                <p class="text-xs mt-1" style="color: #8b949e;">
+                                    {{ trial.expired
+                                        ? 'Your 14-day trial has ended. All operations are paused until a valid license is activated.'
+                                        : `Trial expires on ${trial.expires_at}. Activate a license before expiry to prevent service interruption.` }}
+                                </p>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Flash error from previous attempt -->

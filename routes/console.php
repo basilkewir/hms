@@ -365,5 +365,12 @@ if (app()->runningInConsole()) {
                 ->dailyAt('12:00')
                 ->description('Generate cleaning tasks for missed rooms')
                 ->withoutOverlapping();
+
+        // Verify the active license against the license server every 6 hours
+        $schedule->command('license:check')
+                ->everySixHours()
+                ->description('Periodic online license verification')
+                ->withoutOverlapping()
+                ->runInBackground();
     });
 }

@@ -12,7 +12,6 @@ use App\Models\RoomType;
 use App\Models\Room;
 use App\Models\WorkShift;
 use App\Models\ExpenseCategory;
-use App\Models\IptvChannel;
 use App\Models\IptvPackage;
 use App\Models\HotelService;
 use App\Models\BreakfastMenu;
@@ -30,17 +29,10 @@ class DatabaseSeeder extends Seeder
         // Seed budget permissions
         $this->call(BudgetPermissionsSeeder::class);
 
-        // Seed sample budget data
-        $this->call(BudgetsSeeder::class);
-
         // Create default users
         $this->createUsers();
 
-        // Seed sample budget expenses (depends on budgets + users)
-        $this->call(BudgetExpensesSeeder::class);
-
-        // Seed floors, building wings, bed types, room types, and guest types FIRST
-        // (These need to exist before creating rooms and guests)
+        // Structural / reference data
         $this->call(FloorSeeder::class);
         $this->call(BuildingWingSeeder::class);
         $this->call(BedTypeSeeder::class);
@@ -48,48 +40,42 @@ class DatabaseSeeder extends Seeder
         $this->call(GuestTypeSeeder::class);
         $this->call(KeyCardSeeder::class);
         $this->call(HotelServiceSeeder::class);
+        $this->call(HallsSeeder::class);
+        $this->call(LocationSeeder::class);
+        $this->call(DepartmentsAndPositionsSeeder::class);
+        $this->call(MaintenanceCategoriesSeeder::class);
+        $this->call(BrandSeeder::class);
+        $this->call(UnitSeeder::class);
+        $this->call(SettingsSeeder::class);
+        $this->call(PackagesSeeder::class);
 
-        // Create room types and rooms (after floors/wings/bed types are seeded)
-        $this->createRoomsAndTypes();
+        // Room types + actual rooms (available, clean — no reservations)
+        $this->createRoomTypeTemplates();
+        $this->createRooms();
 
-        // Create work shifts
+        // Operational setup
         $this->createWorkShifts();
-
-        // Create expense categories
         $this->createExpenseCategories();
-
-        // Create IPTV channels and packages
         $this->createIptvData();
-
-        // Create hotel services and breakfast menus
         $this->createServicesAndBreakfast();
 
-        // Create sample guests and reservations
-        $this->createSampleReservations();
+        // Products with 0 stock (no purchase records)
+        $this->call(ProductSeeder::class);
 
-        // Seed POS data
-        $this->call(POSSeeder::class);
-        $this->call(POSExtendedSeeder::class);
-
-        // Seed Front Desk Services data (Housekeeping, Maintenance, Concierge)
-        $this->call(ServicesSeeder::class);
-
-        // Seed OTA Reservations for Channel Manager testing
-        $this->call(OTAReservationsSeeder::class);
-
-        // Seed Hotel Donzebe HD License
-        $this->call(LicenseSeeder::class);
+        // 14-day trial license
+        $this->call(TrialLicenseSeeder::class);
 
         echo "Database seeded successfully!\n";
         echo "Default login credentials:\n";
-        echo "Admin: admin@hotel.com / password\n";
-        echo "Manager: manager@hotel.com / password\n";
+        echo "Admin:      admin@hotel.com / password\n";
+        echo "Manager:    manager@hotel.com / password\n";
         echo "Accountant: accountant@hotel.com / password\n";
         echo "Front Desk: frontdesk@hotel.com / password\n";
-        echo "Staff: staff@hotel.com / password\n";
-        echo "Bartender: bartender@hotel.com / password\n";
-        echo "Chef: chef@hotel.com / password\n";
-        echo "Server: server@hotel.com / password\n";
+        echo "Staff:      staff@hotel.com / password\n";
+        echo "Bartender:  bartender@hotel.com / password\n";
+        echo "Chef:       chef@hotel.com / password\n";
+        echo "Server:     server@hotel.com / password\n";
+        echo "\nNote: 14-day trial license active. Activate a license key at /license/activate\n";
     }
 
     private function createPermissions()
@@ -132,120 +118,58 @@ class DatabaseSeeder extends Seeder
     {
         $users = [
             [
-                'employee_id' => 'EMP001',
-                'first_name' => 'System',
-                'last_name' => 'Administrator',
-                'email' => 'admin@hotel.com',
-                'password' => Hash::make('password'),
-                'department' => 'Administration',
-                'position' => 'System Administrator',
-                'hire_date' => now()->subYears(2),
-                'employment_status' => 'active',
-                'is_active' => true,
-                'role' => 'admin'
+                'employee_id' => 'EMP001', 'first_name' => 'System',   'last_name' => 'Administrator',
+                'email' => 'admin@hotel.com',      'department' => 'Administration',   'position' => 'System Administrator',
+                'hire_date' => now()->subYears(2),  'role' => 'admin',
             ],
             [
-                'employee_id' => 'EMP002',
-                'first_name' => 'Hotel',
-                'last_name' => 'Manager',
-                'email' => 'manager@hotel.com',
-                'password' => Hash::make('password'),
-                'department' => 'Management',
-                'position' => 'General Manager',
-                'hire_date' => now()->subYear(),
-                'employment_status' => 'active',
-                'is_active' => true,
-                'role' => 'manager'
+                'employee_id' => 'EMP002', 'first_name' => 'Hotel',    'last_name' => 'Manager',
+                'email' => 'manager@hotel.com',    'department' => 'Management',       'position' => 'General Manager',
+                'hire_date' => now()->subYear(),    'role' => 'manager',
             ],
             [
-                'employee_id' => 'EMP003',
-                'first_name' => 'Finance',
-                'last_name' => 'Manager',
-                'email' => 'accountant@hotel.com',
-                'password' => Hash::make('password'),
-                'department' => 'Finance',
-                'position' => 'Accountant',
-                'hire_date' => now()->subMonths(8),
-                'employment_status' => 'active',
-                'is_active' => true,
-                'role' => 'accountant'
+                'employee_id' => 'EMP003', 'first_name' => 'Finance',  'last_name' => 'Manager',
+                'email' => 'accountant@hotel.com', 'department' => 'Finance',          'position' => 'Accountant',
+                'hire_date' => now()->subMonths(8), 'role' => 'accountant',
             ],
             [
-                'employee_id' => 'EMP004',
-                'first_name' => 'Front',
-                'last_name' => 'Desk',
-                'email' => 'frontdesk@hotel.com',
-                'password' => Hash::make('password'),
-                'department' => 'Front Office',
-                'position' => 'Front Desk Agent',
-                'hire_date' => now()->subMonths(6),
-                'employment_status' => 'active',
-                'is_active' => true,
-                'role' => 'front_desk'
+                'employee_id' => 'EMP004', 'first_name' => 'Front',    'last_name' => 'Desk',
+                'email' => 'frontdesk@hotel.com',  'department' => 'Front Office',     'position' => 'Front Desk Agent',
+                'hire_date' => now()->subMonths(6), 'role' => 'front_desk',
             ],
             [
-                'employee_id' => 'EMP005',
-                'first_name' => 'Hotel',
-                'last_name' => 'Staff',
-                'email' => 'staff@hotel.com',
-                'password' => Hash::make('password'),
-                'department' => 'Housekeeping',
-                'position' => 'Housekeeper',
-                'hire_date' => now()->subMonths(3),
-                'employment_status' => 'active',
-                'is_active' => true,
-                'role' => 'housekeeping'
+                'employee_id' => 'EMP005', 'first_name' => 'Hotel',    'last_name' => 'Staff',
+                'email' => 'staff@hotel.com',      'department' => 'Housekeeping',     'position' => 'Housekeeper',
+                'hire_date' => now()->subMonths(3), 'role' => 'housekeeping',
             ],
             [
-                'employee_id' => 'EMP006',
-                'first_name' => 'Alex',
-                'last_name' => 'Bartender',
-                'email' => 'bartender@hotel.com',
-                'password' => Hash::make('password'),
-                'department' => 'Food & Beverage',
-                'position' => 'Head Bartender',
-                'hire_date' => now()->subMonths(4),
-                'employment_status' => 'active',
-                'is_active' => true,
-                'role' => 'bartender'
+                'employee_id' => 'EMP006', 'first_name' => 'Alex',     'last_name' => 'Bartender',
+                'email' => 'bartender@hotel.com',  'department' => 'Food & Beverage',  'position' => 'Head Bartender',
+                'hire_date' => now()->subMonths(4), 'role' => 'bartender',
             ],
             [
-                'employee_id' => 'EMP007',
-                'first_name' => 'Carlos',
-                'last_name' => 'Chef',
-                'email' => 'chef@hotel.com',
-                'password' => Hash::make('password'),
-                'department' => 'Food & Beverage',
-                'position' => 'Head Chef',
-                'hire_date' => now()->subMonths(5),
-                'employment_status' => 'active',
-                'is_active' => true,
-                'role' => 'chef'
+                'employee_id' => 'EMP007', 'first_name' => 'Carlos',   'last_name' => 'Chef',
+                'email' => 'chef@hotel.com',       'department' => 'Food & Beverage',  'position' => 'Head Chef',
+                'hire_date' => now()->subMonths(5), 'role' => 'chef',
             ],
             [
-                'employee_id' => 'EMP008',
-                'first_name' => 'Maria',
-                'last_name' => 'Server',
-                'email' => 'server@hotel.com',
-                'password' => Hash::make('password'),
-                'department' => 'Food & Beverage',
-                'position' => 'Senior Server',
-                'hire_date' => now()->subMonths(2),
-                'employment_status' => 'active',
-                'is_active' => true,
-                'role' => 'server'
-            ]
+                'employee_id' => 'EMP008', 'first_name' => 'Maria',    'last_name' => 'Server',
+                'email' => 'server@hotel.com',     'department' => 'Food & Beverage',  'position' => 'Senior Server',
+                'hire_date' => now()->subMonths(2), 'role' => 'server',
+            ],
         ];
 
         foreach ($users as $userData) {
             $roleName = $userData['role'];
             unset($userData['role']);
-
             $user = User::firstOrCreate(
                 ['email' => $userData['email']],
-                $userData
+                array_merge($userData, [
+                    'password'          => Hash::make('password'),
+                    'employment_status' => 'active',
+                    'is_active'         => true,
+                ])
             );
-
             $role = Role::where('name', $roleName)->first();
             if ($role) {
                 $user->syncRoles([$role->name]);
@@ -255,7 +179,47 @@ class DatabaseSeeder extends Seeder
         echo "Created " . count($users) . " users\n";
     }
 
-    private function createRoomsAndTypes()
+    private function createRooms()
+    {
+        $roomTypes = RoomType::all();
+        if ($roomTypes->isEmpty()) {
+            return;
+        }
+
+        $hasFloorId       = Schema::hasColumn('rooms', 'floor_id');
+        $hasBuildingWingId = Schema::hasColumn('rooms', 'building_wing_id');
+
+        $floors      = $hasFloorId       ? \App\Models\Floor::all()->keyBy('floor_number') : collect();
+        $defaultWing = $hasBuildingWingId ? \App\Models\BuildingWing::where('code', 'MAIN')->first() : null;
+
+        $roomNumber = 101;
+        foreach ($roomTypes as $roomType) {
+            for ($i = 1; $i <= 10; $i++) {
+                $floorNumber = (int) ($roomNumber / 100);
+                $roomData = [
+                    'room_type_id'       => $roomType->id,
+                    'status'             => 'available',
+                    'iptv_active'        => true,
+                    'housekeeping_status' => 'clean',
+                    'is_active'          => true,
+                ];
+                if ($hasFloorId && $floors->has($floorNumber)) {
+                    $roomData['floor_id'] = $floors[$floorNumber]->id;
+                } elseif (!$hasFloorId) {
+                    $roomData['floor'] = $floorNumber;
+                }
+                if ($hasBuildingWingId && $defaultWing) {
+                    $roomData['building_wing_id'] = $defaultWing->id;
+                }
+                Room::firstOrCreate(['room_number' => $roomNumber], $roomData);
+                $roomNumber++;
+            }
+        }
+
+        echo "Created " . Room::count() . " rooms (available, clean, no reservations)\n";
+    }
+
+    private function createRoomTypeTemplates()
     {
         $roomTypes = [
             [
@@ -322,59 +286,7 @@ class DatabaseSeeder extends Seeder
             );
         }
 
-        // Create rooms
-        $roomTypes = RoomType::all();
-        $roomNumber = 101;
-
-        // Check if new columns exist (after migration)
-        $hasFloorId = Schema::hasColumn('rooms', 'floor_id');
-        $hasBuildingWingId = Schema::hasColumn('rooms', 'building_wing_id');
-        $hasBedTypeId = Schema::hasColumn('rooms', 'bed_type_id');
-
-        // Get floors if the new structure exists
-        $floors = [];
-        if ($hasFloorId) {
-            $floors = \App\Models\Floor::all()->keyBy('floor_number');
-        }
-
-        // Get default building wing if exists
-        $defaultWing = null;
-        if ($hasBuildingWingId) {
-            $defaultWing = \App\Models\BuildingWing::where('code', 'MAIN')->first();
-        }
-
-        foreach ($roomTypes as $roomType) {
-            for ($i = 1; $i <= 10; $i++) {
-                $floorNumber = (int)($roomNumber / 100);
-                $roomData = [
-                    'room_type_id' => $roomType->id,
-                    'status' => 'available',
-                    'iptv_active' => true,
-                    'housekeeping_status' => 'clean',
-                    'is_active' => true,
-                ];
-
-                // Use new structure if columns exist
-                if ($hasFloorId && isset($floors[$floorNumber])) {
-                    $roomData['floor_id'] = $floors[$floorNumber]->id;
-                } elseif (!$hasFloorId) {
-                    // Fallback to old structure if migration hasn't run
-                    $roomData['floor'] = $floorNumber;
-                }
-
-                if ($hasBuildingWingId && $defaultWing) {
-                    $roomData['building_wing_id'] = $defaultWing->id;
-                }
-
-                Room::firstOrCreate(
-                    ['room_number' => $roomNumber],
-                    $roomData
-                );
-                $roomNumber++;
-            }
-        }
-
-        echo "Created room types and 30 rooms\n";
+        echo "Created " . count($roomTypes) . " room type templates\n";
     }
 
     private function createWorkShifts()

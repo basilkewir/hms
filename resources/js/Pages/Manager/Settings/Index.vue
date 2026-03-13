@@ -1023,6 +1023,7 @@ const saveLogo = async () => {
         const response = await fetch('/admin/settings/logo', {
             method: 'POST',
             headers: {
+                'Accept': 'application/json',
                 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
             },
             body: formData,
@@ -1031,11 +1032,13 @@ const saveLogo = async () => {
         const result = await response.json()
         if (response.ok && result.success) {
             settings.value.hotel_logo = result.logo_url
+            logoPreview.value = result.logo_url
             uploadedLogo.value = null
             notify.success('Logo saved successfully!')
         } else {
-            logoError.value = result.message || 'Failed to save logo.'
-            notify.error(logoError.value)
+            const msg = result.message || result.errors?.logo?.[0] || 'Failed to save logo.'
+            logoError.value = msg
+            notify.error(msg)
         }
     } catch (e) {
         logoError.value = 'Network error while saving logo.'
@@ -1655,19 +1658,25 @@ const removeLicense = async () => {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                'Accept': 'application/json',
                 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
             },
         })
+        if (!res.ok && res.status !== 200) {
+            notify.error('Server error (' + res.status + '). Please try again.')
+            licenseActionLoading.value = false
+            return
+        }
         const result = await res.json()
         if (result.success) {
             licenseInfo.value = null
-            notify.success('License removed. System will redirect to activation.')
+            notify.success('License removed. Redirecting to activation…')
             setTimeout(() => window.location.href = '/license/activate', 1500)
         } else {
             notify.error(result.message || 'Failed to remove license.')
         }
-    } catch {
-        notify.error('Network error.')
+    } catch (err) {
+        notify.error('Could not reach the server. Please try again.')
     }
     licenseActionLoading.value = false
 }

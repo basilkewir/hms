@@ -59,6 +59,11 @@ class Reservation extends Model
         'group_booking_id',
         'is_group_booking',
         'billing_type',
+        'payment_status',
+        'source',
+        'ota_confirmation_number',
+        'adults',
+        'children',
     ];
 
     protected $casts = [
