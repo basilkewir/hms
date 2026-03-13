@@ -262,7 +262,7 @@ class GuestController extends Controller
         }
 
         // Set default values
-        $validated['police_verification_status'] = 'pending';
+        $validated['police_verification_status'] = 'verified';
         $validated['created_by'] = auth()->id();
         $validated['updated_by'] = auth()->id();
         $validated['is_blacklisted'] = false;

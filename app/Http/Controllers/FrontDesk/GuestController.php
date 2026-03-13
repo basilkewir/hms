@@ -93,7 +93,7 @@ class GuestController extends Controller
             'id_issue_date' => $validated['id_issue_date'],
             'id_expiry_date' => $validated['id_expiry_date'],
             'purpose_of_visit' => $validated['purpose_of_visit'],
-            'police_verification_status' => 'pending',
+            'police_verification_status' => 'verified',
             'created_by' => auth()->id(),
             'updated_by' => auth()->id(),
         ]);

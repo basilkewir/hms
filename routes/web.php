@@ -4553,7 +4553,7 @@ Route::middleware(['auth', 'role:front_desk'])->prefix('front-desk')->name('fron
                 'nationality' => $g->nationality,
                 'is_vip'      => $g->is_vip ?? false,
                 'guest_type'  => null,
-                'status'      => isset($checkedInGuestIds[$g->id]) ? 'checked_in' : 'inactive',
+                'status'      => isset($checkedInGuestIds[$g->id]) ? 'checked_in' : 'active',
             ]);
 
         return Inertia::render('FrontDesk/Guests/Index', [
@@ -4603,23 +4603,31 @@ Route::middleware(['auth', 'role:front_desk'])->prefix('front-desk')->name('fron
 
     Route::get('/guests/{id}', function ($id) {
         $user = auth()->user()->load('roles');
-        $role = $user->roles->first()?->name ?? 'staff';
-
+        $role = $user->roles->first()?->name ?? 'front-desk';
+        $guest = \App\Models\Guest::with(['reservations.room', 'guestType'])->findOrFail($id);
+        $guest->current_status = $guest->reservations->where('status', 'checked_in')->first() ? 'checked_in'
+            : ($guest->reservations->sortByDesc('id')->first()?->status ?? 'no_reservations');
         return Inertia::render('FrontDesk/Guests/Show', [
-            'user' => $user,
-            'navigation' => app(DashboardController::class)->getNavigationForRole($role)
+            'user'       => $user,
+            'navigation' => app(DashboardController::class)->getNavigationForRole($role),
+            'guest'      => $guest,
         ]);
     })->name('guests.show');
 
     Route::get('/guests/{id}/edit', function ($id) {
         $user = auth()->user()->load('roles');
-        $role = $user->roles->first()?->name ?? 'staff';
-
+        $role = $user->roles->first()?->name ?? 'front-desk';
+        $guest = \App\Models\Guest::with('guestType')->findOrFail($id);
+        $guestTypes = \App\Models\GuestType::where('is_active', true)->orderBy('name')->get();
         return Inertia::render('FrontDesk/Guests/Edit', [
-            'user' => $user,
-            'navigation' => app(DashboardController::class)->getNavigationForRole($role)
+            'user'       => $user,
+            'navigation' => app(DashboardController::class)->getNavigationForRole($role),
+            'guest'      => $guest,
+            'guestTypes' => $guestTypes,
         ]);
     })->name('guests.edit');
+
+    Route::put('/guests/{guest}', [GuestController::class, 'update'])->name('guests.update');
 
     // Check-in/Check-out
     Route::get('/checkin', function () {
