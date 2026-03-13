@@ -794,8 +794,7 @@ const totalDiscountAmount = computed(() => {
 })
 
 const calculatedTaxes = computed(() => {
-    const subtotal = calculatedRoomCharges.value - totalDiscountAmount.value
-    return subtotal * 0.1 // 10% tax - should come from settings
+    return 0
 })
 
 const calculatedServiceCharges = computed(() => {
