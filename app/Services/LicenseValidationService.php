@@ -154,6 +154,10 @@ class LicenseValidationService
             ])->post($this->licenseServer . '/validate', $payload);
 
             if (!$response->successful()) {
+                Log::warning('License server error', [
+                    'status' => $response->status(),
+                    'body'   => $response->body(),
+                ]);
                 return $this->mapHttpError($response->status(), $response->json() ?? []);
             }
 
@@ -192,6 +196,10 @@ class LicenseValidationService
                 'valid'   => false,
                 'message' => 'Invalid license key.',
             ],
+            $code === 400 => [
+                'valid'   => false,
+                'message' => self::extract400Message($body),
+            ],
             $code === 403 => [
                 'valid'   => false,
                 'message' => match ($body['reason'] ?? '') {
@@ -203,9 +211,24 @@ class LicenseValidationService
             ],
             default => [
                 'valid'   => false,
-                'message' => 'License server returned an error (HTTP ' . $code . '). Please try again later.',
+                'message' => ($body['error'] ?? $body['message'] ?? null)
+                    ? ($body['error'] ?? $body['message'])
+                    : 'License server returned an error (HTTP ' . $code . '). Please try again later.',
             ],
         };
+    }
+
+    private static function extract400Message(array $body): string
+    {
+        // Server returns field-level validation errors in $body['details']
+        if (!empty($body['details']) && is_array($body['details'])) {
+            $messages = [];
+            foreach ($body['details'] as $field => $errors) {
+                $messages[] = is_array($errors) ? implode(' ', $errors) : (string) $errors;
+            }
+            return implode(' ', $messages);
+        }
+        return $body['error'] ?? $body['message'] ?? 'Invalid request. Please check your license key and try again.';
     }
 
     private function persistValidatedLicense(string $licenseKey, ?string $hotelName, array $srv): array

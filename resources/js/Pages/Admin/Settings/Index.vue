@@ -1340,7 +1340,7 @@ const activateLicense = async () => {
     try {
         const res = await fetch('/admin/settings/license/activate', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content') },
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content') },
             body: JSON.stringify(activateForm.value),
         })
         const data = await res.json()
@@ -1349,7 +1349,7 @@ const activateLicense = async () => {
             showActivateForm.value = false
             await loadLicenseInfo()
         } else {
-            activateError.value = data.message || 'Activation failed.'
+            activateError.value = data.message || data.errors?.license_key?.[0] || 'Activation failed.'
         }
     } catch {
         activateError.value = 'Network error — could not reach license server.'

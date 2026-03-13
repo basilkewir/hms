@@ -62,7 +62,7 @@ Route::get('/license/activate', function () {
 
 Route::post('/license/activate', function (Request $request) {
     $request->validate([
-        'license_key' => 'required|string|min:10',
+        'license_key' => 'required|string|size:35',
         'hotel_name'  => 'nullable|string|max:255',
     ]);
 
