@@ -559,7 +559,7 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue'
-import { useForm, Link } from '@inertiajs/vue3'
+import { useForm, Link, usePage } from '@inertiajs/vue3'
 import DashboardLayout from '@/Layouts/DashboardLayout.vue'
 import DatePicker from '@/Components/DatePicker.vue'
 import TimePicker from '@/Components/TimePicker.vue'
@@ -794,7 +794,9 @@ const totalDiscountAmount = computed(() => {
 })
 
 const calculatedTaxes = computed(() => {
-    return 0
+    const taxRate = usePage().props.hotelSettings?.tax?.tax_rate ?? 0
+    const subtotal = calculatedRoomCharges.value - totalDiscountAmount.value
+    return subtotal * (taxRate / 100)
 })
 
 const calculatedServiceCharges = computed(() => {

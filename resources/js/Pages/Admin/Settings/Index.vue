@@ -1230,7 +1230,7 @@ const settings = ref({
     timezone: props.settings?.general?.timezone || 'America/New_York',
     currency: props.settings?.general?.currency || 'USD',
     currency_position: props.settings?.general?.currency_position || 'prefix',
-    tax_rate: props.settings?.general?.tax_rate || 7.5,
+    tax_rate: props.settings?.general?.tax_rate != null ? Number(props.settings.general.tax_rate) : 0,
 
     // Guest & Discount settings
     auto_apply_guest_type_discount: props.settings?.general?.auto_apply_guest_type_discount !== undefined

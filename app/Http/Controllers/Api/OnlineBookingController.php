@@ -234,9 +234,10 @@ class OnlineBookingController extends Controller
             $roomRate = $roomType->base_price;
             $totalRoomCharges = $roomRate * $nights;
             
-            $taxes = 0;
+            $taxRate = \App\Models\Setting::get('tax_rate', 0) / 100;
+            $taxes = $totalRoomCharges * $taxRate;
             $serviceCharges = 0;
-            $totalAmount = $totalRoomCharges;
+            $totalAmount = $totalRoomCharges + $taxes;
             
             // Handle deposit
             $depositAmount = $request->payment['deposit_amount'] ?? 0;

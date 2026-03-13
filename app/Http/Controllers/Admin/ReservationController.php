@@ -415,9 +415,9 @@ class ReservationController extends Controller
             }
         }
 
-        $taxes = 0;
+        $taxes = ($totalRoomCharges - $totalDiscountAmount + $selectedServicesTotal) * (Setting::get('tax_rate', 0) / 100);
         $serviceCharges = ($totalRoomCharges - $totalDiscountAmount) * (Setting::get('service_charge_rate', 0) / 100);
-        $totalAmount = $totalRoomCharges - $totalDiscountAmount + $selectedServicesTotal + $serviceCharges;
+        $totalAmount = $totalRoomCharges - $totalDiscountAmount + $selectedServicesTotal + $taxes + $serviceCharges;
 
         // Update validated data with calculated discount
         $validated['discount_amount'] = $totalDiscountAmount;
@@ -804,9 +804,9 @@ class ReservationController extends Controller
             $discountReason = $validated['discount_reason'] ?? $guestTypeDiscountReason;
         }
 
-        $taxes = 0;
+        $taxes = ($totalRoomCharges - $totalDiscountAmount) * (Setting::get('tax_rate', 0) / 100);
         $serviceCharges = ($totalRoomCharges - $totalDiscountAmount) * (Setting::get('service_charge_rate', 0) / 100);
-        $totalAmount = $totalRoomCharges - $totalDiscountAmount + $serviceCharges;
+        $totalAmount = $totalRoomCharges - $totalDiscountAmount + $taxes + $serviceCharges;
 
         // Update validated data with calculated discount
         $validated['discount_amount'] = $totalDiscountAmount;
