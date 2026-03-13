@@ -451,6 +451,54 @@ class RoomController extends Controller
         return redirect()->route('admin.rooms.index')->with('success', 'Room created successfully');
     }
 
+    public function update(Request $request, Room $room)
+    {
+        $rules = [
+            'room_number' => 'required|string|unique:rooms,room_number,' . $room->id,
+            'room_type_id' => 'required|exists:room_types,id',
+            'floor_id' => 'nullable|exists:floors,id',
+            'building_wing_id' => 'nullable|exists:building_wings,id',
+            'status' => 'required|in:available,occupied,maintenance,cleaning,reserved,out_of_order',
+            'housekeeping_status' => 'nullable|in:clean,dirty,inspected,maintenance_required,waiting_for_check',
+            'iptv_active' => 'nullable|boolean',
+            'amenities' => 'nullable|array',
+            'special_features' => 'nullable|string',
+            'notes' => 'nullable|string',
+        ];
+
+        if (Schema::hasColumn('rooms', 'bed_type_id')) {
+            $rules['bed_type_id'] = 'nullable|exists:bed_types,id';
+        }
+
+        $validated = $request->validate($rules);
+
+        // Map amenities array to features
+        if (isset($validated['amenities']) && is_array($validated['amenities'])) {
+            $validated['features'] = $validated['amenities'];
+            unset($validated['amenities']);
+        }
+
+        // Handle old floor column if new structure doesn't exist
+        if (!Schema::hasColumn('rooms', 'floor_id') && Schema::hasColumn('rooms', 'floor')) {
+            if (isset($validated['floor_id'])) {
+                $floor = Floor::find($validated['floor_id']);
+                if ($floor) {
+                    $validated['floor'] = $floor->floor_number;
+                }
+                unset($validated['floor_id']);
+            }
+        }
+
+        // Remove bed_type_id if column doesn't exist
+        if (!Schema::hasColumn('rooms', 'bed_type_id') && isset($validated['bed_type_id'])) {
+            unset($validated['bed_type_id']);
+        }
+
+        $room->update($validated);
+
+        return redirect()->route('admin.rooms.index')->with('success', 'Room updated successfully');
+    }
+
     /**
      * Room status page - similar to FrontDesk room status with check-in/check-out functionality
      */
