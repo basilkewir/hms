@@ -26,6 +26,50 @@
             </div>
         </div>
 
+        <!-- Duplicate Guest Detection -->
+        <div class="shadow rounded-lg p-6 mb-6"
+             :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border, borderWidth: '1px', borderStyle: 'solid' }">
+            <h2 class="text-lg font-semibold mb-1"
+                :style="{ color: themeColors.textPrimary }">Search Existing Guests First</h2>
+            <p class="text-sm mb-4" :style="{ color: themeColors.textSecondary }">
+                Type a name, email, or phone number to check if this guest is already registered.
+            </p>
+            <input
+                v-model="duplicateSearch"
+                type="text"
+                placeholder="e.g. John Smith, john@email.com, +1234567890"
+                class="w-full rounded-md px-3 py-2 focus:outline-none transition-colors"
+                :style="{ backgroundColor: themeColors.background, borderColor: themeColors.border, color: themeColors.textPrimary, borderWidth: '1px', borderStyle: 'solid' }"
+            />
+            <div v-if="duplicateResults.length > 0" class="mt-3 rounded-md overflow-hidden"
+                 :style="{ borderColor: themeColors.border, borderWidth: '1px', borderStyle: 'solid' }">
+                <div class="px-4 py-2 text-xs font-semibold"
+                     :style="{ backgroundColor: 'rgba(251,191,36,0.15)', color: themeColors.warning }">
+                    ⚠ Similar guests found — please review before creating a new profile
+                </div>
+                <div v-for="guest in duplicateResults" :key="guest.id"
+                     class="flex items-center justify-between px-4 py-3"
+                     :style="{ borderTop: `1px solid ${themeColors.border}`, backgroundColor: themeColors.background }">
+                    <div>
+                        <p class="font-medium text-sm" :style="{ color: themeColors.textPrimary }">{{ guest.name }}</p>
+                        <p class="text-xs mt-0.5" :style="{ color: themeColors.textSecondary }">
+                            {{ guest.email || '—' }} &nbsp;·&nbsp; {{ guest.phone || '—' }}
+                            <span v-if="guest.nationality"> &nbsp;·&nbsp; {{ guest.nationality }}</span>
+                        </p>
+                    </div>
+                    <a :href="guest.url"
+                       class="ml-4 px-3 py-1 text-xs rounded font-medium transition-colors"
+                       :style="{ backgroundColor: themeColors.primary, color: '#ffffff' }">
+                        View Guest
+                    </a>
+                </div>
+            </div>
+            <p v-else-if="duplicateSearch.length >= 2 && !isSearchingDuplicates"
+               class="mt-3 text-sm" :style="{ color: themeColors.success }">
+                ✓ No matching guests found — safe to create a new profile.
+            </p>
+        </div>
+
         <!-- Form -->
         <form @submit.prevent="submit" class="space-y-6">
             <!-- Personal Information Section -->
@@ -903,7 +947,7 @@
 </template>
 
 <script setup>
-import { computed, reactive } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useForm, Link } from '@inertiajs/vue3'
 import DashboardLayout from '@/Layouts/DashboardLayout.vue'
 import DatePicker from '@/Components/DatePicker.vue'
@@ -1005,6 +1049,26 @@ const form = useForm({
     dietary_restrictions: '',
     is_vip: false,
     notes: '',
+})
+
+// Duplicate guest detection
+const duplicateSearch = ref('')
+const duplicateResults = ref([])
+const isSearchingDuplicates = ref(false)
+let duplicateSearchTimer = null
+
+watch(duplicateSearch, (val) => {
+    clearTimeout(duplicateSearchTimer)
+    duplicateResults.value = []
+    if (val.trim().length < 2) return
+    duplicateSearchTimer = setTimeout(async () => {
+        isSearchingDuplicates.value = true
+        try {
+            const res = await fetch(`/admin/guests/search?q=${encodeURIComponent(val.trim())}`)
+            if (res.ok) duplicateResults.value = await res.json()
+        } catch (e) { /* silent */ }
+        finally { isSearchingDuplicates.value = false }
+    }, 400)
 })
 
 const handleIdDocumentChange = (event) => {

@@ -17,6 +17,43 @@
             </div>
         </div>
 
+        <!-- Duplicate Guest Detection -->
+        <div class="bg-white shadow rounded-lg p-6 mb-6 border border-yellow-200">
+            <h2 class="text-lg font-semibold text-gray-900 mb-1">Search Existing Guests First</h2>
+            <p class="text-sm text-gray-500 mb-4">
+                Type a name, email, or phone number to check if this guest is already registered.
+            </p>
+            <input
+                v-model="duplicateSearch"
+                type="text"
+                placeholder="e.g. John Smith, john@email.com, +1234567890"
+                class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <div v-if="duplicateResults.length > 0" class="mt-3 rounded-md border border-yellow-300 overflow-hidden">
+                <div class="px-4 py-2 text-xs font-semibold bg-yellow-50 text-yellow-700">
+                    ⚠ Similar guests found — please review before creating a new profile
+                </div>
+                <div v-for="guest in duplicateResults" :key="guest.id"
+                     class="flex items-center justify-between px-4 py-3 border-t border-gray-100 bg-white">
+                    <div>
+                        <p class="font-medium text-sm text-gray-900">{{ guest.name }}</p>
+                        <p class="text-xs text-gray-500 mt-0.5">
+                            {{ guest.email || '—' }} &nbsp;·&nbsp; {{ guest.phone || '—' }}
+                            <span v-if="guest.nationality"> &nbsp;·&nbsp; {{ guest.nationality }}</span>
+                        </p>
+                    </div>
+                    <a :href="guest.url"
+                       class="ml-4 px-3 py-1 text-xs rounded font-medium bg-blue-600 text-white hover:bg-blue-700">
+                        View Guest
+                    </a>
+                </div>
+            </div>
+            <p v-else-if="duplicateSearch.length >= 2 && !isSearchingDuplicates"
+               class="mt-3 text-sm text-green-600">
+                ✓ No matching guests found — safe to create a new profile.
+            </p>
+        </div>
+
         <!-- Guest Form -->
         <div class="bg-white shadow rounded-lg p-6">
             <form @submit.prevent="createGuest" class="space-y-6">
@@ -273,7 +310,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { Link, useForm } from '@inertiajs/vue3'
 import DashboardLayout from '@/Layouts/DashboardLayout.vue'
 import DatePicker from '@/Components/DatePicker.vue'
@@ -326,6 +363,26 @@ const form = useForm({
     special_requests: '',
     dietary_restrictions: '',
     notes: '',
+})
+
+// Duplicate guest detection
+const duplicateSearch = ref('')
+const duplicateResults = ref([])
+const isSearchingDuplicates = ref(false)
+let duplicateSearchTimer = null
+
+watch(duplicateSearch, (val) => {
+    clearTimeout(duplicateSearchTimer)
+    duplicateResults.value = []
+    if (val.trim().length < 2) return
+    duplicateSearchTimer = setTimeout(async () => {
+        isSearchingDuplicates.value = true
+        try {
+            const res = await fetch(`/manager/guests/search?q=${encodeURIComponent(val.trim())}`)
+            if (res.ok) duplicateResults.value = await res.json()
+        } catch (e) { /* silent */ }
+        finally { isSearchingDuplicates.value = false }
+    }, 400)
 })
 
 const createGuest = () => {

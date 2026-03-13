@@ -245,7 +245,7 @@ export const getNavigationForRole = (role, userPermissions = []) => {
             name: 'Users',
             icon: 'UsersIcon',
             permission: null,
-            roles: ['admin', 'manager', 'accountant', 'front_desk'],
+            roles: ['admin', 'manager', 'accountant'],
             children: [
                 { name: 'Staff', href: '/admin/users', permission: 'manage_users', roles: ['admin'] },
                 { name: 'Customers', href: isAdmin ? '/admin/customers' : `/${normalizedRole}/customers`, permission: 'manage_guests', roles: ['admin', 'manager', 'accountant', 'front_desk'] },

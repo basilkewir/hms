@@ -2556,6 +2556,25 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
     Route::get('/guests/create', [GuestController::class, 'create'])->name('guests.create');
     Route::post('/guests', [GuestController::class, 'store'])->name('guests.store');
     Route::post('/guests/quick', [GuestController::class, 'quickStore'])->name('guests.quick-store');
+    Route::get('/guests/search', function (\Illuminate\Http\Request $request) {
+        $q = trim($request->get('q', ''));
+        if (strlen($q) < 2) return response()->json([]);
+        $guests = \App\Models\Guest::where(function ($query) use ($q) {
+            $query->where('first_name', 'like', "%{$q}%")
+                  ->orWhere('last_name', 'like', "%{$q}%")
+                  ->orWhere('email', 'like', "%{$q}%")
+                  ->orWhere('phone', 'like', "%{$q}%")
+                  ->orWhereRaw("CONCAT(first_name, ' ', last_name) LIKE ?", ["%{$q}%"]);
+        })->limit(8)->get(['id', 'first_name', 'last_name', 'email', 'phone', 'nationality']);
+        return response()->json($guests->map(fn($g) => [
+            'id'         => $g->id,
+            'name'       => trim(($g->first_name ?? '') . ' ' . ($g->last_name ?? '')),
+            'email'      => $g->email,
+            'phone'      => $g->phone,
+            'nationality'=> $g->nationality,
+            'url'        => '/admin/guests',
+        ]));
+    })->name('guests.search');
 
     // Check-ins
     Route::get('/checkin', function () {
@@ -4641,6 +4660,26 @@ Route::middleware(['auth', 'role:front_desk'])->prefix('front-desk')->name('fron
     Route::get('/guests/create', [GuestController::class, 'create'])->name('guests.create');
 
     Route::post('/guests', [GuestController::class, 'store'])->name('guests.store');
+
+    Route::get('/guests/search', function (\Illuminate\Http\Request $request) {
+        $q = trim($request->get('q', ''));
+        if (strlen($q) < 2) return response()->json([]);
+        $guests = \App\Models\Guest::where(function ($query) use ($q) {
+            $query->where('first_name', 'like', "%{$q}%")
+                  ->orWhere('last_name', 'like', "%{$q}%")
+                  ->orWhere('email', 'like', "%{$q}%")
+                  ->orWhere('phone', 'like', "%{$q}%")
+                  ->orWhereRaw("CONCAT(first_name, ' ', last_name) LIKE ?", ["%{$q}%"]);
+        })->limit(8)->get(['id', 'first_name', 'last_name', 'email', 'phone', 'nationality']);
+        return response()->json($guests->map(fn($g) => [
+            'id'         => $g->id,
+            'name'       => trim(($g->first_name ?? '') . ' ' . ($g->last_name ?? '')),
+            'email'      => $g->email,
+            'phone'      => $g->phone,
+            'nationality'=> $g->nationality,
+            'url'        => route('front-desk.guests.show', $g->id),
+        ]));
+    })->name('guests.search');
 
     Route::get('/guests/{id}', function ($id) {
         $user = auth()->user()->load('roles');
@@ -7617,6 +7656,25 @@ Route::middleware(['auth', 'role:manager'])->prefix('manager')->name('manager.')
         $role = $user->roles->first()?->name ?? 'manager';
         return Inertia::render('Manager/Guests/Create', ['user' => $user, 'navigation' => app(DashboardController::class)->getNavigationForRole($role)]);
     })->name('guests.create');
+    Route::get('/guests/search', function (\Illuminate\Http\Request $request) {
+        $q = trim($request->get('q', ''));
+        if (strlen($q) < 2) return response()->json([]);
+        $guests = \App\Models\Guest::where(function ($query) use ($q) {
+            $query->where('first_name', 'like', "%{$q}%")
+                  ->orWhere('last_name', 'like', "%{$q}%")
+                  ->orWhere('email', 'like', "%{$q}%")
+                  ->orWhere('phone', 'like', "%{$q}%")
+                  ->orWhereRaw("CONCAT(first_name, ' ', last_name) LIKE ?", ["%{$q}%"]);
+        })->limit(8)->get(['id', 'first_name', 'last_name', 'email', 'phone', 'nationality']);
+        return response()->json($guests->map(fn($g) => [
+            'id'         => $g->id,
+            'name'       => trim(($g->first_name ?? '') . ' ' . ($g->last_name ?? '')),
+            'email'      => $g->email,
+            'phone'      => $g->phone,
+            'nationality'=> $g->nationality,
+            'url'        => route('manager.guests.show', $g->id),
+        ]));
+    })->name('guests.search');
     Route::get('/guests/{guest}', function ($id) {
         $user = auth()->user()->load('roles');
         $role = $user->roles->first()?->name ?? 'manager';

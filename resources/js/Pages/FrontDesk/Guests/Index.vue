@@ -138,12 +138,21 @@
                      borderColor: themeColors.border,
                      borderBottomWidth: '1px'
                  }">
-                <div class="flex items-center justify-between">
+                <div class="flex items-center justify-between gap-4">
                     <h2 class="text-lg font-semibold"
                         :style="{ color: themeColors.textPrimary }">Recent Guests</h2>
+                    <div class="flex items-center gap-3 flex-1 max-w-md">
+                        <input
+                            v-model="searchQuery"
+                            type="text"
+                            placeholder="Search by name, email or phone..."
+                            class="flex-1 rounded-md px-3 py-1.5 text-sm focus:outline-none transition-colors"
+                            :style="{ backgroundColor: themeColors.background, borderColor: themeColors.border, color: themeColors.textPrimary, borderWidth: '1px', borderStyle: 'solid' }"
+                        />
+                    </div>
                     <div class="text-sm"
                          :style="{ color: themeColors.textSecondary }">
-                        {{ guests.length }} guests
+                        {{ filteredGuests.length }} guests
                     </div>
                 </div>
             </div>
@@ -179,7 +188,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        <tr v-for="guest in guests" :key="guest.id" 
+                        <tr v-for="guest in filteredGuests" :key="guest.id" 
                             class="transition-colors"
                             :style="{ 
                                 borderBottomStyle: 'solid',
@@ -232,7 +241,7 @@
             </div>
             
             <!-- Empty State -->
-            <div v-if="!guests || guests.length === 0" class="text-center py-12">
+            <div v-if="!filteredGuests || filteredGuests.length === 0" class="text-center py-12">
                 <UserGroupIcon class="mx-auto h-12 w-12 text-gray-400" />
                 <h3 class="mt-2 text-sm font-medium" :style="{ color: themeColors.textPrimary }">No guests found</h3>
                 <p class="mt-1 text-sm" :style="{ color: themeColors.textSecondary }">Get started by adding a new guest.</p>
@@ -254,7 +263,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { Link } from '@inertiajs/vue3'
 import DashboardLayout from '@/Layouts/DashboardLayout.vue'
 import { useTheme } from '@/Composables/useTheme.js'
@@ -290,6 +299,20 @@ loadTheme()
 const props = defineProps({
     user: Object,
     guests: Array,
+})
+
+const searchQuery = ref('')
+
+const filteredGuests = computed(() => {
+    if (!props.guests) return []
+    if (!searchQuery.value) return props.guests
+    const q = searchQuery.value.toLowerCase()
+    return props.guests.filter(g =>
+        g.first_name?.toLowerCase().includes(q) ||
+        g.last_name?.toLowerCase().includes(q) ||
+        g.email?.toLowerCase().includes(q) ||
+        g.phone?.toLowerCase().includes(q)
+    )
 })
 
 const guestStats = computed(() => {

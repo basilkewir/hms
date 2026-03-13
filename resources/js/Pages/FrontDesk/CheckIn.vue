@@ -35,10 +35,21 @@
                  backgroundColor: themeColors.card,
                  borderColor: themeColors.border
              }">
-            <h3 class="text-lg font-medium mb-4"
-                :style="{ color: themeColors.textPrimary }">Today's Expected Arrivals</h3>
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-medium"
+                    :style="{ color: themeColors.textPrimary }">Today's Expected Arrivals
+                    <span class="ml-2 text-sm font-normal" :style="{ color: themeColors.textTertiary }">({{ filteredArrivals.length }} of {{ todaysArrivals.length }})</span>
+                </h3>
+                <input
+                    v-model="arrivalSearch"
+                    type="text"
+                    placeholder="Filter by guest name or room..."
+                    class="rounded-md px-3 py-1.5 text-sm focus:outline-none transition-colors w-64"
+                    :style="{ backgroundColor: themeColors.background, borderColor: themeColors.border, color: themeColors.textPrimary, borderWidth: '1px', borderStyle: 'solid' }"
+                />
+            </div>
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                <div v-for="arrival in todaysArrivals" :key="arrival.id"
+                <div v-for="arrival in filteredArrivals" :key="arrival.id"
                      class="rounded-lg p-4 cursor-pointer transition-colors"
                      :style="{
                          backgroundColor: themeColors.background,
@@ -89,6 +100,10 @@
             <div v-if="todaysArrivals.length === 0" class="text-center py-8"
                  :style="{ color: themeColors.textTertiary }">
                 No arrivals scheduled for today.
+            </div>
+            <div v-else-if="filteredArrivals.length === 0" class="text-center py-8"
+                 :style="{ color: themeColors.textTertiary }">
+                No arrivals match your search.
             </div>
         </div>
 
@@ -391,6 +406,16 @@ const navigation = computed(() => getNavigationForRole('front_desk'))
 
 const selectedGuest = ref(null)
 const isProcessing = ref(false)
+const arrivalSearch = ref('')
+
+const filteredArrivals = computed(() => {
+    if (!arrivalSearch.value) return props.todaysArrivals || []
+    const q = arrivalSearch.value.toLowerCase()
+    return (props.todaysArrivals || []).filter(a =>
+        a.guestName?.toLowerCase().includes(q) ||
+        a.roomNumber?.toLowerCase().includes(q)
+    )
+})
 
 // Define checkInForm before auto-selection
 const checkInForm = ref({

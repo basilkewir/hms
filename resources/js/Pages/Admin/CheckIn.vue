@@ -312,6 +312,10 @@
                         <span v-else>Remaining balance at checkout: {{ formatMoney(balanceAfterPayment) }}</span>
                     </div>
                 </div>
+
+                <!-- Form Actions -->
+                <div class="flex items-center justify-end space-x-4 pt-6"
+                     :style="{ borderTop: `1px solid ${themeColors.border}` }">
                     <button type="button" @click="selectedGuest = null"
                             class="px-6 py-2 rounded-md transition-colors"
                             :style="{ 
