@@ -7565,6 +7565,10 @@ Route::middleware(['auth', 'role:manager'])->prefix('manager')->name('manager.')
         return Inertia::render('Manager/Guests/Edit', ['user' => $user, 'navigation' => app(DashboardController::class)->getNavigationForRole($role), 'guest' => $guest]);
     })->name('guests.edit');
 
+    // Guest write routes for manager
+    Route::post('/guests', [GuestController::class, 'store'])->name('guests.store');
+    Route::put('/guests/{guest}', [GuestController::class, 'update'])->name('guests.update');
+
     // Guest Types
     Route::get('/guest-types', function () {
         $user = auth()->user()->load('roles');
