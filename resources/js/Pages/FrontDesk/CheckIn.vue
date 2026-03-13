@@ -227,16 +227,27 @@
                          }">
                         <div class="flex justify-between text-sm mb-2">
                             <span :style="{ color: themeColors.textSecondary }">Room Rate / night</span>
-                            <span :style="{ color: themeColors.textPrimary }">{{ formatMoney(selectedGuest?.roomRate || 0) }}</span>
+                            <span :style="{ color: themeColors.textPrimary }">{{ formatMoney(selectedGuest?.room_rate || 0) }}</span>
                         </div>
                         <div class="flex justify-between text-sm mb-2">
                             <span :style="{ color: themeColors.textSecondary }">Nights</span>
                             <span :style="{ color: themeColors.textPrimary }">{{ selectedGuest?.nights || 0 }}</span>
                         </div>
+                        <div class="flex justify-between text-sm mb-2 pt-2"
+                             :style="{ borderTop: `1px solid ${themeColors.border}`, color: themeColors.textPrimary }">
+                            <span class="font-semibold">Total Amount</span>
+                            <span class="font-semibold">{{ formatMoney(selectedGuest?.total_amount || 0) }}</span>
+                        </div>
+                        <div v-if="(selectedGuest?.paid_amount || 0) > 0" class="flex justify-between text-sm mb-2">
+                            <span :style="{ color: themeColors.success }">Already Paid</span>
+                            <span :style="{ color: themeColors.success }">- {{ formatMoney(selectedGuest.paid_amount) }}</span>
+                        </div>
                         <div class="flex justify-between font-semibold text-base pt-2"
                              :style="{ borderTop: `1px solid ${themeColors.border}`, color: themeColors.textPrimary }">
-                            <span>Estimated Total</span>
-                            <span>{{ formatMoney(estimatedTotal) }}</span>
+                            <span>Balance Due</span>
+                            <span :style="{ color: balanceDue > 0 ? themeColors.warning : themeColors.success }">
+                                {{ formatMoney(balanceDue) }}
+                            </span>
                         </div>
                     </div>
 
@@ -283,15 +294,15 @@
                                 :style="{ backgroundColor: themeColors.background, color: themeColors.textSecondary, borderColor: themeColors.border, borderWidth: '1px', borderStyle: 'solid' }">
                             No Payment
                         </button>
-                        <button type="button" @click="checkInForm.paymentAmount = Math.round(estimatedTotal * 0.5 * 100) / 100"
+                        <button type="button" @click="checkInForm.paymentAmount = Math.round(balanceDue * 0.5 * 100) / 100"
                                 class="px-3 py-1 rounded text-xs transition-colors"
                                 :style="{ backgroundColor: themeColors.background, color: themeColors.textSecondary, borderColor: themeColors.border, borderWidth: '1px', borderStyle: 'solid' }">
-                            50% Deposit ({{ formatMoney(estimatedTotal * 0.5) }})
+                            50% Deposit ({{ formatMoney(balanceDue * 0.5) }})
                         </button>
-                        <button type="button" @click="checkInForm.paymentAmount = estimatedTotal"
+                        <button type="button" @click="checkInForm.paymentAmount = balanceDue"
                                 class="px-3 py-1 rounded text-xs font-medium transition-colors"
                                 :style="{ backgroundColor: themeColors.primary, color: themeColors.background }">
-                            Pay Full ({{ formatMoney(estimatedTotal) }})
+                            Pay Full ({{ formatMoney(balanceDue) }})
                         </button>
                     </div>
 
@@ -389,16 +400,17 @@ const checkInForm = ref({
     paymentMethod: 'cash',
 })
 
-// Estimated total for the selected guest's reservation
-const estimatedTotal = computed(() => {
+// The actual total amount from the reservation (already accounts for discounts etc.)
+const balanceDue = computed(() => {
     if (!selectedGuest.value) return 0
-    const rate = selectedGuest.value.roomRate || 0
-    const nights = selectedGuest.value.nights || 0
-    return Math.round(rate * nights * 100) / 100
+    return parseFloat(selectedGuest.value.balance_amount ?? selectedGuest.value.total_amount ?? 0)
 })
 
+// Keep estimatedTotal alias for any other references
+const estimatedTotal = computed(() => balanceDue.value)
+
 const balanceAfterPayment = computed(() => {
-    return Math.round((estimatedTotal.value - (checkInForm.value.paymentAmount || 0)) * 100) / 100
+    return Math.max(0, Math.round((balanceDue.value - (checkInForm.value.paymentAmount || 0)) * 100) / 100)
 })
 
 const formatMoney = (amount) => {
