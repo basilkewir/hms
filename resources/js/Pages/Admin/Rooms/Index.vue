@@ -301,6 +301,11 @@
                                           :style="{ color: themeColors.primary }"
                                           @mouseenter="$event.target.style.color = themeColors.hover"
                                           @mouseleave="$event.target.style.color = themeColors.primary">Edit</Link>
+                                    <button @click="deleteRoom(room?.id, room?.room_number)"
+                                            class="transition-colors"
+                                            :style="{ color: '#dc2626' }"
+                                            @mouseenter="$event.target.style.color = '#991b1b'"
+                                            @mouseleave="$event.target.style.color = '#dc2626'">Delete</button>
                                 </div>
                             </td>
                         </tr>
@@ -319,7 +324,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { Link } from '@inertiajs/vue3'
+import { Link, router } from '@inertiajs/vue3'
 import DashboardLayout from '@/Layouts/DashboardLayout.vue'
 import { getNavigationForRole } from '@/Utils/navigation.js'
 import { formatCurrency, initializeCurrencySettings } from '@/Utils/currency.js'
@@ -430,6 +435,11 @@ const formatStatus = (status) => {
 
 const exportRooms = () => {
     showExportDialog()
+}
+
+const deleteRoom = (id, roomNumber) => {
+    if (!confirm(`Are you sure you want to delete Room ${roomNumber}? This cannot be undone.`)) return
+    router.delete(route('admin.rooms.destroy', id))
 }
 
 const showExportDialog = () => {

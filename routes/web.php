@@ -7688,6 +7688,11 @@ Route::middleware(['auth', 'role:manager'])->prefix('manager')->name('manager.')
     Route::get('/rooms/{room}', [RoomController::class, 'show'])->name('rooms.show');
     Route::get('/rooms/{room}/edit', [RoomController::class, 'edit'])->name('rooms.edit');
 
+    // Room write routes for manager
+    Route::post('/rooms', [RoomController::class, 'store'])->name('rooms.store');
+    Route::put('/rooms/{room}', [RoomController::class, 'update'])->name('rooms.update');
+    Route::delete('/rooms/{room}', [RoomController::class, 'destroy'])->name('rooms.destroy');
+
     // Room Types
     Route::get('/room-types', [RoomTypeController::class, 'index'])->name('room-types.index');
     Route::get('/room-types/create', [RoomTypeController::class, 'create'])->name('room-types.create');

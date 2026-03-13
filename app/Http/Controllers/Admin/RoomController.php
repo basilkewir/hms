@@ -636,4 +636,19 @@ class RoomController extends Controller
 
         return back()->with('success', $statusMessage);
     }
+
+    /**
+     * Delete a room.
+     */
+    public function destroy(Room $room)
+    {
+        if ($room->reservations()->whereIn('status', ['confirmed', 'checked_in', 'pending'])->exists()) {
+            return back()->with('error', "Cannot delete room {$room->room_number}: it has active or upcoming reservations.");
+        }
+
+        $roomNumber = $room->room_number;
+        $room->delete();
+
+        return back()->with('success', "Room {$roomNumber} has been deleted.");
+    }
 }

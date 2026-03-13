@@ -142,10 +142,9 @@
                     </div>
                     <div>
                         <label class="block text-sm font-medium mb-2"
-                               :style="{ color: themeColors.textSecondary }">Date of Birth *</label>
+                               :style="{ color: themeColors.textSecondary }">Date of Birth</label>
                         <DatePicker v-model="form.date_of_birth"
                                      placeholder="Select date of birth"
-                                     :required="true"
                                      :max="maxDate" />
                         <div v-if="form.errors.date_of_birth" class="mt-1 text-sm"
                              :style="{ color: themeColors.danger }">{{ form.errors.date_of_birth }}</div>
@@ -258,8 +257,8 @@
                     </div>
                     <div class="lg:col-span-2">
                         <label class="block text-sm font-medium mb-2"
-                               :style="{ color: themeColors.textSecondary }">Address *</label>
-                        <input type="text" v-model="form.address" required
+                               :style="{ color: themeColors.textSecondary }">Address</label>
+                        <input type="text" v-model="form.address"
                                class="w-full rounded-md px-3 py-2 focus:outline-none transition-colors"
                                :style="{ backgroundColor: themeColors.background, borderColor: themeColors.border, color: themeColors.textPrimary, borderWidth: '1px', borderStyle: 'solid' }">
                         <div v-if="form.errors.address" class="mt-1 text-sm" :style="{ color: themeColors.danger }">{{ form.errors.address }}</div>
@@ -274,8 +273,8 @@
                     </div>
                     <div>
                         <label class="block text-sm font-medium mb-2"
-                               :style="{ color: themeColors.textSecondary }">State *</label>
-                        <input type="text" v-model="form.state" required
+                               :style="{ color: themeColors.textSecondary }">State</label>
+                        <input type="text" v-model="form.state"
                                class="w-full rounded-md px-3 py-2 focus:outline-none transition-colors"
                                :style="{ backgroundColor: themeColors.background, borderColor: themeColors.border, color: themeColors.textPrimary, borderWidth: '1px', borderStyle: 'solid' }">
                         <div v-if="form.errors.state" class="mt-1 text-sm" :style="{ color: themeColors.danger }">{{ form.errors.state }}</div>
@@ -357,8 +356,8 @@
                     </div>
                     <div>
                         <label class="block text-sm font-medium mb-2"
-                               :style="{ color: themeColors.textSecondary }">Issuing Authority *</label>
-                        <input type="text" v-model="form.id_issuing_authority" required
+                               :style="{ color: themeColors.textSecondary }">Issuing Authority</label>
+                        <input type="text" v-model="form.id_issuing_authority"
                                class="w-full rounded-md px-3 py-2 focus:outline-none transition-colors"
                                :style="{ backgroundColor: themeColors.background, borderColor: themeColors.border, color: themeColors.textPrimary, borderWidth: '1px', borderStyle: 'solid' }">
                         <div v-if="form.errors.id_issuing_authority" class="mt-1 text-sm" :style="{ color: themeColors.danger }">{{ form.errors.id_issuing_authority }}</div>
