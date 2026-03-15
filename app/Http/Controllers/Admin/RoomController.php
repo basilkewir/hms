@@ -699,4 +699,37 @@ class RoomController extends Controller
 
         return back()->with('success', "Room {$roomNumber} has been deleted.");
     }
+
+    /**
+     * Bulk delete rooms.
+     */
+    public function bulkDestroy(Request $request)
+    {
+        $ids = $request->input('ids', []);
+
+        if (empty($ids)) {
+            return back()->with('error', 'No rooms selected.');
+        }
+
+        $rooms = Room::whereIn('id', $ids)->get();
+
+        $skipped = [];
+        $deleted = 0;
+
+        foreach ($rooms as $room) {
+            if ($room->reservations()->whereIn('status', ['confirmed', 'checked_in', 'pending'])->exists()) {
+                $skipped[] = $room->room_number;
+                continue;
+            }
+            $room->delete();
+            $deleted++;
+        }
+
+        $message = "Deleted {$deleted} room(s) successfully.";
+        if (!empty($skipped)) {
+            $message .= ' Skipped rooms with active reservations: ' . implode(', ', $skipped) . '.';
+        }
+
+        return back()->with('success', $message);
+    }
 }

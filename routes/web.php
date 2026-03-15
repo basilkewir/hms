@@ -3119,6 +3119,7 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
     Route::get('/rooms/{room}/edit', [RoomController::class, 'edit'])->name('rooms.edit');
     Route::put('/rooms/{room}', [RoomController::class, 'update'])->name('rooms.update');
     Route::delete('/rooms/{room}', [RoomController::class, 'destroy'])->name('rooms.destroy');
+    Route::delete('/rooms', [RoomController::class, 'bulkDestroy'])->name('rooms.bulk-destroy');
 
     // Room Actions
     Route::post('/rooms/{room}/manual-checkout', [RoomController::class, 'manualCheckout'])->name('rooms.manual-checkout');
@@ -8362,6 +8363,7 @@ Route::middleware(['auth', 'role:manager'])->prefix('manager')->name('manager.')
     Route::post('/rooms', [RoomController::class, 'store'])->name('rooms.store');
     Route::put('/rooms/{room}', [RoomController::class, 'update'])->name('rooms.update');
     Route::delete('/rooms/{room}', [RoomController::class, 'destroy'])->name('rooms.destroy');
+    Route::delete('/rooms', [RoomController::class, 'bulkDestroy'])->name('admin.rooms.bulk-destroy');
 
     // Room Types
     Route::get('/room-types', [RoomTypeController::class, 'index'])->name('room-types.index');

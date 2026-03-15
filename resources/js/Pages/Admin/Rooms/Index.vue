@@ -212,18 +212,38 @@
                  borderStyle: 'solid',
                  borderWidth: '1px'
              }">
-            <div class="px-6 py-4 border-b"
+            <div class="px-6 py-4 border-b flex items-center justify-between"
                  :style="{ 
                      borderColor: themeColors.border,
                      borderBottomWidth: '1px'
                  }">
                 <h3 class="text-lg font-medium"
                     :style="{ color: themeColors.textPrimary }">All Rooms</h3>
+                <!-- Bulk delete toolbar -->
+                <div v-if="selectedIds.length > 0" class="flex items-center gap-3">
+                    <span class="text-sm" :style="{ color: themeColors.textSecondary }">{{ selectedIds.length }} selected</span>
+                    <button @click="bulkDelete"
+                            class="px-3 py-1.5 rounded-md text-sm font-medium text-white flex items-center gap-1.5 transition-opacity hover:opacity-80"
+                            style="background-color: #dc2626;">
+                        <TrashIcon class="h-4 w-4" />
+                        Delete Selected
+                    </button>
+                    <button @click="selectedIds = []"
+                            class="px-3 py-1.5 rounded-md text-sm font-medium transition-opacity hover:opacity-80"
+                            :style="{ color: themeColors.textSecondary, borderColor: themeColors.border, borderWidth: '1px', borderStyle: 'solid' }">
+                        Clear
+                    </button>
+                </div>
             </div>
             <div class="overflow-x-auto">
                 <table class="min-w-full">
                     <thead>
                         <tr :style="{ backgroundColor: themeColors.background }">
+                            <th class="px-4 py-3">
+                                <input type="checkbox" :checked="allSelected" @change="toggleSelectAll"
+                                       class="h-4 w-4 rounded cursor-pointer"
+                                       :style="{ accentColor: themeColors.primary }">
+                            </th>
                             <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider"
                                 :style="{ color: themeColors.textTertiary }">
                                 Room Number
@@ -262,8 +282,13 @@
                                 borderBottomWidth: '1px',
                                 borderColor: themeColors.border
                             }"
-                            @mouseenter="$event.target.style.backgroundColor = themeColors.hover"
-                            @mouseleave="$event.target.style.backgroundColor = 'transparent'">
+                            @mouseenter="$event.currentTarget.style.backgroundColor = themeColors.hover"
+                            @mouseleave="$event.currentTarget.style.backgroundColor = 'transparent'">
+                            <td class="px-4 py-4">
+                                <input type="checkbox" :value="room?.id" v-model="selectedIds"
+                                       class="h-4 w-4 rounded cursor-pointer"
+                                       :style="{ accentColor: themeColors.primary }">
+                            </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium"
                                 :style="{ color: themeColors.textPrimary }">
                                 {{ room?.number || 'N/A' }}
@@ -336,7 +361,8 @@ import {
     CheckCircleIcon,
     UserIcon,
     WrenchScrewdriverIcon,
-    DocumentArrowDownIcon
+    DocumentArrowDownIcon,
+    TrashIcon
 } from '@heroicons/vue/24/outline'
 
 // Initialize theme
@@ -440,6 +466,31 @@ const exportRooms = () => {
 const deleteRoom = (id, roomNumber) => {
     if (!confirm(`Are you sure you want to delete Room ${roomNumber}? This cannot be undone.`)) return
     router.delete(route('admin.rooms.destroy', id))
+}
+
+// --- Bulk selection ---
+const selectedIds = ref([])
+
+const allSelected = computed(() =>
+    filteredRooms.value.length > 0 &&
+    filteredRooms.value.every(r => selectedIds.value.includes(r.id))
+)
+
+const toggleSelectAll = (e) => {
+    if (e.target.checked) {
+        selectedIds.value = filteredRooms.value.map(r => r.id)
+    } else {
+        selectedIds.value = []
+    }
+}
+
+const bulkDelete = () => {
+    if (selectedIds.value.length === 0) return
+    if (!confirm(`Delete ${selectedIds.value.length} selected room(s)? This cannot be undone.`)) return
+    router.delete(route('admin.rooms.bulk-destroy'), {
+        data: { ids: selectedIds.value },
+        onSuccess: () => { selectedIds.value = [] },
+    })
 }
 
 const showExportDialog = () => {
