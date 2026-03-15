@@ -459,6 +459,42 @@
                 </form>
             </div>
         </div>
+        <!-- Auto Generate Schedule Modal -->
+        <div v-if="showGenerateScheduleModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div class="rounded-xl shadow-2xl w-full max-w-md border" :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }">
+                <div class="bg-gradient-to-r from-yellow-500 to-yellow-600 px-6 py-4 rounded-t-xl">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-lg font-bold text-white flex items-center space-x-2">
+                            <CalendarIcon class="h-5 w-5" />
+                            <span>Auto Generate Schedule</span>
+                        </h3>
+                        <button @click="closeGenerateScheduleModal" class="text-white/80 hover:text-white transition-colors">
+                            <XMarkIcon class="h-6 w-6" />
+                        </button>
+                    </div>
+                </div>
+                <div class="p-6 space-y-4">
+                    <p class="text-sm" :style="{ color: themeColors.textSecondary }">
+                        This will automatically assign the default work shift to all active staff members for the current week who do not already have a schedule.
+                    </p>
+                    <div class="rounded-lg p-4 border" :style="{ backgroundColor: themeColors.background, borderColor: themeColors.border }">
+                        <p class="text-xs font-semibold uppercase tracking-wide mb-1" :style="{ color: themeColors.textTertiary }">Week</p>
+                        <p class="text-sm font-medium" :style="{ color: themeColors.textPrimary }">{{ currentWeek }}</p>
+                    </div>
+                    <div class="flex justify-end space-x-3 pt-2 border-t" :style="{ borderColor: themeColors.border }">
+                        <button type="button" @click="closeGenerateScheduleModal"
+                                class="px-5 py-2.5 text-sm font-medium rounded-lg hover:opacity-90 transition-opacity border"
+                                :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border, color: themeColors.textPrimary }">
+                            Cancel
+                        </button>
+                        <button @click="submitGenerateSchedule"
+                                class="px-5 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-yellow-500 to-yellow-600 border border-transparent rounded-lg hover:from-yellow-600 hover:to-yellow-700 shadow-md transition-all">
+                            Generate
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </DashboardLayout>
 </template>
 

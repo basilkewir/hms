@@ -81,7 +81,10 @@ class HousekeepingTaskController extends Controller
             'rooms' => Room::where('is_active', true)->get(['id', 'room_number']),
             'users' => User::whereHas('roles', function($query) {
                 $query->where('name', 'housekeeping');
-            })->get(['id', 'first_name', 'last_name']),
+            })->orWhere('position', 'like', '%housekeeper%')
+              ->orWhere('position', 'like', '%housekeeping%')
+              ->orWhere('position', 'like', '%cleaner%')
+              ->get(['id', 'first_name', 'last_name']),
         ]);
     }
 
@@ -91,10 +94,12 @@ class HousekeepingTaskController extends Controller
             ->with('roomType')
             ->get(['id', 'room_number', 'status', 'housekeeping_status', 'room_type_id']);
 
-        $housekeepers = User::where('employment_status', 'active')
+        $housekeepers = User::where('is_active', true)
             ->where(function ($q) {
-                $q->where('position', 'Housekeeper')
-                  ->orWhereHas('position', fn($inner) => $inner->where('name', 'Housekeeper'));
+                $q->whereHas('roles', fn($r) => $r->where('name', 'housekeeping'))
+                  ->orWhere('position', 'like', '%housekeeper%')
+                  ->orWhere('position', 'like', '%housekeeping%')
+                  ->orWhere('position', 'like', '%cleaner%');
             })
             ->orderBy('first_name')
             ->orderBy('last_name')
@@ -124,10 +129,12 @@ class HousekeepingTaskController extends Controller
             $housekeepingTask->scheduled_time = \Carbon\Carbon::parse($housekeepingTask->scheduled_time)->format('H:i');
         }
 
-        $housekeepers = User::where('employment_status', 'active')
+        $housekeepers = User::where('is_active', true)
             ->where(function ($q) {
-                $q->where('position', 'Housekeeper')
-                  ->orWhereHas('position', fn($inner) => $inner->where('name', 'Housekeeper'));
+                $q->whereHas('roles', fn($r) => $r->where('name', 'housekeeping'))
+                  ->orWhere('position', 'like', '%housekeeper%')
+                  ->orWhere('position', 'like', '%housekeeping%')
+                  ->orWhere('position', 'like', '%cleaner%');
             })
             ->orderBy('first_name')
             ->orderBy('last_name')

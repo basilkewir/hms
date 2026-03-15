@@ -8518,7 +8518,65 @@ Route::middleware(['auth', 'role:manager'])->prefix('manager')->name('manager.')
                 ->get()
             : collect();
 
-        return Inertia::render('Admin/Schedules/Index', [
+        // Build employee-based schedule view (7 days)
+        $users = \App\Models\User::with(['employeeShifts' => function($q) use ($weekStart, $weekEnd) {
+            $q->whereBetween('effective_date', [$weekStart, $weekEnd])
+              ->where('is_active', true)
+              ->with('workShift');
+        }])->where('is_active', true)->get();
+
+        $scheduleData = $users->map(function($u) use ($weekStart) {
+            $shifts = [];
+            $cur = $weekStart->copy();
+            for ($i = 0; $i < 7; $i++) {
+                $shift = $u->employeeShifts->first(fn($s) =>
+                    $s->effective_date == $cur->toDateString() ||
+                    ($s->days_of_week && in_array($cur->dayOfWeek, $s->days_of_week))
+                );
+                $shifts[] = $shift && $shift->workShift ? [
+                    'id'           => $shift->id,
+                    'work_shift_id'=> $shift->work_shift_id,
+                    'start'        => \Carbon\Carbon::parse($shift->workShift->start_time)->format('H:i'),
+                    'end'          => \Carbon\Carbon::parse($shift->workShift->end_time)->format('H:i'),
+                    'type'         => $shift->workShift->is_overnight ? 'night' : 'regular',
+                ] : null;
+                $cur->addDay();
+            }
+            return [
+                'id'         => $u->id,
+                'name'       => trim(($u->first_name ?? '') . ' ' . ($u->last_name ?? '')),
+                'department' => $u->department ?? 'general',
+                'shifts'     => $shifts,
+            ];
+        })->values();
+
+        // Schedule stats
+        $thisWeekShifts  = $employeeShifts->count();
+        $scheduledStaff  = $employeeShifts->pluck('user_id')->unique()->count();
+        $totalHours      = $employeeShifts->sum(fn($s) => optional($s->workShift)->hours ?? 0);
+        $scheduleStats   = [
+            'thisWeek'       => $thisWeekShifts,
+            'scheduledStaff' => $scheduledStaff,
+            'conflicts'      => 0,
+            'totalHours'     => $totalHours,
+        ];
+
+        // Schedule requests (pending leave requests)
+        $scheduleRequests = \App\Models\LeaveRequest::with('user')
+            ->where('status', 'pending')
+            ->orderBy('created_at', 'desc')
+            ->get()
+            ->map(fn($r) => [
+                'id'            => $r->id,
+                'employee_name' => trim(($r->user->first_name ?? '') . ' ' . ($r->user->last_name ?? '')),
+                'employee_id'   => $r->user->employee_id ?? 'EMP' . $r->user->id,
+                'type'          => $r->leave_type,
+                'date_time'     => \Carbon\Carbon::parse($r->start_date)->format('M d, Y') . ' - ' . \Carbon\Carbon::parse($r->end_date)->format('M d, Y'),
+                'reason'        => $r->reason,
+                'status'        => $r->status,
+            ]);
+
+        return Inertia::render('Manager/Staff/Schedules', [
             'user'             => $user,
             'navigation'       => app(DashboardController::class)->getNavigationForRole($role),
             'routePrefix'      => 'manager.staff',
@@ -8527,6 +8585,12 @@ Route::middleware(['auth', 'role:manager'])->prefix('manager')->name('manager.')
             'employeeShifts'   => $employeeShifts,
             'currentWeekStart' => $weekStart->format('Y-m-d'),
             'currentWeekEnd'   => $weekEnd->format('Y-m-d'),
+            'scheduleStats'    => $scheduleStats,
+            'scheduleData'     => $scheduleData,
+            'scheduleRequests' => $scheduleRequests,
+            'currentWeek'      => $weekStart->format('M d') . ' - ' . $weekEnd->format('M d, Y'),
+            'weekStart'        => $weekStart->toDateString(),
+            'weekDays'         => ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
         ]);
     })->name('staff.schedules');
     Route::get('/staff/time-tracking', function (\Illuminate\Http\Request $request) {
@@ -8709,7 +8773,31 @@ Route::middleware(['auth', 'role:manager'])->prefix('manager')->name('manager.')
     // Staff schedule write routes
     Route::post('/staff/schedules', function (\Illuminate\Http\Request $request) {
         if (class_exists(\App\Models\EmployeeShift::class)) {
-            \App\Models\EmployeeShift::create($request->all());
+            $date = \Carbon\Carbon::parse($request->date);
+            if ($request->is_recurring && $request->recurring_days) {
+                $endDate = $request->end_date ? \Carbon\Carbon::parse($request->end_date) : $date->copy()->addMonth();
+                $cur = $date->copy();
+                while ($cur->lte($endDate)) {
+                    if (in_array($cur->dayOfWeek, $request->recurring_days)) {
+                        \App\Models\EmployeeShift::create([
+                            'user_id'        => $request->user_id,
+                            'work_shift_id'  => $request->work_shift_id,
+                            'effective_date' => $cur->toDateString(),
+                            'days_of_week'   => $request->recurring_days,
+                            'is_active'      => true,
+                        ]);
+                    }
+                    $cur->addDay();
+                }
+            } else {
+                \App\Models\EmployeeShift::create([
+                    'user_id'        => $request->user_id,
+                    'work_shift_id'  => $request->work_shift_id,
+                    'effective_date' => $request->date,
+                    'days_of_week'   => [$date->dayOfWeek],
+                    'is_active'      => true,
+                ]);
+            }
         }
         return back()->with('success', 'Schedule created.');
     })->name('staff.schedules.store');
@@ -8728,8 +8816,44 @@ Route::middleware(['auth', 'role:manager'])->prefix('manager')->name('manager.')
         return back()->with('success', 'Schedule deleted.');
     })->name('staff.schedules.destroy');
 
-    Route::post('/staff/schedules/generate', function () {
-        return back()->with('success', 'Schedule generated.');
+    Route::post('/staff/schedules/generate', function (\Illuminate\Http\Request $request) {
+        $weekStart = $request->get('week_start')
+            ? \Carbon\Carbon::parse($request->get('week_start'))->startOfWeek()
+            : \Carbon\Carbon::now()->startOfWeek();
+        $weekEnd = $weekStart->copy()->endOfWeek();
+
+        $defaultShift = \App\Models\WorkShift::where('is_active', true)->orderBy('id')->first();
+        if (!$defaultShift) {
+            return back()->with('error', 'No active work shifts found. Please create a work shift first.');
+        }
+
+        $staffUsers = \App\Models\User::where('is_active', true)
+            ->where('employment_status', 'active')
+            ->get();
+
+        $created = 0;
+        $cur = $weekStart->copy();
+        while ($cur->lte($weekEnd)) {
+            foreach ($staffUsers as $user) {
+                $exists = \App\Models\EmployeeShift::where('user_id', $user->id)
+                    ->where('effective_date', $cur->toDateString())
+                    ->where('is_active', true)
+                    ->exists();
+                if (!$exists) {
+                    \App\Models\EmployeeShift::create([
+                        'user_id'        => $user->id,
+                        'work_shift_id'  => $defaultShift->id,
+                        'effective_date' => $cur->toDateString(),
+                        'days_of_week'   => [$cur->dayOfWeek],
+                        'is_active'      => true,
+                    ]);
+                    $created++;
+                }
+            }
+            $cur->addDay();
+        }
+
+        return back()->with('success', "Auto-generated {$created} schedule(s) for the week.");
     })->name('staff.schedules.generate');
 
     Route::get('/staff/schedules/print', function (\Illuminate\Http\Request $request) {
@@ -8766,11 +8890,163 @@ Route::middleware(['auth', 'role:manager'])->prefix('manager')->name('manager.')
         return back()->with('success', 'Review scheduled.');
     })->name('staff.performance.schedule-review');
 
-    // Purchase
-    Route::get('/purchase', function () {
+    // ── Purchase Management ────────────────────────────────────────────────────
+    Route::get('/purchases', function () {
         $user = auth()->user()->load('roles');
-        $role = $user->roles->first()?->name ?? 'manager';
-        return Inertia::render('Manager/Purchase/Index', ['user' => $user, 'navigation' => app(DashboardController::class)->getNavigationForRole($role)]);
+        $purchaseOrders = \App\Models\PurchaseOrder::with(['supplier', 'user', 'items.product', 'payments'])
+            ->latest()->paginate(20);
+        $purchaseOrders->getCollection()->transform(function ($order) {
+            $order->subtotal        = (float) $order->subtotal;
+            $order->tax_rate        = (float) $order->tax_rate;
+            $order->tax_amount      = (float) $order->tax_amount;
+            $order->shipping_cost   = (float) $order->shipping_cost;
+            $order->total_amount    = (float) $order->total_amount;
+            $actualPaid             = $order->payments->sum('amount');
+            $order->paid_amount     = (float) $actualPaid;
+            $order->remaining_amount = (float) max(0, $order->total_amount - $actualPaid);
+            return $order;
+        });
+        $suppliers = \App\Models\Supplier::where('is_active', true)->get();
+        $products  = \App\Models\Product::where('is_active', true)->with('category','brand','unit')
+            ->get()->map(fn($p) => [
+                'id' => $p->id, 'name' => $p->name, 'code' => $p->code,
+                'barcode' => $p->barcode, 'cost_price' => (float)$p->cost_price,
+                'price' => (float)$p->price, 'stock_quantity' => $p->stock_quantity,
+            ]);
+        return Inertia::render('Manager/Purchase/Index', [
+            'user'           => $user,
+            'navigation'     => app(DashboardController::class)->getNavigationForRole('manager'),
+            'purchaseOrders' => $purchaseOrders,
+            'suppliers'      => $suppliers,
+            'products'       => $products,
+        ]);
+    })->name('purchases.index');
+
+    Route::get('/purchases/create', function () {
+        $user      = auth()->user()->load('roles');
+        $suppliers = \App\Models\Supplier::where('is_active', true)->get();
+        $products  = \App\Models\Product::where('is_active', true)->with('category','brand','unit')
+            ->get()->map(fn($p) => [
+                'id' => $p->id, 'name' => $p->name, 'code' => $p->code,
+                'barcode' => $p->barcode, 'cost_price' => (float)$p->cost_price,
+                'price' => (float)$p->price, 'stock_quantity' => $p->stock_quantity,
+            ]);
+        $locations = \App\Models\Location::where('is_active', true)->orderBy('name')->get(['id','name','type']);
+        return Inertia::render('Manager/Purchase/Create', [
+            'user'       => $user,
+            'navigation' => app(DashboardController::class)->getNavigationForRole('manager'),
+            'suppliers'  => $suppliers,
+            'products'   => $products,
+            'locations'  => $locations,
+        ]);
+    })->name('purchases.create');
+
+    Route::post('/purchases', [\App\Http\Controllers\POS\POSController::class, 'createPurchaseOrder'])
+        ->name('purchases.store');
+
+    Route::get('/purchases/{purchaseOrder}', function (\App\Models\PurchaseOrder $purchaseOrder) {
+        $user = auth()->user()->load('roles');
+        $purchaseOrder->load(['supplier','items.product.category','user','payments','location']);
+        $purchaseOrder->subtotal        = (float) $purchaseOrder->subtotal;
+        $purchaseOrder->tax_rate        = (float) $purchaseOrder->tax_rate;
+        $purchaseOrder->tax_amount      = (float) $purchaseOrder->tax_amount;
+        $purchaseOrder->shipping_cost   = (float) $purchaseOrder->shipping_cost;
+        $purchaseOrder->total_amount    = (float) $purchaseOrder->total_amount;
+        $purchaseOrder->paid_amount     = (float) $purchaseOrder->paid_amount;
+        $purchaseOrder->remaining_amount = (float) $purchaseOrder->remaining_amount;
+        $purchaseOrder->items->transform(fn($item) => tap($item, function ($i) {
+            $i->unit_cost  = (float) $i->unit_cost;
+            $i->total_cost = (float) $i->total_cost;
+        }));
+        return Inertia::render('Manager/Purchase/Show', [
+            'user'          => $user,
+            'navigation'    => app(DashboardController::class)->getNavigationForRole('manager'),
+            'purchaseOrder' => $purchaseOrder,
+        ]);
+    })->name('purchases.show');
+
+    Route::get('/purchases/{purchaseOrder}/edit', function (\App\Models\PurchaseOrder $purchaseOrder) {
+        if (!in_array($purchaseOrder->status, ['pending', 'in_transit'])) {
+            return redirect()->route('manager.purchases.show', $purchaseOrder->id)
+                ->with('error', 'Cannot edit purchase order with status: ' . $purchaseOrder->status);
+        }
+        $user = auth()->user()->load('roles');
+        $purchaseOrder->load(['supplier','items.product']);
+        $suppliers = \App\Models\Supplier::where('is_active', true)->get();
+        $products  = \App\Models\Product::where('is_active', true)->with('category')
+            ->get()->map(fn($p) => [
+                'id' => $p->id, 'name' => $p->name, 'code' => $p->code,
+                'barcode' => $p->barcode, 'cost_price' => (float)$p->cost_price,
+                'price' => (float)$p->price, 'stock_quantity' => $p->stock_quantity,
+            ]);
+        return Inertia::render('Manager/Purchase/Edit', [
+            'user'          => $user,
+            'navigation'    => app(DashboardController::class)->getNavigationForRole('manager'),
+            'purchaseOrder' => $purchaseOrder,
+            'suppliers'     => $suppliers,
+            'products'      => $products,
+        ]);
+    })->name('purchases.edit');
+
+    Route::put('/purchases/{purchaseOrder}', [\App\Http\Controllers\POS\POSController::class, 'updatePurchaseOrder'])
+        ->name('purchases.update');
+
+    Route::post('/purchases/{purchaseOrder}/receive', [\App\Http\Controllers\POS\POSController::class, 'receivePurchaseOrder'])
+        ->name('purchases.receive');
+
+    Route::post('/purchases/{purchaseOrder}/documents', [\App\Http\Controllers\POS\POSController::class, 'uploadPurchaseDocument'])
+        ->name('purchases.documents.upload');
+
+    Route::post('/purchases/{purchaseOrder}/delivery-documents', [\App\Http\Controllers\POS\POSController::class, 'uploadDeliveryDocument'])
+        ->name('purchases.delivery-documents.upload');
+
+    // ── Suppliers ─────────────────────────────────────────────────────────────
+    Route::get('/suppliers', function () {
+        $user      = auth()->user()->load('roles');
+        $suppliers = \App\Models\Supplier::with(['purchaseOrders','payments'])
+            ->withCount(['purchaseOrders','payments'])
+            ->withSum('payments','amount')
+            ->latest()->paginate(20);
+        return Inertia::render('Manager/Suppliers/Index', [
+            'user'       => $user,
+            'navigation' => app(DashboardController::class)->getNavigationForRole('manager'),
+            'suppliers'  => $suppliers,
+            'filters'    => [],
+        ]);
+    })->name('suppliers.index');
+
+    Route::post('/suppliers', [\App\Http\Controllers\POS\SupplierController::class, 'store'])
+        ->name('suppliers.store');
+
+    Route::put('/suppliers/{supplier}', [\App\Http\Controllers\POS\SupplierController::class, 'update'])
+        ->name('suppliers.update');
+
+    Route::delete('/suppliers/{supplier}', [\App\Http\Controllers\POS\SupplierController::class, 'destroy'])
+        ->name('suppliers.destroy');
+
+    Route::get('/suppliers/{supplier}/payments', function (\App\Models\Supplier $supplier) {
+        $user     = auth()->user()->load('roles');
+        $payments = $supplier->payments()->with(['purchaseOrder','user'])->latest()->paginate(20);
+        $purchaseOrders = \App\Models\PurchaseOrder::where('supplier_id', $supplier->id)
+            ->where('remaining_amount', '>', 0)->get();
+        return Inertia::render('Manager/Suppliers/Payments', [
+            'user'           => $user,
+            'navigation'     => app(DashboardController::class)->getNavigationForRole('manager'),
+            'supplier'       => $supplier,
+            'payments'       => $payments,
+            'purchaseOrders' => $purchaseOrders,
+        ]);
+    })->name('suppliers.payments.index');
+
+    Route::post('/suppliers/{supplier}/payments', [\App\Http\Controllers\POS\SupplierController::class, 'storePayment'])
+        ->name('suppliers.payments.store');
+
+    Route::delete('/suppliers/payments/{payment}', [\App\Http\Controllers\POS\SupplierController::class, 'deletePayment'])
+        ->name('suppliers.payments.destroy');
+
+    // Purchase (legacy redirect)
+    Route::get('/purchase', function () {
+        return redirect()->route('manager.purchases.index');
     })->name('purchase.index');
 
     // Waitlist / Group Bookings / Channel Manager
@@ -9588,6 +9864,264 @@ Route::middleware(['auth', 'role:manager'])->prefix('manager')->name('manager.')
     Route::get('/quotes/create', [\App\Http\Controllers\Admin\QuoteController::class, 'create'])->name('quotes.create');
     Route::post('/quotes', [\App\Http\Controllers\Admin\QuoteController::class, 'store'])->name('quotes.store');
     Route::get('/quotes/{id}', [\App\Http\Controllers\Admin\QuoteController::class, 'show'])->name('quotes.show');
+
+    // ── Property Management: Floors ──────────────────────────────────────────
+    Route::get('/floors', function () {
+        $user = auth()->user()->load('roles');
+        $floors = \App\Models\Floor::orderBy('sort_order')->orderBy('floor_number')->get();
+        $hasFloorId = \Illuminate\Support\Facades\Schema::hasColumn('rooms', 'floor_id');
+        if ($hasFloorId) { $floors->loadCount('rooms'); }
+        return Inertia::render('Manager/Floors/Index', [
+            'user'       => $user,
+            'navigation' => app(DashboardController::class)->getNavigationForRole('manager'),
+            'floors'     => $floors->map(fn($f) => [
+                'id'           => $f->id,
+                'floor_number' => $f->floor_number,
+                'name'         => $f->name,
+                'description'  => $f->description,
+                'is_active'    => $f->is_active,
+                'sort_order'   => $f->sort_order,
+                'room_count'   => $hasFloorId ? ($f->rooms_count ?? 0) : 0,
+            ]),
+        ]);
+    })->name('floors.index');
+
+    Route::get('/floors/create', function () {
+        return Inertia::render('Manager/Floors/Create', [
+            'user'       => auth()->user()->load('roles'),
+            'navigation' => app(DashboardController::class)->getNavigationForRole('manager'),
+        ]);
+    })->name('floors.create');
+
+    Route::post('/floors', function (\Illuminate\Http\Request $request) {
+        $validated = $request->validate([
+            'floor_number' => 'required|integer|unique:floors,floor_number',
+            'name'         => 'nullable|string|max:255',
+            'description'  => 'nullable|string',
+            'is_active'    => 'boolean',
+            'sort_order'   => 'nullable|integer',
+        ]);
+        \App\Models\Floor::create($validated);
+        return redirect()->route('manager.floors.index')->with('success', 'Floor created successfully');
+    })->name('floors.store');
+
+    Route::get('/floors/{floor}/edit', function (\App\Models\Floor $floor) {
+        return Inertia::render('Manager/Floors/Edit', [
+            'user'       => auth()->user()->load('roles'),
+            'navigation' => app(DashboardController::class)->getNavigationForRole('manager'),
+            'floor'      => $floor->only(['id','floor_number','name','description','is_active','sort_order']),
+        ]);
+    })->name('floors.edit');
+
+    Route::put('/floors/{floor}', function (\Illuminate\Http\Request $request, \App\Models\Floor $floor) {
+        $validated = $request->validate([
+            'floor_number' => 'required|integer|unique:floors,floor_number,' . $floor->id,
+            'name'         => 'nullable|string|max:255',
+            'description'  => 'nullable|string',
+            'is_active'    => 'boolean',
+            'sort_order'   => 'nullable|integer',
+        ]);
+        $floor->update($validated);
+        return redirect()->route('manager.floors.index')->with('success', 'Floor updated successfully');
+    })->name('floors.update');
+
+    Route::delete('/floors/{floor}', function (\App\Models\Floor $floor) {
+        $hasFloorId = \Illuminate\Support\Facades\Schema::hasColumn('rooms', 'floor_id');
+        if ($hasFloorId && $floor->rooms()->count() > 0) {
+            return redirect()->route('manager.floors.index')->with('error', 'Cannot delete floor with existing rooms');
+        }
+        $floor->delete();
+        return redirect()->route('manager.floors.index')->with('success', 'Floor deleted successfully');
+    })->name('floors.destroy');
+
+    // ── Property Management: Building Wings ──────────────────────────────────
+    Route::get('/building-wings', function () {
+        $user = auth()->user()->load('roles');
+        $wings = \App\Models\BuildingWing::orderBy('sort_order')->orderBy('name')->get();
+        $hasBuildingWingId = \Illuminate\Support\Facades\Schema::hasColumn('rooms', 'building_wing_id');
+        if ($hasBuildingWingId) { $wings->loadCount('rooms'); }
+        return Inertia::render('Manager/BuildingWings/Index', [
+            'user'       => $user,
+            'navigation' => app(DashboardController::class)->getNavigationForRole('manager'),
+            'wings'      => $wings->map(fn($w) => [
+                'id'          => $w->id,
+                'name'        => $w->name,
+                'code'        => $w->code,
+                'description' => $w->description,
+                'is_active'   => $w->is_active,
+                'sort_order'  => $w->sort_order,
+                'room_count'  => $hasBuildingWingId ? ($w->rooms_count ?? 0) : 0,
+            ]),
+        ]);
+    })->name('building-wings.index');
+
+    Route::get('/building-wings/create', function () {
+        return Inertia::render('Manager/BuildingWings/Create', [
+            'user'       => auth()->user()->load('roles'),
+            'navigation' => app(DashboardController::class)->getNavigationForRole('manager'),
+        ]);
+    })->name('building-wings.create');
+
+    Route::post('/building-wings', function (\Illuminate\Http\Request $request) {
+        $validated = $request->validate([
+            'name'        => 'required|string|max:255|unique:building_wings,name',
+            'code'        => 'nullable|string|max:50|unique:building_wings,code',
+            'description' => 'nullable|string',
+            'is_active'   => 'boolean',
+            'sort_order'  => 'nullable|integer',
+        ]);
+        \App\Models\BuildingWing::create($validated);
+        return redirect()->route('manager.building-wings.index')->with('success', 'Building wing created successfully');
+    })->name('building-wings.store');
+
+    Route::get('/building-wings/{buildingWing}/edit', function (\App\Models\BuildingWing $buildingWing) {
+        return Inertia::render('Manager/BuildingWings/Edit', [
+            'user'       => auth()->user()->load('roles'),
+            'navigation' => app(DashboardController::class)->getNavigationForRole('manager'),
+            'wing'       => $buildingWing->only(['id','name','code','description','is_active','sort_order']),
+        ]);
+    })->name('building-wings.edit');
+
+    Route::put('/building-wings/{buildingWing}', function (\Illuminate\Http\Request $request, \App\Models\BuildingWing $buildingWing) {
+        $validated = $request->validate([
+            'name'        => 'required|string|max:255|unique:building_wings,name,' . $buildingWing->id,
+            'code'        => 'nullable|string|max:50|unique:building_wings,code,' . $buildingWing->id,
+            'description' => 'nullable|string',
+            'is_active'   => 'boolean',
+            'sort_order'  => 'nullable|integer',
+        ]);
+        $buildingWing->update($validated);
+        return redirect()->route('manager.building-wings.index')->with('success', 'Building wing updated successfully');
+    })->name('building-wings.update');
+
+    Route::delete('/building-wings/{buildingWing}', function (\App\Models\BuildingWing $buildingWing) {
+        $hasBuildingWingId = \Illuminate\Support\Facades\Schema::hasColumn('rooms', 'building_wing_id');
+        if ($hasBuildingWingId && $buildingWing->rooms()->count() > 0) {
+            return redirect()->route('manager.building-wings.index')->with('error', 'Cannot delete building wing with existing rooms');
+        }
+        $buildingWing->delete();
+        return redirect()->route('manager.building-wings.index')->with('success', 'Building wing deleted successfully');
+    })->name('building-wings.destroy');
+
+    // ── Property Management: Bed Types ───────────────────────────────────────
+    Route::get('/bed-types', function () {
+        $user = auth()->user()->load('roles');
+        $bedTypes = \App\Models\BedType::orderBy('sort_order')->orderBy('name')->get();
+        $hasBedTypeId = \Illuminate\Support\Facades\Schema::hasColumn('rooms', 'bed_type_id');
+        $hasRoomTypeBedTypeId = \Illuminate\Support\Facades\Schema::hasColumn('room_types', 'bed_type_id');
+        if ($hasBedTypeId) { $bedTypes->loadCount('rooms'); }
+        if ($hasRoomTypeBedTypeId) { $bedTypes->loadCount('roomTypes'); }
+        return Inertia::render('Manager/BedTypes/Index', [
+            'user'       => $user,
+            'navigation' => app(DashboardController::class)->getNavigationForRole('manager'),
+            'bedTypes'   => $bedTypes->map(fn($b) => [
+                'id'              => $b->id,
+                'name'            => $b->name,
+                'code'            => $b->code,
+                'description'     => $b->description,
+                'width_inches'    => $b->width_inches,
+                'length_inches'   => $b->length_inches,
+                'is_active'       => $b->is_active,
+                'sort_order'      => $b->sort_order,
+                'room_count'      => $hasBedTypeId ? ($b->rooms_count ?? 0) : 0,
+                'room_type_count' => $hasRoomTypeBedTypeId ? ($b->room_types_count ?? 0) : 0,
+            ]),
+        ]);
+    })->name('bed-types.index');
+
+    Route::get('/bed-types/create', function () {
+        return Inertia::render('Manager/BedTypes/Create', [
+            'user'       => auth()->user()->load('roles'),
+            'navigation' => app(DashboardController::class)->getNavigationForRole('manager'),
+        ]);
+    })->name('bed-types.create');
+
+    Route::post('/bed-types', function (\Illuminate\Http\Request $request) {
+        $validated = $request->validate([
+            'name'          => 'required|string|max:255|unique:bed_types,name',
+            'code'          => 'nullable|string|max:50|unique:bed_types,code',
+            'description'   => 'nullable|string',
+            'width_inches'  => 'nullable|numeric|min:0',
+            'length_inches' => 'nullable|numeric|min:0',
+            'is_active'     => 'boolean',
+            'sort_order'    => 'nullable|integer',
+        ]);
+        \App\Models\BedType::create($validated);
+        return redirect()->route('manager.bed-types.index')->with('success', 'Bed type created successfully');
+    })->name('bed-types.store');
+
+    Route::get('/bed-types/{bedType}/edit', function (\App\Models\BedType $bedType) {
+        return Inertia::render('Manager/BedTypes/Edit', [
+            'user'       => auth()->user()->load('roles'),
+            'navigation' => app(DashboardController::class)->getNavigationForRole('manager'),
+            'bedType'    => $bedType->only(['id','name','code','description','width_inches','length_inches','is_active','sort_order']),
+        ]);
+    })->name('bed-types.edit');
+
+    Route::put('/bed-types/{bedType}', function (\Illuminate\Http\Request $request, \App\Models\BedType $bedType) {
+        $validated = $request->validate([
+            'name'          => 'required|string|max:255|unique:bed_types,name,' . $bedType->id,
+            'code'          => 'nullable|string|max:50|unique:bed_types,code,' . $bedType->id,
+            'description'   => 'nullable|string',
+            'width_inches'  => 'nullable|numeric|min:0',
+            'length_inches' => 'nullable|numeric|min:0',
+            'is_active'     => 'boolean',
+            'sort_order'    => 'nullable|integer',
+        ]);
+        $bedType->update($validated);
+        return redirect()->route('manager.bed-types.index')->with('success', 'Bed type updated successfully');
+    })->name('bed-types.update');
+
+    Route::delete('/bed-types/{bedType}', function (\App\Models\BedType $bedType) {
+        $hasBedTypeId = \Illuminate\Support\Facades\Schema::hasColumn('rooms', 'bed_type_id');
+        $hasRoomTypeBedTypeId = \Illuminate\Support\Facades\Schema::hasColumn('room_types', 'bed_type_id');
+        if ($hasBedTypeId && $bedType->rooms()->count() > 0) {
+            return redirect()->route('manager.bed-types.index')->with('error', 'Cannot delete bed type that is in use');
+        }
+        if ($hasRoomTypeBedTypeId && $bedType->roomTypes()->count() > 0) {
+            return redirect()->route('manager.bed-types.index')->with('error', 'Cannot delete bed type that is in use');
+        }
+        $bedType->delete();
+        return redirect()->route('manager.bed-types.index')->with('success', 'Bed type deleted successfully');
+    })->name('bed-types.destroy');
+
+    // ── Property Management: Locations ───────────────────────────────────────
+    Route::get('/locations', function () {
+        $user = auth()->user()->load('roles');
+        $locations = \App\Models\Location::orderBy('name')->get();
+        return Inertia::render('Manager/Locations/Index', [
+            'user'       => $user,
+            'navigation' => app(DashboardController::class)->getNavigationForRole('manager'),
+            'locations'  => $locations,
+        ]);
+    })->name('locations.index');
+
+    Route::post('/locations', function (\Illuminate\Http\Request $request) {
+        $validated = $request->validate([
+            'name'        => 'required|string|max:100|unique:locations,name',
+            'type'        => 'required|in:warehouse,restaurant,frontdesk,bar,kitchen,other',
+            'description' => 'nullable|string|max:255',
+            'is_active'   => 'boolean',
+        ]);
+        \App\Models\Location::create($validated);
+        return redirect()->route('manager.locations.index')->with('success', 'Location created.');
+    })->name('locations.store');
+
+    Route::put('/locations/{location}', function (\Illuminate\Http\Request $request, \App\Models\Location $location) {
+        $validated = $request->validate([
+            'name'        => 'required|string|max:100|unique:locations,name,' . $location->id,
+            'type'        => 'required|in:warehouse,restaurant,frontdesk,bar,kitchen,other',
+            'description' => 'nullable|string|max:255',
+            'is_active'   => 'boolean',
+        ]);
+        $location->update($validated);
+        return redirect()->route('manager.locations.index')->with('success', 'Location updated.');
+    })->name('locations.update');
+
+    Route::delete('/locations/{location}', function (\App\Models\Location $location) {
+        $location->delete();
+        return redirect()->route('manager.locations.index')->with('success', 'Location deleted.');
+    })->name('locations.destroy');
 });
 
 // Maintenance Routes

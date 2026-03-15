@@ -210,7 +210,7 @@
                             <td class="px-6 py-4 whitespace-nowrap text-sm"
                                 :style="{ color: themeColors.textPrimary }">{{ formatTaskType(task.task_type) }}</td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm"
-                                :style="{ color: themeColors.textPrimary }">{{ task.assigned_to?.name || 'Unassigned' }}</td>
+                                :style="{ color: themeColors.textPrimary }">{{ task.assigned_to?.full_name || (task.assigned_to ? (task.assigned_to.first_name + ' ' + task.assigned_to.last_name).trim() : 'Unassigned') }}</td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm">
                                 <span class="px-2 py-1 text-xs rounded-full" :style="getPriorityStyle(task.priority)">
                                     {{ task.priority }}

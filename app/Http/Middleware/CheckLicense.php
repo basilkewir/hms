@@ -11,8 +11,8 @@ use Illuminate\Support\Facades\Log;
 
 class CheckLicense
 {
-    /** Cache TTL for license validity (seconds). 10 min to avoid hammering kewirdev.com */
-    private const CACHE_TTL = 600;
+    /** Cache TTL for license validity (seconds). 12 hours. */
+    private const CACHE_TTL = 43200;
 
     public function __construct(private LicenseValidationService $licenseService) {}
 
@@ -43,14 +43,9 @@ class CheckLicense
             }
         }
 
-        // --- Cached license check (avoids DB hit on every request) ---
+        // --- Offline-first license check ---
         $licensed = Cache::remember('license_valid', self::CACHE_TTL, function () {
-            try {
-                return $this->licenseService->isSystemLicensed();
-            } catch (\Throwable $e) {
-                Log::warning('License check failed: ' . $e->getMessage());
-                return false;
-            }
+            return $this->licenseService->isSystemLicensed();
         });
 
         if ($licensed) {

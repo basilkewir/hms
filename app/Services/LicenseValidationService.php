@@ -314,7 +314,7 @@ class LicenseValidationService
             ->first();
 
         if ($real) {
-            return $this->validateOnline($real);
+            return $this->validateOnline($real); // may throw RuntimeException for grace period
         }
 
         // Fall back to trial license
@@ -372,6 +372,7 @@ class LicenseValidationService
                     }
 
                     $license->update(['status' => 'active', 'last_validated_at' => now()]);
+                    Cache::put('license_last_known_valid', now()->timestamp, 86400);
                     return true;
                 }
 
@@ -384,16 +385,18 @@ class LicenseValidationService
                 }
 
                 if ($code !== 401) {
-                    // Unexpected error from server — deny access
-                    Log::warning('License GET /info returned ' . $code . ' — denying access');
-                    return false;
+                    // Unexpected HTTP error — use grace period (throw to trigger null path)
+                    Log::warning('License GET /info returned ' . $code . ' — using grace period');
+                    throw new \RuntimeException('License server HTTP ' . $code);
                 }
 
                 // 401 = JWT expired → fall through to Tier 2
 
+            } catch (\RuntimeException $e) {
+                throw $e; // re-throw grace-period signals
             } catch (\Throwable $e) {
                 Log::warning('License GET /info network error: ' . $e->getMessage());
-                return false; // strict: no offline fallback
+                throw new \RuntimeException('network_error'); // bubble up to trigger grace period
             }
         }
 
@@ -421,6 +424,7 @@ class LicenseValidationService
                     $this->storeToken($data['token'], $deviceId, $data['expires_at'] ?? null);
                 }
                 $license->update(['status' => 'active', 'last_validated_at' => now()]);
+                Cache::put('license_last_known_valid', now()->timestamp, 86400);
                 return true;
             }
 
@@ -435,13 +439,17 @@ class LicenseValidationService
                         'reason'      => $reason,
                     ]);
                 }
+                return false; // definitive rejection — no grace
             }
-            Log::warning('License POST /validate returned ' . $code);
-            return false;
+            // Other HTTP errors (5xx, etc.) — use grace period
+            Log::warning('License POST /validate returned ' . $code . ' — using grace period');
+            throw new \RuntimeException('License server HTTP ' . $code);
 
+        } catch (\RuntimeException $e) {
+            throw $e; // re-throw grace-period signals
         } catch (\Throwable $e) {
             Log::warning('License POST /validate network error: ' . $e->getMessage());
-            return false; // strict: no offline fallback
+            throw new \RuntimeException('network_error'); // bubble up to trigger grace period
         }
     }
 
