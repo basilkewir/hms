@@ -185,7 +185,7 @@ class CheckOutController extends Controller
                     'check_in_date' => $r->check_in_date->format('Y-m-d'),
                     'check_out_date' => $r->check_out_date->format('Y-m-d'),
                     'actual_check_in' => $r->actual_check_in?->format('Y-m-d H:i'),
-                    'status' => 'occupied',
+                    'status' => $r->status,
                     'folio' => $folio ? [
                         'id' => $folio->id,
                         'folio_number' => $folio->folio_number,
@@ -343,7 +343,7 @@ class CheckOutController extends Controller
                     'check_in_date' => $r->check_in_date->format('Y-m-d'),
                     'check_out_date' => $r->check_out_date->format('Y-m-d'),
                     'actual_check_in' => $r->actual_check_in?->format('Y-m-d H:i'),
-                    'status' => 'occupied',
+                    'status' => $r->status,
                     'folio' => $folio ? [
                         'id' => $folio->id,
                         'folio_number' => $folio->folio_number,

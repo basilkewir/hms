@@ -2693,7 +2693,7 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
     })->name('guests.search');
 
     // Check-ins
-    Route::get('/checkin', function () {
+    Route::get('/checkin', function (\Illuminate\Http\Request $request) {
         $user = auth()->user()->load('roles');
         $role = $user->roles->first()?->name ?? 'staff';
         $today = now()->toDateString();
@@ -2800,6 +2800,7 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
             'pendingReservations' => $pendingReservations,
             'availableRooms'      => $availableRooms,
             'todayCheckIns'       => $todayCheckIns,
+            'selectedReservationId' => $request->query('reservation_id') ? (int) $request->query('reservation_id') : null,
         ]);
     })->name('checkin');
 
@@ -2872,100 +2873,8 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
 
     Route::get('/checkout/print', [\App\Http\Controllers\FrontDesk\CheckOutController::class, 'printReceipt'])->name('checkout.print');
 
-    // Check-outs
-    Route::get('/checkout', function (\Illuminate\Http\Request $request) {
-        $user = auth()->user()->load('roles');
-        $role = $user->roles->first()?->name ?? 'admin';
-
-        // Current room tax rate — always recalculate instead of using stale stored totals
-        $taxRate = \App\Models\Setting::get('room_tax_rate', \App\Models\Setting::get('tax_rate', 0)) / 100;
-
-        // Pre-load folios in one query so we can use correct paid amounts and room charges
-        $checkedInIds = \App\Models\Reservation::where('status', 'checked_in')->pluck('id');
-        $folios = \App\Models\GuestFolio::whereIn('reservation_id', $checkedInIds)
-            ->get()->keyBy('reservation_id');
-
-        $mapReservation = function ($r) use ($taxRate, $folios) {
-            $folio = $folios->get($r->id);
-
-            // Room rate — prefer reservation column, fall back to room type base price
-            $roomRate = (float) ($r->room_rate ?? 0);
-            if (!$roomRate && $r->room && $r->room->roomType) {
-                $roomRate = (float) ($r->room->roomType->base_price ?? 0);
-            }
-
-            // Nights
-            $nights = $r->check_in_date && $r->check_out_date
-                ? max(1, \Carbon\Carbon::parse($r->check_in_date)->diffInDays(\Carbon\Carbon::parse($r->check_out_date)))
-                : 1;
-
-            // Room charges — use folio if it has data, otherwise calculate from rate × nights
-            $roomCharges = ($folio && $folio->room_charges > 0)
-                ? (float) $folio->room_charges
-                : (float) ($r->total_room_charges ?? $roomRate * $nights);
-
-            // Tax: always apply current rate (0 if room_tax_rate = 0)
-            $taxAmount    = round($roomCharges * $taxRate, 2);
-            $discountAmount = $folio ? (float) ($folio->discount_amount ?? 0) : (float) ($r->discount_amount ?? 0);
-            $unifiedTotal   = round($roomCharges + $taxAmount - $discountAmount, 2);
-
-            // Paid and balance
-            $paidAmount   = $folio ? (float) ($folio->paid_amount ?? 0) : (float) ($r->paid_amount ?? 0);
-            $unifiedBalance = max(0, round($unifiedTotal - $paidAmount, 2));
-
-            return [
-                'id'                   => $r->id,
-                'guestName'            => optional($r->guest)->full_name ?? trim((optional($r->guest)->first_name ?? '') . ' ' . (optional($r->guest)->last_name ?? '')),
-                'roomNumber'           => optional($r->room)->room_number ?? 'N/A',
-                'roomType'             => optional(optional($r->room)->roomType)->name ?? 'Standard',
-                'reservation_number'   => $r->reservation_number ?? '#' . $r->id,
-                'nights'               => $nights,
-                'check_in_date'        => $r->check_in_date,
-                'check_out_date'       => $r->check_out_date,
-                'departureTime'        => $r->check_out_date,
-                'status'               => $r->status,
-                'room_rate'            => number_format($roomRate, 2),
-                'roomCharges'          => number_format($roomCharges, 2),
-                'taxAmount'            => number_format($taxAmount, 2),
-                'discountAmount'       => number_format($discountAmount, 2),
-                'posCharges'           => '0.00',
-                'serviceCharges'       => '0.00',
-                'totalAmount'          => number_format($unifiedTotal, 2),
-                'paidAmount'           => number_format($paidAmount, 2),
-                'balanceAmount'        => number_format($unifiedBalance, 2),
-                'unifiedTotal'         => number_format($unifiedTotal, 2),
-                'unifiedBalance'       => number_format($unifiedBalance, 2),
-                'is_early_checkout'    => false,
-                'actual_nights'        => $nights,
-                'scheduled_nights'     => $nights,
-                'key_card'             => null,
-                'hasUnpaidBills'       => false,
-                'posSales'             => [],
-                'folio'                => null,
-                'guest'                => $r->guest,
-                'room'                 => $r->room,
-            ];
-        };
-
-        $todaysDepartures = \App\Models\Reservation::with(['guest', 'room.roomType'])
-            ->where('status', 'checked_in')
-            ->whereDate('check_out_date', today())
-            ->orderBy('check_out_date')
-            ->get()->map($mapReservation)->values()->all();
-
-        $allCheckedIn = \App\Models\Reservation::with(['guest', 'room.roomType'])
-            ->where('status', 'checked_in')
-            ->orderBy('check_out_date')
-            ->get()->map($mapReservation)->values()->all();
-
-        return Inertia::render('Admin/CheckOut', [
-            'user'                  => $user,
-            'navigation'            => app(DashboardController::class)->getNavigationForRole($role),
-            'selectedReservationId' => $request->query('reservation_id'),
-            'todaysDepartures'      => $todaysDepartures,
-            'allCheckedIn'          => $allCheckedIn,
-        ]);
-    })->name('checkout');
+    // Check-outs — uses CheckOutController::index() for full data (folios, POS, key cards, early-checkout detection)
+    Route::get('/checkout', [CheckOutController::class, 'index'])->name('checkout');
 
     Route::post('/checkout', [\App\Http\Controllers\FrontDesk\CheckOutController::class, 'store'])->name('checkout.store');
 
@@ -5035,147 +4944,113 @@ Route::middleware(['auth', 'role:front_desk'])->prefix('front-desk')->name('fron
     Route::put('/guests/{guest}', [GuestController::class, 'update'])->name('guests.update');
 
     // Check-in/Check-out
-    Route::get('/checkin', function () {
+    Route::get('/checkin', function (\Illuminate\Http\Request $request) {
         $user = auth()->user()->load('roles');
         $role = $user->roles->first()?->name ?? 'front-desk';
+        $today = today()->toDateString();
+        $roomTaxRate = \App\Models\Setting::get('room_tax_rate', \App\Models\Setting::get('tax_rate', 0)) / 100;
 
-        // Get today's arrivals for check-in
-        $todaysArrivals = \App\Models\Reservation::with(['guest', 'room'])
-            ->whereDate('check_in_date', today())
-            ->whereIn('status', ['confirmed', 'pending'])
-            ->orderBy('check_in_date')
-            ->get()
-            ->map(function ($reservation) {
-                return [
-                    'id' => $reservation->id,
-                    'guest_name' => $reservation->guest ? $reservation->guest->first_name . ' ' . $reservation->guest->last_name : 'Unknown',
-                    'guest_email' => $reservation->guest ? $reservation->guest->email : '',
-                    'guest_phone' => $reservation->guest ? $reservation->guest->phone : '',
-                    'roomNumber' => $reservation->room ? $reservation->room->room_number : 'TBA',
-                    'check_in_time' => $reservation->check_in_date,
-                    'status' => $reservation->status,
-                    'total_amount' => $reservation->total_amount,
-                ];
-            });
-
-        // Get available rooms
-        $availableRooms = \App\Models\Room::where('status', 'available')
-            ->with('roomType')
-            ->get()
-            ->map(function ($room) {
-                return [
-                    'id' => $room->id,
-                    'room_number' => $room->room_number,
-                    'room_type' => $room->roomType ? $room->roomType->name : 'Standard',
-                    'floor' => $room->floor ?? 1,
-                ];
-            });
-
-        return Inertia::render('FrontDesk/CheckIn', [
-            'user' => $user,
-            'navigation' => app(DashboardController::class)->getNavigationForRole($role),
-            'todaysArrivals' => $todaysArrivals,
-            'availableRooms' => $availableRooms,
-        ]);
-    })->name('checkin');
-
-    Route::post('/checkin', [\App\Http\Controllers\FrontDesk\CheckInController::class, 'store'])->name('checkin.store');
-
-    Route::get('/checkout', function (\Illuminate\Http\Request $request) {
-        $user = auth()->user()->load('roles');
-        $role = $user->roles->first()?->name ?? 'front-desk';
-
-        // Current room tax rate — recalculate instead of using stale stored totals
-        $taxRate = \App\Models\Setting::get('room_tax_rate', \App\Models\Setting::get('tax_rate', 0)) / 100;
-
-        // Pre-load folios for correct paid amounts and room charges
-        $checkedInIds = \App\Models\Reservation::where('status', 'checked_in')->pluck('id');
-        $folios = \App\Models\GuestFolio::whereIn('reservation_id', $checkedInIds)
-            ->get()->keyBy('reservation_id');
-
-        $mapReservation = function ($r) use ($taxRate, $folios) {
-            $folio = $folios->get($r->id);
-
-            $roomRate = (float) ($r->room_rate ?? 0);
-            if (!$roomRate && $r->room && $r->room->roomType) {
-                $roomRate = (float) ($r->room->roomType->base_price ?? 0);
-            }
+        // Map a reservation to the shape FrontDesk/CheckIn.vue expects
+        $mapReservation = function ($r) use ($roomTaxRate) {
+            $reservedRoom = $r->room;
+            $isRoomAvailable = $reservedRoom
+                && ($reservedRoom->status === 'available'
+                    || $reservedRoom->status === 'reserved'
+                    || $reservedRoom->housekeeping_status === 'clean');
 
             $checkIn  = \Carbon\Carbon::parse($r->check_in_date);
             $checkOut = \Carbon\Carbon::parse($r->check_out_date);
             $nights   = max(1, $checkIn->diffInDays($checkOut));
 
-            $roomCharges = ($folio && $folio->room_charges > 0)
-                ? (float) $folio->room_charges
-                : (float) ($r->total_room_charges ?? $roomRate * $nights);
-
-            $taxAmount      = round($roomCharges * $taxRate, 2);
-            $discountAmount = $folio ? (float) ($folio->discount_amount ?? 0) : (float) ($r->discount_amount ?? 0);
-            $unifiedTotal   = round($roomCharges + $taxAmount - $discountAmount, 2);
-            $paidAmount     = $folio ? (float) ($folio->paid_amount ?? 0) : (float) ($r->paid_amount ?? 0);
-            $unifiedBalance = max(0, round($unifiedTotal - $paidAmount, 2));
+            $roomRate    = (float) ($r->room_rate ?? 0);
+            $roomCharges = $roomRate * $nights;
+            $calcTotal   = round($roomCharges * (1 + $roomTaxRate), 2);
+            $paidAmount  = (float) ($r->paid_amount ?? 0);
+            $calcBalance = max(0, round($calcTotal - $paidAmount, 2));
 
             return [
-                'id'            => $r->id,
-                'guestName'     => $r->guest?->full_name ?? trim(($r->guest?->first_name ?? '') . ' ' . ($r->guest?->last_name ?? '')),
-                'roomNumber'    => $r->room?->room_number ?? 'N/A',
-                'roomType'      => $r->room?->roomType?->name ?? 'Standard',
-                'checkInDate'   => $r->check_in_date,
-                'checkOutDate'  => $r->check_out_date,
-                'check_in_date' => $r->check_in_date,
-                'check_out_date' => $r->check_out_date,
-                'departureTime' => $r->check_out_date,
-                'nights'        => $nights,
-                'reservation_number' => $r->reservation_number ?? '#' . $r->id,
-                'room_rate'     => number_format($roomRate, 2),
-                'roomCharges'   => number_format($roomCharges, 2),
-                'taxAmount'     => number_format($taxAmount, 2),
-                'discountAmount' => number_format($discountAmount, 2),
-                'posCharges'    => '0.00',
-                'serviceCharges' => '0.00',
-                'totalAmount'   => number_format($unifiedTotal, 2),
-                'paidAmount'    => number_format($paidAmount, 2),
-                'balanceAmount' => number_format($unifiedBalance, 2),
-                'unifiedTotal'  => number_format($unifiedTotal, 2),
-                'unifiedBalance' => number_format($unifiedBalance, 2),
-                'status'        => $r->status,
-                'is_early_checkout' => false,
-                'actual_nights' => $nights,
-                'scheduled_nights' => $nights,
-                'key_card'      => null,
-                'hasUnpaidBills' => false,
-                'posSales'      => [],
-                'folio'         => null,
-                'guest'         => $r->guest,
-                'room'          => $r->room,
+                'id'                             => $r->id,
+                'reservation_number'             => $r->reservation_number,
+                'guestName'                      => $r->guest
+                    ? trim(($r->guest->first_name ?? '') . ' ' . ($r->guest->last_name ?? ''))
+                    : 'Unknown Guest',
+                'guest_email'                    => $r->guest?->email ?? '',
+                'guest_phone'                    => $r->guest?->phone ?? '',
+                'roomNumber'                     => $reservedRoom?->room_number ?? 'TBA',
+                'room_type'                      => $r->roomType?->name ?? ($reservedRoom?->roomType?->name ?? 'Standard'),
+                'check_in_date'                  => $checkIn->format('Y-m-d'),
+                'check_out_date'                 => $checkOut->format('Y-m-d'),
+                'nights'                         => $nights,
+                'room_rate'                      => $roomRate,
+                'total_amount'                   => $calcTotal,
+                'paid_amount'                    => $paidAmount,
+                'balance_amount'                 => $calcBalance,
+                'status'                         => $r->status,
+                'reservedRoomAvailable'          => $isRoomAvailable,
+                'reservedRoomStatus'             => $reservedRoom?->status,
+                'reservedRoomHousekeepingStatus' => $reservedRoom?->housekeeping_status,
             ];
         };
 
-        $todaysDepartures = \App\Models\Reservation::with(['guest', 'room.roomType'])
-            ->where('status', 'checked_in')
-            ->whereDate('check_out_date', today())
-            ->orderBy('check_out_date')
+        // Today's arrivals (pending/confirmed)
+        $todaysArrivals = \App\Models\Reservation::with(['guest', 'room', 'roomType'])
+            ->whereDate('check_in_date', $today)
+            ->whereIn('status', ['confirmed', 'pending'])
+            ->orderBy('check_in_date')
             ->get()
             ->map($mapReservation)
             ->values()
-            ->all();
+            ->toArray();
 
-        $allCheckedIn = \App\Models\Reservation::with(['guest', 'room.roomType'])
-            ->where('status', 'checked_in')
-            ->orderBy('check_out_date')
+        // All overdue/pending reservations (for deep-link auto-select)
+        $allReservations = \App\Models\Reservation::with(['guest', 'room', 'roomType'])
+            ->whereIn('status', ['confirmed', 'pending'])
+            ->whereDate('check_in_date', '<=', $today)
+            ->orderBy('check_in_date', 'desc')
+            ->limit(100)
             ->get()
             ->map($mapReservation)
             ->values()
-            ->all();
+            ->toArray();
 
-        return Inertia::render('FrontDesk/CheckOut', [
-            'user'                  => $user,
-            'navigation'            => app(DashboardController::class)->getNavigationForRole($role),
-            'todaysDepartures'      => $todaysDepartures,
-            'allCheckedIn'          => $allCheckedIn,
-            'selectedReservationId' => $request->query('reservation_id'),
+        // Available rooms — component accesses 'number' and 'type' keys
+        $availableRooms = \App\Models\Room::with('roomType')
+            ->whereIn('status', ['available', 'reserved'])
+            ->orderBy('room_number')
+            ->get()
+            ->map(fn($rm) => [
+                'id'     => $rm->id,
+                'number' => $rm->room_number,
+                'type'   => $rm->roomType?->name ?? 'Standard',
+            ])
+            ->values()
+            ->toArray();
+
+        // Available key cards
+        $availableKeyCards = \App\Models\KeyCard::where('status', 'available')
+            ->get(['id', 'card_number', 'card_type'])
+            ->map(fn($c) => [
+                'id'          => $c->id,
+                'card_number' => $c->card_number,
+                'card_type'   => $c->card_type,
+            ])
+            ->values()
+            ->toArray();
+
+        return Inertia::render('FrontDesk/CheckIn', [
+            'user'                => $user,
+            'navigation'          => app(DashboardController::class)->getNavigationForRole($role),
+            'todaysArrivals'      => $todaysArrivals,
+            'allReservations'     => $allReservations,
+            'availableRooms'      => $availableRooms,
+            'availableKeyCards'   => $availableKeyCards,
+            'selectedReservationId' => $request->query('reservation_id') ? (int) $request->query('reservation_id') : null,
         ]);
-    })->name('checkout');
+    })->name('checkin');
+
+    Route::post('/checkin', [\App\Http\Controllers\FrontDesk\CheckInController::class, 'store'])->name('checkin.store');
+
+    Route::get('/checkout', [CheckOutController::class, 'index'])->name('checkout');
 
     Route::post('/checkout', [\App\Http\Controllers\FrontDesk\CheckOutController::class, 'store'])->name('checkout.store');
     Route::get('/checkout/print', [\App\Http\Controllers\FrontDesk\CheckOutController::class, 'printReceipt'])->name('checkout.print');
@@ -8162,7 +8037,15 @@ Route::middleware(['auth', 'role:manager'])->prefix('manager')->name('manager.')
     Route::get('/guests/create', function () {
         $user = auth()->user()->load('roles');
         $role = $user->roles->first()?->name ?? 'manager';
-        return Inertia::render('Manager/Guests/Create', ['user' => $user, 'navigation' => app(DashboardController::class)->getNavigationForRole($role)]);
+        $guestTypes = \App\Models\GuestType::where('is_active', true)
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get(['id', 'name', 'code', 'color', 'discount_percentage']);
+        return Inertia::render('Manager/Guests/Create', [
+            'user'       => $user,
+            'navigation' => app(DashboardController::class)->getNavigationForRole($role),
+            'guestTypes' => $guestTypes,
+        ]);
     })->name('guests.create');
     Route::get('/guests/search', function (\Illuminate\Http\Request $request) {
         $q = trim($request->get('q', ''));
@@ -8219,128 +8102,106 @@ Route::middleware(['auth', 'role:manager'])->prefix('manager')->name('manager.')
     })->name('guest-types.edit');
 
     // Check-in / Check-out
-    Route::get('/checkin', function () {
+    Route::get('/checkin', function (\Illuminate\Http\Request $request) {
         $user = auth()->user()->load('roles');
         $role = $user->roles->first()?->name ?? 'manager';
+        $today = today()->toDateString();
+        $roomTaxRate = \App\Models\Setting::get('room_tax_rate', \App\Models\Setting::get('tax_rate', 0)) / 100;
 
-        $todaysArrivals = \App\Models\Reservation::with(['guest', 'room', 'roomType'])
-            ->whereIn('status', ['confirmed', 'pending'])
-            ->whereDate('check_in_date', today())
-            ->latest()->get()
-            ->map(fn($r) => [
-                'id'          => $r->id,
-                'guestName'   => optional($r->guest)->full_name ?? 'Guest',
-                'roomNumber'  => optional($r->room)->room_number ?? 'TBA',
-                'checkIn'     => $r->check_in_date,
-                'checkOut'    => $r->check_out_date,
-                'status'      => $r->status,
-                'reservedRoomAvailable' => optional($r->room)?->status === 'available',
-            ])->toArray();
+        $mapReservation = function ($r) use ($roomTaxRate) {
+            $reservedRoom = $r->room;
+            $isRoomAvailable = $reservedRoom
+                && ($reservedRoom->status === 'available'
+                    || $reservedRoom->status === 'reserved'
+                    || $reservedRoom->housekeeping_status === 'clean');
 
-        $availableRooms = \App\Models\Room::where('status', 'available')
-            ->where('housekeeping_status', 'clean')
-            ->with('roomType')
-            ->orderBy('room_number')
-            ->get(['id', 'room_number', 'status', 'housekeeping_status', 'room_type_id'])
-            ->map(fn($r) => [
-                'id'          => $r->id,
-                'room_number' => $r->room_number,
-                'type'        => optional($r->roomType)->name ?? 'Standard',
-            ])->toArray();
+            $checkIn  = \Carbon\Carbon::parse($r->check_in_date);
+            $checkOut = \Carbon\Carbon::parse($r->check_out_date);
+            $nights   = max(1, $checkIn->diffInDays($checkOut));
 
-        return Inertia::render('Manager/CheckIn', [
-            'user'           => $user,
-            'navigation'     => app(DashboardController::class)->getNavigationForRole($role),
-            'todaysArrivals' => $todaysArrivals,
-            'availableRooms' => $availableRooms,
-        ]);
-    })->name('checkin');
-    Route::post('/checkin', [\App\Http\Controllers\FrontDesk\CheckInController::class, 'store'])->name('checkin.store');
-    Route::get('/checkout', function () {
-        $user = auth()->user()->load('roles');
-        $role = $user->roles->first()?->name ?? 'manager';
-
-        // Current room tax rate — recalculate instead of using stale stored totals
-        $taxRate = \App\Models\Setting::get('room_tax_rate', \App\Models\Setting::get('tax_rate', 0)) / 100;
-
-        // Pre-load folios for correct paid amounts and room charges
-        $checkedInIds = \App\Models\Reservation::where('status', 'checked_in')->pluck('id');
-        $folios = \App\Models\GuestFolio::whereIn('reservation_id', $checkedInIds)
-            ->get()->keyBy('reservation_id');
-
-        $mapReservation = function ($r) use ($taxRate, $folios) {
-            $folio = $folios->get($r->id);
-
-            $roomRate = (float) ($r->room_rate ?? 0);
-            if (!$roomRate && $r->room && $r->room->roomType) {
-                $roomRate = (float) ($r->room->roomType->base_price ?? 0);
-            }
-
-            $nights = $r->check_in_date && $r->check_out_date
-                ? max(1, \Carbon\Carbon::parse($r->check_in_date)->diffInDays(\Carbon\Carbon::parse($r->check_out_date)))
-                : 1;
-
-            $roomCharges = ($folio && $folio->room_charges > 0)
-                ? (float) $folio->room_charges
-                : (float) ($r->total_room_charges ?? $roomRate * $nights);
-
-            $taxAmount      = round($roomCharges * $taxRate, 2);
-            $discountAmount = $folio ? (float) ($folio->discount_amount ?? 0) : (float) ($r->discount_amount ?? 0);
-            $unifiedTotal   = round($roomCharges + $taxAmount - $discountAmount, 2);
-            $paidAmount     = $folio ? (float) ($folio->paid_amount ?? 0) : (float) ($r->paid_amount ?? 0);
-            $unifiedBalance = max(0, round($unifiedTotal - $paidAmount, 2));
+            $roomRate    = (float) ($r->room_rate ?? 0);
+            $calcTotal   = round($roomRate * $nights * (1 + $roomTaxRate), 2);
+            $paidAmount  = (float) ($r->paid_amount ?? 0);
+            $calcBalance = max(0, round($calcTotal - $paidAmount, 2));
 
             return [
-                'id'                   => $r->id,
-                'guestName'            => optional($r->guest)->full_name ?? trim((optional($r->guest)->first_name ?? '') . ' ' . (optional($r->guest)->last_name ?? '')),
-                'roomNumber'           => optional($r->room)->room_number ?? 'N/A',
-                'roomType'             => optional(optional($r->room)->roomType)->name ?? 'Standard',
-                'reservation_number'   => $r->reservation_number ?? '#' . $r->id,
-                'nights'               => $nights,
-                'check_in_date'        => $r->check_in_date,
-                'check_out_date'       => $r->check_out_date,
-                'departureTime'        => $r->check_out_date,
-                'status'               => $r->status,
-                'room_rate'            => number_format($roomRate, 2),
-                'roomCharges'          => number_format($roomCharges, 2),
-                'taxAmount'            => number_format($taxAmount, 2),
-                'discountAmount'       => number_format($discountAmount, 2),
-                'posCharges'           => '0.00',
-                'serviceCharges'       => '0.00',
-                'totalAmount'          => number_format($unifiedTotal, 2),
-                'paidAmount'           => number_format($paidAmount, 2),
-                'balanceAmount'        => number_format($unifiedBalance, 2),
-                'unifiedTotal'         => number_format($unifiedTotal, 2),
-                'unifiedBalance'       => number_format($unifiedBalance, 2),
-                'is_early_checkout'    => false,
-                'actual_nights'        => $nights,
-                'scheduled_nights'     => $nights,
-                'key_card'             => null,
-                'hasUnpaidBills'       => false,
-                'posSales'             => [],
-                'folio'                => null,
-                'guest'                => $r->guest,
-                'room'                 => $r->room,
+                'id'                             => $r->id,
+                'reservation_number'             => $r->reservation_number,
+                'guestName'                      => $r->guest
+                    ? trim(($r->guest->first_name ?? '') . ' ' . ($r->guest->last_name ?? ''))
+                    : 'Unknown Guest',
+                'guest_email'                    => $r->guest?->email ?? '',
+                'guest_phone'                    => $r->guest?->phone ?? '',
+                'roomNumber'                     => $reservedRoom?->room_number ?? 'TBA',
+                'room_type'                      => $r->roomType?->name ?? ($reservedRoom?->roomType?->name ?? 'Standard'),
+                'check_in_date'                  => $checkIn->format('Y-m-d'),
+                'check_out_date'                 => $checkOut->format('Y-m-d'),
+                'nights'                         => $nights,
+                'room_rate'                      => $roomRate,
+                'total_amount'                   => $calcTotal,
+                'paid_amount'                    => $paidAmount,
+                'balance_amount'                 => $calcBalance,
+                'status'                         => $r->status,
+                'reservedRoomAvailable'          => $isRoomAvailable,
+                'reservedRoomStatus'             => $reservedRoom?->status,
+                'reservedRoomHousekeepingStatus' => $reservedRoom?->housekeeping_status,
             ];
         };
 
-        $todaysDepartures = \App\Models\Reservation::with(['guest', 'room'])
-            ->where('status', 'checked_in')
-            ->whereDate('check_out_date', today())
-            ->latest()->get()->map($mapReservation)->toArray();
+        $todaysArrivals = \App\Models\Reservation::with(['guest', 'room', 'roomType'])
+            ->whereIn('status', ['confirmed', 'pending'])
+            ->whereDate('check_in_date', $today)
+            ->orderBy('check_in_date')
+            ->get()
+            ->map($mapReservation)
+            ->values()
+            ->toArray();
 
-        $allCheckedIn = \App\Models\Reservation::with(['guest', 'room'])
-            ->where('status', 'checked_in')
-            ->latest()->get()->map($mapReservation)->toArray();
+        $allReservations = \App\Models\Reservation::with(['guest', 'room', 'roomType'])
+            ->whereIn('status', ['confirmed', 'pending'])
+            ->whereDate('check_in_date', '<=', $today)
+            ->orderBy('check_in_date', 'desc')
+            ->limit(100)
+            ->get()
+            ->map($mapReservation)
+            ->values()
+            ->toArray();
 
-        return Inertia::render('Manager/CheckOut', [
-            'user'             => $user,
-            'navigation'       => app(DashboardController::class)->getNavigationForRole($role),
-            'selectedReservationId' => request('reservation_id'),
-            'todaysDepartures' => $todaysDepartures,
-            'allCheckedIn'     => $allCheckedIn,
+        $availableRooms = \App\Models\Room::with('roomType')
+            ->whereIn('status', ['available', 'reserved'])
+            ->orderBy('room_number')
+            ->get()
+            ->map(fn($rm) => [
+                'id'          => $rm->id,
+                'room_number' => $rm->room_number,
+                'number'      => $rm->room_number,
+                'type'        => $rm->roomType?->name ?? 'Standard',
+            ])
+            ->values()
+            ->toArray();
+
+        $availableKeyCards = \App\Models\KeyCard::where('status', 'available')
+            ->get(['id', 'card_number', 'card_type'])
+            ->map(fn($c) => [
+                'id'          => $c->id,
+                'card_number' => $c->card_number,
+                'card_type'   => $c->card_type,
+            ])
+            ->values()
+            ->toArray();
+
+        return Inertia::render('Manager/CheckIn', [
+            'user'                => $user,
+            'navigation'          => app(DashboardController::class)->getNavigationForRole($role),
+            'todaysArrivals'      => $todaysArrivals,
+            'allReservations'     => $allReservations,
+            'availableRooms'      => $availableRooms,
+            'availableKeyCards'   => $availableKeyCards,
+            'selectedReservationId' => $request->query('reservation_id') ? (int) $request->query('reservation_id') : null,
         ]);
-    })->name('checkout');
+    })->name('checkin');
+    Route::post('/checkin', [\App\Http\Controllers\FrontDesk\CheckInController::class, 'store'])->name('checkin.store');
+    Route::get('/checkout', [CheckOutController::class, 'index'])->name('checkout');
 
     Route::post('/checkout', [CheckOutController::class, 'store'])->name('checkout.store');
     Route::get('/checkout/print', [CheckOutController::class, 'printReceipt'])->name('checkout.print');

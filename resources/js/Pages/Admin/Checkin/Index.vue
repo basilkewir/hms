@@ -46,6 +46,9 @@ const props = defineProps({
     pendingReservations: Array,
     availableRooms: Array,
     todayCheckIns: Array,
+    selectedReservationId: { type: Number, default: null },
+    todaysArrivals: { type: Array, default: () => [] },
+    allReservations: { type: Array, default: () => [] },
 })
 
 // Data
@@ -102,7 +105,8 @@ const filteredAvailableRooms = computed(() => {
 onMounted(() => {
     if (props.selectedReservationId) {
         const reservation = props.todaysArrivals?.find(r => r.id === props.selectedReservationId) ||
-                          props.allReservations?.find(r => r.id === props.selectedReservationId)
+                          props.allReservations?.find(r => r.id === props.selectedReservationId) ||
+                          props.pendingReservations?.find(r => r.id === props.selectedReservationId)
         if (reservation) {
             selectReservation(reservation)
         }

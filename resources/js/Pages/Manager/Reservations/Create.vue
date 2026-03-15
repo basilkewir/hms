@@ -637,6 +637,10 @@ const form = useForm({
     send_confirmation_email: false,
 })
 
+// Overbooking state
+const allowOverbooking = ref(false)
+const overbookingWarning = ref('')
+
 // Multi-room selection state
 const roomSelections = ref([
     { room_type_id: '', room_id: '', selectedRoomType: null, selectedRoom: null }
