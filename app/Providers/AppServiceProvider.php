@@ -14,7 +14,10 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        if (request()->server('HTTP_X_FORWARDED_PROTO') === 'https' || config('app.env') !== 'local') {
+        // Only force HTTPS when the request actually arrived over HTTPS
+        // (Cloudflare Tunnel sets X-Forwarded-Proto: https)
+        // Local HTTP access is left untouched so both work simultaneously
+        if (request()->server('HTTP_X_FORWARDED_PROTO') === 'https') {
             URL::forceScheme('https');
         }
     }

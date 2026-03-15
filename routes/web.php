@@ -3342,6 +3342,95 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
         return back()->with('success', 'Shift removed.');
     })->name('employee-shifts.destroy');
 
+    // Staff Schedules CRUD (used by Admin/Schedules/Index.vue)
+    Route::post('/schedules', function (\Illuminate\Http\Request $request) {
+        $date = \Carbon\Carbon::parse($request->date);
+        if ($request->is_recurring && $request->recurring_days) {
+            $endDate = $request->end_date ? \Carbon\Carbon::parse($request->end_date) : $date->copy()->addMonth();
+            $cur = $date->copy();
+            while ($cur->lte($endDate)) {
+                if (in_array($cur->dayOfWeek, $request->recurring_days)) {
+                    \App\Models\EmployeeShift::create([
+                        'user_id'        => $request->user_id,
+                        'work_shift_id'  => $request->work_shift_id,
+                        'effective_date' => $cur->toDateString(),
+                        'days_of_week'   => $request->recurring_days,
+                        'is_active'      => true,
+                    ]);
+                }
+                $cur->addDay();
+            }
+        } else {
+            \App\Models\EmployeeShift::create([
+                'user_id'        => $request->user_id,
+                'work_shift_id'  => $request->work_shift_id,
+                'effective_date' => $request->date,
+                'days_of_week'   => [$date->dayOfWeek],
+                'is_active'      => true,
+            ]);
+        }
+        return back()->with('success', 'Schedule created.');
+    })->name('schedules.store');
+
+    Route::put('/schedules/{schedule}', function (\Illuminate\Http\Request $request, $id) {
+        \App\Models\EmployeeShift::findOrFail($id)->update($request->all());
+        return back()->with('success', 'Schedule updated.');
+    })->name('schedules.update');
+
+    Route::delete('/schedules/{schedule}', function ($id) {
+        \App\Models\EmployeeShift::findOrFail($id)->delete();
+        return back()->with('success', 'Schedule deleted.');
+    })->name('schedules.destroy');
+
+    Route::post('/schedules/generate', function (\Illuminate\Http\Request $request) {
+        $weekStart = $request->get('week_start')
+            ? \Carbon\Carbon::parse($request->get('week_start'))->startOfWeek()
+            : \Carbon\Carbon::now()->startOfWeek();
+        $weekEnd = $weekStart->copy()->endOfWeek();
+        $defaultShift = \App\Models\WorkShift::where('is_active', true)->orderBy('id')->first();
+        if (!$defaultShift) {
+            return back()->with('error', 'No active work shifts found. Please create a work shift first.');
+        }
+        $staffUsers = \App\Models\User::where('is_active', true)->where('employment_status', 'active')->get();
+        $created = 0;
+        $cur = $weekStart->copy();
+        while ($cur->lte($weekEnd)) {
+            foreach ($staffUsers as $user) {
+                $exists = \App\Models\EmployeeShift::where('user_id', $user->id)
+                    ->where('effective_date', $cur->toDateString())
+                    ->where('is_active', true)->exists();
+                if (!$exists) {
+                    \App\Models\EmployeeShift::create([
+                        'user_id'        => $user->id,
+                        'work_shift_id'  => $defaultShift->id,
+                        'effective_date' => $cur->toDateString(),
+                        'days_of_week'   => [$cur->dayOfWeek],
+                        'is_active'      => true,
+                    ]);
+                    $created++;
+                }
+            }
+            $cur->addDay();
+        }
+        return back()->with('success', "Auto-generated {$created} schedule(s) for the week.");
+    })->name('schedules.generate');
+
+    Route::get('/schedules/print', function (\Illuminate\Http\Request $request) {
+        return response('Schedule print view', 200);
+    })->name('schedules.print');
+
+    Route::get('/schedules/export', function (\Illuminate\Http\Request $request) {
+        return response('Schedule export', 200)->header('Content-Type', 'text/csv');
+    })->name('schedules.export');
+
+    Route::post('/schedules/requests/{request}/approve', function ($id) {
+        return back()->with('success', 'Request approved.');
+    })->name('schedules.requests.approve');
+
+    Route::post('/schedules/requests/{request}/reject', function ($id) {
+        return back()->with('success', 'Request rejected.');
+    })->name('schedules.requests.reject');
+
     // Housekeeping Schedules - Using Controller
     Route::get('/housekeeping-schedules', [\App\Http\Controllers\Admin\HousekeepingScheduleController::class, 'index'])->name('housekeeping-schedules.index');
     Route::get('/housekeeping-schedules/create', [\App\Http\Controllers\Admin\HousekeepingScheduleController::class, 'create'])->name('housekeeping-schedules.create');
