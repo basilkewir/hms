@@ -181,16 +181,9 @@ success "Permissions set"
 step "Installing Composer Dependencies"
 
 cd "$INSTALL_DIR"
-# Check if composer.json changed compared to installed vendor
-if [ ! -d "$INSTALL_DIR/vendor" ]; then
-    info "No vendor directory found, running full install..."
-    composer install --no-dev --optimize-autoloader --prefer-dist --ignore-platform-reqs 2>&1 | tail -5
-    success "Composer dependencies installed"
-else
-    info "Vendor directory exists, running dump-autoload only..."
-    composer dump-autoload --optimize --no-dev 2>&1 | tail -3
-    success "Composer autoload updated"
-fi
+info "Running composer install..."
+COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev --optimize-autoloader --prefer-dist --no-interaction --ignore-platform-reqs
+success "Composer dependencies installed"
 
 step "Running Database Migrations"
 
