@@ -16,6 +16,7 @@ import {
     KeyIcon,
     XMarkIcon,
     UserPlusIcon,
+    ShieldCheckIcon,
 } from '@heroicons/vue/24/outline'
 
 // Initialize theme
@@ -202,6 +203,16 @@ const assignRoom = (reservation) => {
                        :style="{ color: themeColors.textSecondary }">Manage guest check-ins and room assignments</p>
                 </div>
                 <div class="flex space-x-3">
+                    <Link href="/admin/checkin/police-report"
+                          class="px-4 py-2 rounded-md transition-colors inline-flex items-center"
+                          :style="{
+                              backgroundColor: themeColors.secondary,
+                              color: themeColors.textPrimary,
+                              border: '1px solid ' + themeColors.border
+                          }">
+                        <ShieldCheckIcon class="h-4 w-4 mr-2" />
+                        Police Report
+                    </Link>
                     <Link :href="route('admin.reservations.create')"
                           class="px-4 py-2 rounded-md transition-colors inline-flex items-center"
                           :style="{

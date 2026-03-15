@@ -383,6 +383,19 @@
                                 This tax rate will be used as the default display rate on the POS screen. Individual products can still have their own tax rates.
                             </p>
                         </div>
+                        <div>
+                            <label class="block text-sm font-medium text-kotel-text-secondary mb-2">Room Tax Rate (%)</label>
+                            <input
+                                type="number"
+                                v-model.number="settings.room_tax_rate"
+                                min="0"
+                                step="0.1"
+                                class="w-full border border-kotel-border rounded-md px-3 py-2 bg-kotel-black text-kotel-text-primary focus:outline-none focus:ring-2 focus:ring-kotel-yellow"
+                            >
+                            <p class="mt-1 text-xs text-kotel-text-tertiary">
+                                This tax rate is applied to room charges at checkout. Set to 0 for no room tax.
+                            </p>
+                        </div>
                     </div>
 
                     <!-- Hotel Logo Section -->
@@ -1231,6 +1244,7 @@ const settings = ref({
     currency: props.settings?.general?.currency || 'USD',
     currency_position: props.settings?.general?.currency_position || 'prefix',
     tax_rate: props.settings?.general?.tax_rate != null ? Number(props.settings.general.tax_rate) : 0,
+    room_tax_rate: props.settings?.general?.room_tax_rate != null ? Number(props.settings.general.room_tax_rate) : 0,
 
     // Guest & Discount settings
     auto_apply_guest_type_discount: props.settings?.general?.auto_apply_guest_type_discount !== undefined
@@ -1500,6 +1514,7 @@ const saveSettings = async () => {
             settingsToSave.currency = settings.value.currency
             settingsToSave.currency_position = settings.value.currency_position
             settingsToSave.tax_rate = settings.value.tax_rate
+            settingsToSave.room_tax_rate = settings.value.room_tax_rate
             settingsToSave.auto_apply_guest_type_discount = settings.value.auto_apply_guest_type_discount
             settingsToSave.auto_apply_vip_discount = settings.value.auto_apply_vip_discount
             settingsToSave.vip_discount_percentage = settings.value.vip_discount_percentage

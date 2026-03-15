@@ -184,6 +184,9 @@
                                 Guest/Reference
                             </th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-kotel-text-secondary uppercase tracking-wider">
+                                User
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-kotel-text-secondary uppercase tracking-wider">
                                 Type
                             </th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-kotel-text-secondary uppercase tracking-wider">
@@ -211,6 +214,9 @@
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="text-sm font-medium text-kotel-text-primary">{{ transaction.guest_name }}</div>
                                 <div class="text-sm text-kotel-text-tertiary">{{ transaction.reference }}</div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-kotel-text-primary">
+                                {{ transaction.user_name || '—' }}
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"

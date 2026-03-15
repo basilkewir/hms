@@ -54,6 +54,9 @@ Route::prefix('booking')->middleware(['throttle:60,1'])->group(function () {
     Route::get('/availability', [OnlineBookingController::class, 'checkAvailability']);
     Route::get('/services', [OnlineBookingController::class, 'getServices']);
 
+    // Guest profile lookup — for pre-filling the online booking form (token-protected)
+    Route::get('/guest-lookup', [OnlineBookingController::class, 'guestLookup']);
+
     // Create booking (token-protected)
     Route::post('/create', [OnlineBookingController::class, 'createBooking']);
 

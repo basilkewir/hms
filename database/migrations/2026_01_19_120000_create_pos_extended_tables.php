@@ -86,6 +86,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('cash_drawer_session_id')->constrained();
             $table->foreignId('sale_id')->nullable()->constrained();
+            $table->foreignId('user_id')->constrained(); // Add user association
             $table->enum('type', ['sale', 'refund', 'cash_in', 'cash_out']);
             $table->decimal('amount', 10, 2);
             $table->enum('payment_method', ['cash', 'card', 'bank_transfer']);

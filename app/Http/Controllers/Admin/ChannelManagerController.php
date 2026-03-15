@@ -122,7 +122,7 @@ class ChannelManagerController extends Controller
 
         // Apply manual discount if provided
         $discountAmount = $validated['discount_amount'] ?? 0;
-        $taxRate = Setting::get('tax_rate', 0) / 100;
+        $taxRate = Setting::get('room_tax_rate', Setting::get('tax_rate', 0)) / 100;
         $serviceChargeRate = Setting::get('service_charge_rate', 0) / 100;
 
         $taxes = ($totalRoomCharges - $discountAmount) * $taxRate;
@@ -262,7 +262,7 @@ class ChannelManagerController extends Controller
 
         // Apply manual discount if provided
         $discountAmount = $validated['discount_amount'] ?? 0;
-        $taxRate = Setting::get('tax_rate', 0) / 100;
+        $taxRate = Setting::get('room_tax_rate', Setting::get('tax_rate', 0)) / 100;
         $serviceChargeRate = Setting::get('service_charge_rate', 0) / 100;
 
         $taxes = ($totalRoomCharges - $discountAmount) * $taxRate;

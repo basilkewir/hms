@@ -12,6 +12,7 @@ class PosTransaction extends Model
     protected $fillable = [
         'cash_drawer_session_id',
         'sale_id',
+        'user_id', // Add user association
         'type',
         'amount',
         'payment_method',
@@ -30,5 +31,10 @@ class PosTransaction extends Model
     public function sale()
     {
         return $this->belongsTo(Sale::class);
+    }
+
+    public function user()
+    {
+        return $this->belongsTo(User::class);
     }
 }

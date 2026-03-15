@@ -16,6 +16,7 @@ import {
     KeyIcon,
     XMarkIcon,
     UserPlusIcon,
+    ShieldCheckIcon,
 } from '@heroicons/vue/24/outline'
 
 // Initialize theme
@@ -55,6 +56,8 @@ const loading = ref(false)
 const checkInForm = ref({
     roomNumber: '',
     keyCardId: '',
+    paymentAmount: 0,
+    paymentMethod: 'cash',
 })
 
 const navigation = computed(() => getNavigationForRole('admin'))
@@ -154,7 +157,18 @@ const selectReservation = (reservation) => {
         checkInForm.value.roomNumber = ''
     }
     checkInForm.value.keyCardId = ''
+    checkInForm.value.paymentAmount = 0
+    checkInForm.value.paymentMethod = 'cash'
 }
+
+const balanceDue = computed(() => {
+    if (!selectedReservation.value) return 0
+    return parseFloat(selectedReservation.value.balance_amount ?? selectedReservation.value.total_amount ?? 0)
+})
+
+const balanceAfterPayment = computed(() => {
+    return Math.max(0, Math.round((balanceDue.value - (checkInForm.value.paymentAmount || 0)) * 100) / 100)
+})
 
 const performCheckin = () => {
     if (!checkInForm.value.roomNumber) {
@@ -168,6 +182,10 @@ const performCheckin = () => {
         reservation_id: selectedReservation.value.id,
         room_number: checkInForm.value.roomNumber,
         key_card_id: checkInForm.value.keyCardId || null,
+        ...(checkInForm.value.paymentAmount > 0 ? {
+            payment_amount: checkInForm.value.paymentAmount,
+            payment_method: checkInForm.value.paymentMethod,
+        } : {}),
     }, {
         onSuccess: () => {
             loading.value = false
@@ -202,6 +220,16 @@ const assignRoom = (reservation) => {
                        :style="{ color: themeColors.textSecondary }">Manage guest check-ins and room assignments</p>
                 </div>
                 <div class="flex space-x-3">
+                    <Link href="/admin/checkin/police-report"
+                          class="px-4 py-2 rounded-md transition-colors inline-flex items-center"
+                          :style="{
+                              backgroundColor: themeColors.secondary,
+                              color: themeColors.textPrimary,
+                              border: '1px solid ' + themeColors.border
+                          }">
+                        <ShieldCheckIcon class="h-4 w-4 mr-2" />
+                        Police Report
+                    </Link>
                     <Link :href="route('admin.reservations.create')"
                           class="px-4 py-2 rounded-md transition-colors inline-flex items-center"
                           :style="{
@@ -606,6 +634,79 @@ const assignRoom = (reservation) => {
                                     {{ card.card_number }} - {{ card.card_type }}
                                 </option>
                             </select>
+                        </div>
+
+                        <!-- Payment at Check-In -->
+                        <div class="pt-2 border-t" :style="{ borderColor: themeColors.border }">
+                            <h4 class="text-sm font-semibold mb-3" :style="{ color: themeColors.textPrimary }">
+                                Payment at Check-In
+                                <span class="font-normal text-xs" :style="{ color: themeColors.textSecondary }">(optional)</span>
+                            </h4>
+
+                            <!-- Balance summary -->
+                            <div class="rounded-md p-3 mb-3 text-sm"
+                                 :style="{ backgroundColor: themeColors.background, borderColor: themeColors.border, borderWidth: '1px', borderStyle: 'solid' }">
+                                <div class="flex justify-between mb-1">
+                                    <span :style="{ color: themeColors.textSecondary }">Room Rate / night</span>
+                                    <span :style="{ color: themeColors.textPrimary }">{{ formatCurrency(selectedReservation.room_rate || 0) }}</span>
+                                </div>
+                                <div class="flex justify-between mb-1">
+                                    <span :style="{ color: themeColors.textSecondary }">Nights</span>
+                                    <span :style="{ color: themeColors.textPrimary }">{{ selectedReservation.nights || 1 }}</span>
+                                </div>
+                                <div class="flex justify-between font-semibold pt-2" :style="{ borderTop: `1px solid ${themeColors.border}` }">
+                                    <span :style="{ color: themeColors.textPrimary }">Balance Due</span>
+                                    <span :style="{ color: balanceDue > 0 ? themeColors.warning : themeColors.success }">
+                                        {{ formatCurrency(balanceDue) }}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-xs font-medium mb-1" :style="{ color: themeColors.textPrimary }">Payment Method</label>
+                                    <select v-model="checkInForm.paymentMethod"
+                                            class="w-full rounded-md px-3 py-2 text-sm focus:outline-none"
+                                            :style="{ backgroundColor: themeColors.background, borderColor: themeColors.border, color: themeColors.textPrimary, borderWidth: '1px', borderStyle: 'solid' }">
+                                        <option value="cash">Cash</option>
+                                        <option value="card">Credit / Debit Card</option>
+                                        <option value="bank_transfer">Bank Transfer</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium mb-1" :style="{ color: themeColors.textPrimary }">Amount to Pay Now</label>
+                                    <input type="number" v-model.number="checkInForm.paymentAmount"
+                                           min="0" step="0.01" placeholder="0.00"
+                                           class="w-full rounded-md px-3 py-2 text-sm focus:outline-none"
+                                           :style="{ backgroundColor: themeColors.background, borderColor: themeColors.border, color: themeColors.textPrimary, borderWidth: '1px', borderStyle: 'solid' }" />
+                                </div>
+                            </div>
+
+                            <!-- Quick shortcut buttons -->
+                            <div class="flex gap-2 mt-2">
+                                <button type="button" @click="checkInForm.paymentAmount = 0"
+                                        class="px-2 py-1 rounded text-xs"
+                                        :style="{ backgroundColor: themeColors.background, color: themeColors.textSecondary, borderColor: themeColors.border, borderWidth: '1px', borderStyle: 'solid' }">
+                                    No Payment
+                                </button>
+                                <button type="button" @click="checkInForm.paymentAmount = Math.round(balanceDue * 0.5 * 100) / 100"
+                                        class="px-2 py-1 rounded text-xs"
+                                        :style="{ backgroundColor: themeColors.background, color: themeColors.textSecondary, borderColor: themeColors.border, borderWidth: '1px', borderStyle: 'solid' }">
+                                    50% ({{ formatCurrency(balanceDue * 0.5) }})
+                                </button>
+                                <button type="button" @click="checkInForm.paymentAmount = balanceDue"
+                                        class="px-2 py-1 rounded text-xs font-medium"
+                                        :style="{ backgroundColor: themeColors.primary, color: '#ffffff' }">
+                                    Full ({{ formatCurrency(balanceDue) }})
+                                </button>
+                            </div>
+
+                            <!-- Balance indicator -->
+                            <p v-if="checkInForm.paymentAmount > 0" class="mt-2 text-xs"
+                               :style="{ color: balanceAfterPayment <= 0 ? themeColors.success : themeColors.warning }">
+                                <span v-if="balanceAfterPayment <= 0">✓ Fully paid — no balance due at checkout</span>
+                                <span v-else>Remaining balance at checkout: {{ formatCurrency(balanceAfterPayment) }}</span>
+                            </p>
                         </div>
 
                         <div class="flex items-center justify-end space-x-3 pt-4"

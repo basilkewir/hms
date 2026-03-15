@@ -292,8 +292,8 @@ class CheckInController extends Controller
         // Calculate room charges
         $roomCharges = $roomRate * $nights;
 
-        // Get tax and service charge rates
-        $taxRate = Setting::get('tax_rate', 0);
+        // Get tax and service charge rates — always use room_tax_rate for room charges
+        $taxRate = Setting::get('room_tax_rate', Setting::get('tax_rate', 0));
         $serviceChargeRate = Setting::get('service_charge_rate', 0);
 
         // Calculate taxes and service charges

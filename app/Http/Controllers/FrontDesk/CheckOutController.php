@@ -131,7 +131,7 @@ class CheckOutController extends Controller
                     : ($actualNights < $scheduledNights ? $actualRoomCharges : ($r->total_room_charges ?? $scheduledRoomCharges));
 
                 // Recalculate taxes and service charges based on actual room charges
-                $taxRate = Setting::get('tax_rate', 0) / 100;
+                $taxRate = Setting::get('room_tax_rate', Setting::get('tax_rate', 0)) / 100; // Use room_tax_rate if set, fallback to tax_rate
                 $serviceChargeRate = Setting::get('service_charge_rate', 0) / 100;
 
                 // Get discount amount
@@ -141,9 +141,9 @@ class CheckOutController extends Controller
                 $roomTaxAmount = ($roomCharges - $discountAmount) * $taxRate;
                 $roomServiceChargeAmount = ($roomCharges - $discountAmount) * $serviceChargeRate;
 
-                // Get tax from existing charges
-                $taxFromCharges = $allCharges->sum('tax_amount');
-                $taxAmount = $folio ? ($folio->tax_amount ?? ($roomTaxAmount + $taxFromCharges)) : ($roomTaxAmount + $taxFromCharges);
+                // Always recalculate tax from current settings rate (never use stale stored folio->tax_amount)
+                $taxFromCharges = $taxRate > 0 ? $allCharges->sum('tax_amount') : 0;
+                $taxAmount = $roomTaxAmount + $taxFromCharges;
 
                 // Get POS sales for itemized display
                 $posSalesForReservation = $posSales->get($r->id, collect());
@@ -289,7 +289,7 @@ class CheckOutController extends Controller
                     : ($actualNights < $scheduledNights ? $actualRoomCharges : ($r->total_room_charges ?? $scheduledRoomCharges));
 
                 // Recalculate taxes and service charges based on actual room charges
-                $taxRate = Setting::get('tax_rate', 0) / 100;
+                $taxRate = Setting::get('room_tax_rate', Setting::get('tax_rate', 0)) / 100; // Use room_tax_rate if set, fallback to tax_rate
                 $serviceChargeRate = Setting::get('service_charge_rate', 0) / 100;
 
                 // Get discount amount
@@ -299,9 +299,9 @@ class CheckOutController extends Controller
                 $roomTaxAmount = ($roomCharges - $discountAmount) * $taxRate;
                 $roomServiceChargeAmount = ($roomCharges - $discountAmount) * $serviceChargeRate;
 
-                // Get tax from existing charges
-                $taxFromCharges = $allCharges->sum('tax_amount');
-                $taxAmount = $folio ? ($folio->tax_amount ?? ($roomTaxAmount + $taxFromCharges)) : ($roomTaxAmount + $taxFromCharges);
+                // Always recalculate tax from current settings rate (never use stale stored folio->tax_amount)
+                $taxFromCharges = $taxRate > 0 ? $allCharges->sum('tax_amount') : 0;
+                $taxAmount = $roomTaxAmount + $taxFromCharges;
 
                 // Get POS sales for itemized display
                 $posSalesForReservation = $posSales->get($r->id, collect());
@@ -532,7 +532,7 @@ class CheckOutController extends Controller
         }
 
         // Calculate taxes and service charges based on actual room charges (after discounts)
-        $taxRate = \App\Models\Setting::get('tax_rate', 0) / 100;
+        $taxRate = \App\Models\Setting::get('room_tax_rate', \App\Models\Setting::get('tax_rate', 0)) / 100; // Use room_tax_rate if set, fallback to tax_rate
         $serviceChargeRate = \App\Models\Setting::get('service_charge_rate', 0) / 100;
 
         // Calculate taxable amount (room charges after discounts)
@@ -568,7 +568,7 @@ class CheckOutController extends Controller
         // Add any damage charges submitted at checkout (treated as service charges)
         $damages = $request->input('damages', []);
         if (!empty($damages) && $folio) {
-            $damageTaxRatePercent = \App\Models\Setting::get('tax_rate', 0);
+            $damageTaxRatePercent = \App\Models\Setting::get('room_tax_rate', \App\Models\Setting::get('tax_rate', 0));
             $damageTaxRate = $damageTaxRatePercent / 100;
 
             foreach ($damages as $damage) {
@@ -615,7 +615,8 @@ class CheckOutController extends Controller
 
         $existingServiceCharges = $allCharges->where('charge_code', 'SERVICE')->sum('net_amount');
         $existingPosCharges = $allCharges->where('charge_code', 'POS')->sum('net_amount');
-        $existingTaxFromCharges = $allCharges->sum('tax_amount');
+        // Only include per-charge taxes when tax rate is non-zero (prevents stale taxes when rate is 0%)
+        $existingTaxFromCharges = $taxRate > 0 ? $allCharges->sum('tax_amount') : 0;
 
         // Update folio summary fields with recalculated amounts
         $folio->room_charges = $actualRoomCharges;

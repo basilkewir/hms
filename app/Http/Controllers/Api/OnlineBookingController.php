@@ -153,6 +153,31 @@ class OnlineBookingController extends Controller
             'guest.nationality' => 'required|string|max:100',
             'guest.id_type' => 'required|string',
             'guest.id_number' => 'required|string',
+            // Extended optional guest fields
+            'guest.title' => 'nullable|string|max:20',
+            'guest.gender' => 'nullable|string|max:20',
+            'guest.occupation' => 'nullable|string|max:100',
+            'guest.address' => 'nullable|string|max:500',
+            'guest.city' => 'nullable|string|max:100',
+            'guest.state' => 'nullable|string|max:100',
+            'guest.country' => 'nullable|string|max:100',
+            'guest.postal_code' => 'nullable|string|max:20',
+            'guest.alternate_phone' => 'nullable|string|max:20',
+            'guest.emergency_contact_name' => 'nullable|string|max:255',
+            'guest.emergency_contact_phone' => 'nullable|string|max:20',
+            'guest.emergency_contact_relationship' => 'nullable|string|max:100',
+            'guest.passport_number' => 'nullable|string|max:50',
+            'guest.passport_issuing_country' => 'nullable|string|max:100',
+            'guest.passport_issue_date' => 'nullable|date',
+            'guest.passport_expiry_date' => 'nullable|date',
+            'guest.visa_number' => 'nullable|string|max:50',
+            'guest.visa_type' => 'nullable|string|max:50',
+            'guest.visa_issue_date' => 'nullable|date',
+            'guest.visa_expiry_date' => 'nullable|date',
+            'guest.arrival_from' => 'nullable|string|max:255',
+            'guest.departure_to' => 'nullable|string|max:255',
+            'guest.purpose_of_visit' => 'nullable|string|max:255',
+            'guest.special_requests' => 'nullable|string|max:1000',
             
             'reservation' => 'required|array',
             'reservation.room_type_id' => 'required|exists:room_types,id',
@@ -213,19 +238,44 @@ class OnlineBookingController extends Controller
                 ], 409);
             }
 
-            // Create or find guest
+            // Create or update guest — merge strategy: always update core fields,
+            // but only fill extended fields if not already set on the existing record.
+            $existingGuest = Guest::where('email', $request->guest['email'])->first();
+            $guestInput = $request->guest;
+
+            $coreFields = [
+                'first_name'  => $guestInput['first_name'],
+                'last_name'   => $guestInput['last_name'],
+                'phone'       => $guestInput['phone'],
+                'date_of_birth' => $guestInput['date_of_birth'],
+                'nationality' => $guestInput['nationality'],
+                'id_type'     => $guestInput['id_type'],
+                'id_number'   => $guestInput['id_number'],
+                'police_verification_status' => 'pending',
+            ];
+
+            // Extended fields — only update if the current record is null/empty
+            $extendedFieldKeys = [
+                'title', 'gender', 'occupation',
+                'address', 'city', 'state', 'country', 'postal_code', 'alternate_phone',
+                'emergency_contact_name', 'emergency_contact_phone', 'emergency_contact_relationship',
+                'passport_number', 'passport_issuing_country', 'passport_issue_date', 'passport_expiry_date',
+                'visa_number', 'visa_type', 'visa_issue_date', 'visa_expiry_date',
+                'arrival_from', 'departure_to', 'purpose_of_visit', 'special_requests',
+            ];
+
+            $extendedFields = [];
+            foreach ($extendedFieldKeys as $key) {
+                if (isset($guestInput[$key]) && $guestInput[$key] !== '') {
+                    if (!$existingGuest || empty($existingGuest->$key)) {
+                        $extendedFields[$key] = $guestInput[$key];
+                    }
+                }
+            }
+
             $guest = Guest::updateOrCreate(
-                ['email' => $request->guest['email']],
-                [
-                    'first_name' => $request->guest['first_name'],
-                    'last_name' => $request->guest['last_name'],
-                    'phone' => $request->guest['phone'],
-                    'date_of_birth' => $request->guest['date_of_birth'],
-                    'nationality' => $request->guest['nationality'],
-                    'id_type' => $request->guest['id_type'],
-                    'id_number' => $request->guest['id_number'],
-                    'police_verification_status' => 'pending',
-                ]
+                ['email' => $guestInput['email']],
+                array_merge($coreFields, $extendedFields)
             );
 
             // Get room type and calculate pricing
@@ -234,7 +284,7 @@ class OnlineBookingController extends Controller
             $roomRate = $roomType->base_price;
             $totalRoomCharges = $roomRate * $nights;
             
-            $taxRate = \App\Models\Setting::get('tax_rate', 0) / 100;
+            $taxRate = \App\Models\Setting::get('room_tax_rate', \App\Models\Setting::get('tax_rate', 0)) / 100;
             $taxes = $totalRoomCharges * $taxRate;
             $serviceCharges = 0;
             $totalAmount = $totalRoomCharges + $taxes;
@@ -337,6 +387,80 @@ class OnlineBookingController extends Controller
                 'message' => 'Unable to complete your booking. Please try again or contact the hotel.',
             ], 500);
         }
+    }
+
+    /**
+     * Look up an existing guest by email or phone to pre-fill the online booking form.
+     * Requires the X-Booking-Token header. Returns a safe subset of guest data.
+     */
+    public function guestLookup(Request $request)
+    {
+        if (!$this->verifyBookingToken($request)) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'email' => 'nullable|email|max:255',
+            'phone' => 'nullable|string|max:20',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+        }
+
+        if (empty($request->email) && empty($request->phone)) {
+            return response()->json(['success' => false, 'message' => 'Provide email or phone'], 422);
+        }
+
+        $query = Guest::query();
+
+        if (!empty($request->email)) {
+            $query->where('email', $request->email);
+        } elseif (!empty($request->phone)) {
+            $query->where('phone', $request->phone);
+        }
+
+        $guest = $query->first();
+
+        if (!$guest) {
+            return response()->json(['success' => false, 'message' => 'Guest not found', 'found' => false], 404);
+        }
+
+        // Return safe profile fields (no internal flags, no blacklist reason, no notes)
+        return response()->json([
+            'success' => true,
+            'found'   => true,
+            'guest'   => [
+                'first_name'                     => $guest->first_name,
+                'last_name'                      => $guest->last_name,
+                'email'                          => $guest->email,
+                'phone'                          => $guest->phone,
+                'alternate_phone'                => $guest->alternate_phone,
+                'date_of_birth'                  => $guest->date_of_birth?->format('Y-m-d'),
+                'gender'                         => $guest->gender,
+                'title'                          => $guest->title,
+                'occupation'                     => $guest->occupation,
+                'nationality'                    => $guest->nationality,
+                'address'                        => $guest->address,
+                'city'                           => $guest->city,
+                'state'                          => $guest->state,
+                'country'                        => $guest->country,
+                'postal_code'                    => $guest->postal_code,
+                'id_type'                        => $guest->id_type,
+                'id_number'                      => $guest->id_number,
+                'passport_number'                => $guest->passport_number,
+                'passport_issuing_country'       => $guest->passport_issuing_country,
+                'passport_expiry_date'           => $guest->passport_expiry_date?->format('Y-m-d'),
+                'visa_number'                    => $guest->visa_number,
+                'visa_type'                      => $guest->visa_type,
+                'visa_expiry_date'               => $guest->visa_expiry_date?->format('Y-m-d'),
+                'arrival_from'                   => $guest->arrival_from,
+                'purpose_of_visit'               => $guest->purpose_of_visit,
+                'emergency_contact_name'         => $guest->emergency_contact_name,
+                'emergency_contact_phone'        => $guest->emergency_contact_phone,
+                'emergency_contact_relationship' => $guest->emergency_contact_relationship,
+            ],
+        ]);
     }
 
     /**

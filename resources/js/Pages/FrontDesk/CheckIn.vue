@@ -372,6 +372,7 @@ import DashboardLayout from '@/Layouts/DashboardLayout.vue'
 import { getNavigationForRole } from '@/Utils/navigation.js'
 import { useTheme } from '@/Composables/useTheme.js'
 import { UserPlusIcon, XMarkIcon } from '@heroicons/vue/24/outline'
+import { formatCurrency } from '@/Utils/currency.js'
 
 // Initialize theme
 const { loadTheme } = useTheme()
@@ -439,7 +440,7 @@ const balanceAfterPayment = computed(() => {
 })
 
 const formatMoney = (amount) => {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount || 0)
+    return formatCurrency(amount)
 }
 
 // Computed property for filtered rooms to avoid duplication

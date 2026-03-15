@@ -1572,6 +1572,7 @@ class POSController extends Controller
             if ($activeSession) {
                 PosTransaction::create([
                     'cash_drawer_session_id' => $activeSession->id,
+                    'user_id' => auth()->id(), // Record user
                     'type' => 'cash_out',
                     'amount' => -$validated['amount'],
                     'payment_method' => 'cash',

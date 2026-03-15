@@ -61,6 +61,24 @@
             </div>
         </div>
 
+        <!-- Admin/Manager Warning: Custom accountant overrides active -->
+        <div v-if="customAccountantsWithOverrides && customAccountantsWithOverrides.length > 0"
+             class="mb-6 bg-orange-900 border border-orange-500 rounded-lg p-4">
+            <div class="flex items-center gap-2 text-orange-300 font-semibold mb-1">
+                <ExclamationTriangleIcon class="h-5 w-5"/>
+                Custom Report Data Active
+            </div>
+            <p class="text-orange-200 text-sm">
+                The following accountant(s) have <strong>customized/overridden report data</strong> enabled.
+                Their account shows different figures from real data. You are currently viewing <strong>real data</strong>.
+            </p>
+            <ul class="mt-2 space-y-1">
+                <li v-for="a in customAccountantsWithOverrides" :key="a.id" class="text-orange-300 text-sm">
+                    &bull; <strong>{{ a.name }}</strong> ({{ a.email }})
+                </li>
+            </ul>
+        </div>
+
         <!-- Cash Flow Stats Cards -->
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <div class="rounded-lg p-6 border shadow-sm"
@@ -534,7 +552,8 @@ import {
     CurrencyDollarIcon,
     ArrowTrendingUpIcon,
     ArrowTrendingDownIcon,
-    BanknotesIcon
+    BanknotesIcon,
+    ExclamationTriangleIcon
 } from '@heroicons/vue/24/outline'
 
 // Initialize theme
@@ -564,6 +583,8 @@ const props = defineProps({
     startDate: String,
     endDate: String,
     currency: Object,
+    isCustomAccountant: { type: Boolean, default: false },
+    customAccountantsWithOverrides: { type: Array, default: () => [] },
 })
 
 const selectedPeriod = ref(props.period || 'monthly')

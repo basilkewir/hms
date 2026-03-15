@@ -541,6 +541,69 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
         return redirect()->route('admin.users.show', ['user' => $u->id])->with('success', 'User updated.');
     })->name('users.update');
 
+    // ── Custom Accountant Report Overrides ──────────────────────────────────
+    // List all accountants that have custom (fake) report data enabled
+    Route::get('/custom-accountants', function () {
+        $user = auth()->user()->load('roles');
+        $role = $user->roles->first()?->name ?? 'admin';
+        $accountants = \App\Models\User::with('roles')
+            ->whereHas('roles', fn($q) => $q->where('name', 'accountant'))
+            ->get()
+            ->map(fn($u) => [
+                'id'                   => $u->id,
+                'name'                 => $u->full_name ?? trim(($u->first_name ?? '') . ' ' . ($u->last_name ?? '')),
+                'email'                => $u->email,
+                'is_custom_accountant' => (bool) $u->is_custom_accountant,
+                'override_count'       => \App\Models\AccountantReportOverride::where('user_id', $u->id)->count(),
+            ]);
+
+        return Inertia::render('Admin/CustomAccountants/Index', [
+            'user'        => $user,
+            'navigation'  => app(DashboardController::class)->getNavigationForRole($role),
+            'accountants' => $accountants,
+        ]);
+    })->name('custom-accountants.index');
+
+    // Toggle is_custom_accountant flag on a user
+    Route::post('/custom-accountants/{userId}/toggle', function ($userId) {
+        $target = \App\Models\User::findOrFail($userId);
+        $target->is_custom_accountant = !$target->is_custom_accountant;
+        $target->save();
+        return response()->json(['is_custom_accountant' => $target->is_custom_accountant]);
+    })->name('custom-accountants.toggle');
+
+    // Get overrides for a user + report type
+    Route::get('/custom-accountants/{userId}/overrides', function ($userId) {
+        $overrides = \App\Models\AccountantReportOverride::where('user_id', $userId)->get();
+        return response()->json($overrides);
+    })->name('custom-accountants.overrides');
+
+    // Save/update overrides (upsert)
+    Route::post('/custom-accountants/{userId}/overrides', function ($userId, \Illuminate\Http\Request $request) {
+        $request->validate([
+            'overrides'              => 'required|array',
+            'overrides.*.report_type' => 'required|in:profit_loss,balance_sheet,cash_flow,revenue',
+            'overrides.*.metric_key' => 'required|string|max:100',
+            'overrides.*.custom_value' => 'required',
+        ]);
+
+        foreach ($request->overrides as $item) {
+            \App\Models\AccountantReportOverride::updateOrCreate(
+                ['user_id' => $userId, 'report_type' => $item['report_type'], 'metric_key' => $item['metric_key']],
+                ['custom_value' => json_encode($item['custom_value'])]
+            );
+        }
+        return response()->json(['success' => true]);
+    })->name('custom-accountants.overrides.store');
+
+    // Delete a single override
+    Route::delete('/custom-accountants/overrides/{id}', function ($id) {
+        \App\Models\AccountantReportOverride::findOrFail($id)->delete();
+        return response()->json(['success' => true]);
+    })->name('custom-accountants.overrides.destroy');
+
+
+
     // Customer Groups
     Route::get('/customer-groups', function () {
         $user = auth()->user()->load('roles');
@@ -2117,7 +2180,7 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
 
         // Add recent POS transactions
         if (class_exists(\App\Models\PosTransaction::class)) {
-            $posTransactions = \App\Models\PosTransaction::with(['sale', 'cashDrawerSession.user'])
+            $posTransactions = \App\Models\PosTransaction::with(['sale', 'cashDrawerSession.user', 'user'])
                 ->orderBy('id', 'desc')
                 ->limit(10)
                 ->get()
@@ -2126,6 +2189,9 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
                     'source_id'     => $pt->id,
                     'transaction_id' => 'POS-' . $pt->id,
                     'guest_name'    => 'POS Customer',
+                    'user_name'     => $pt->user
+                        ? trim($pt->user->first_name . ' ' . $pt->user->last_name)
+                        : 'N/A',
                     'reference'     => $pt->sale?->sale_number ? 'POS Sale #' . $pt->sale->sale_number : 'POS Transaction',
                     'type'          => 'pos_transaction',
                     'amount'        => (float)$pt->amount,
@@ -2582,16 +2648,29 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
         $role = $user->roles->first()?->name ?? 'staff';
         $today = now()->toDateString();
 
+        // Current room tax rate for recalculating stale totals
+        $roomTaxRate = \App\Models\Setting::get('room_tax_rate', \App\Models\Setting::get('tax_rate', 0)) / 100;
+
         // Shared mapper — produces the structure Admin/Checkin/Index.vue expects
-        $mapReservation = function ($r) {
+        $mapReservation = function ($r) use ($roomTaxRate) {
             $reservedRoom = $r->room;
+            // A reserved room belonging to this reservation is always OK to check into
+            // (matches CheckInController canCheckIn logic server-side)
             $isRoomAvailable = $reservedRoom
-                && in_array($reservedRoom->status, ['available', 'reserved'])
-                && $reservedRoom->housekeeping_status === 'clean';
+                && ($reservedRoom->status === 'available'
+                    || $reservedRoom->status === 'reserved'
+                    || $reservedRoom->housekeeping_status === 'clean');
 
             $checkIn  = \Carbon\Carbon::parse($r->check_in_date);
             $checkOut = \Carbon\Carbon::parse($r->check_out_date);
             $nights   = max(1, $checkIn->diffInDays($checkOut));
+
+            // Recalculate total using current room tax rate (avoids stale stored value)
+            $roomRate      = (float) ($r->room_rate ?? 0);
+            $roomCharges   = $roomRate * $nights;
+            $calcTotal     = round($roomCharges * (1 + $roomTaxRate), 2);
+            $paidAmount    = (float) ($r->paid_amount ?? 0);
+            $calcBalance   = max(0, round($calcTotal - $paidAmount, 2));
 
             return [
                 'id'               => $r->id,
@@ -2613,8 +2692,10 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
                 'check_in_date'    => $checkIn->format('Y-m-d'),
                 'check_out_date'   => $checkOut->format('Y-m-d'),
                 'nights'           => $nights,
-                'total_amount'     => $r->total_amount,
-                'balance_amount'   => $r->balance_amount,
+                'room_rate'        => $roomRate,
+                'total_amount'     => $calcTotal,
+                'balance_amount'   => $calcBalance,
+                'paid_amount'      => $paidAmount,
                 'guests_count'     => ($r->number_of_adults ?? $r->adults ?? 1)
                                     + ($r->number_of_children ?? $r->children ?? 0),
                 'status'           => $r->status,
@@ -2674,7 +2755,71 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
 
     Route::post('/checkin', [\App\Http\Controllers\FrontDesk\CheckInController::class, 'store'])->name('checkin.store');
 
-    Route::post('/checkout', [\App\Http\Controllers\FrontDesk\CheckOutController::class, 'store'])->name('checkout.store');
+    // Police report: list of all currently checked-in guests (accessible to admin, manager, front_desk)
+    Route::get('/checkin/police-report', function () {
+        $user = auth()->user()->load('roles');
+        $role = $user->roles->first()?->name ?? 'staff';
+
+        $checkedInGuests = \App\Models\Reservation::with(['guest', 'room', 'roomType'])
+            ->where('status', 'checked_in')
+            ->orderBy('check_in_date', 'asc')
+            ->get()
+            ->map(function ($r) {
+                $g = $r->guest;
+                return [
+                    'reservation_number' => $r->reservation_number,
+                    'room_number'        => $r->room->room_number ?? 'N/A',
+                    'room_type'          => $r->roomType->name ?? 'N/A',
+                    'check_in_date'      => $r->check_in_date?->format('Y-m-d'),
+                    'check_out_date'     => $r->check_out_date?->format('Y-m-d'),
+                    'actual_check_in'    => $r->actual_check_in?->format('Y-m-d H:i'),
+                    'nights'             => $r->nights ?? ($r->check_in_date && $r->check_out_date ? $r->check_in_date->diffInDays($r->check_out_date) : 0),
+                    'number_of_adults'   => $r->number_of_adults ?? 1,
+                    'number_of_children' => $r->number_of_children ?? 0,
+                    'guest' => $g ? [
+                        'full_name'             => $g->full_name,
+                        'first_name'            => $g->first_name,
+                        'last_name'             => $g->last_name,
+                        'gender'                => $g->gender,
+                        'date_of_birth'         => $g->date_of_birth,
+                        'nationality'           => $g->nationality,
+                        'occupation'            => $g->occupation,
+                        'phone'                 => $g->phone,
+                        'email'                 => $g->email,
+                        'address'               => $g->address,
+                        'city'                  => $g->city,
+                        'country'               => $g->country,
+                        'id_type'               => $g->id_type,
+                        'id_number'             => $g->id_number,
+                        'id_issue_date'         => $g->id_issue_date,
+                        'id_expiry_date'        => $g->id_expiry_date,
+                        'passport_number'       => $g->passport_number,
+                        'passport_expiry_date'  => $g->passport_expiry_date,
+                        'visa_number'           => $g->visa_number,
+                        'visa_type'             => $g->visa_type,
+                        'visa_expiry_date'      => $g->visa_expiry_date,
+                        'arrival_from'          => $g->arrival_from,
+                        'departure_to'          => $g->departure_to,
+                        'purpose_of_visit'      => $g->purpose_of_visit,
+                        'police_verification_status' => $g->police_verification_status,
+                        'emergency_contact_name'     => $g->emergency_contact_name,
+                        'emergency_contact_phone'    => $g->emergency_contact_phone,
+                    ] : null,
+                ];
+            });
+
+        return Inertia::render('Admin/Checkin/PoliceReport', [
+            'user'             => $user,
+            'navigation'       => app(\App\Http\Controllers\Admin\DashboardController::class)->getNavigationForRole($role),
+            'checkedInGuests'  => $checkedInGuests,
+            'reportDate'       => now()->format('Y-m-d H:i:s'),
+            'hotelName'        => \App\Models\Setting::get('hotel_name', 'Hotel'),
+            'hotelAddress'     => \App\Models\Setting::get('hotel_address', ''),
+            'hotelPhone'       => \App\Models\Setting::get('hotel_phone', ''),
+        ]);
+    })->name('police.report');
+
+
     Route::get('/checkout/print', [\App\Http\Controllers\FrontDesk\CheckOutController::class, 'printReceipt'])->name('checkout.print');
 
     // Check-outs
@@ -2682,37 +2827,75 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
         $user = auth()->user()->load('roles');
         $role = $user->roles->first()?->name ?? 'admin';
 
-        $mapReservation = fn($r) => [
-            'id'                   => $r->id,
-            'guestName'            => optional($r->guest)->full_name ?? (optional($r->guest)->first_name . ' ' . optional($r->guest)->last_name),
-            'roomNumber'           => optional($r->room)->room_number ?? 'N/A',
-            'roomType'             => optional(optional($r->room)->roomType)->name ?? 'Standard',
-            'reservation_number'   => $r->reservation_number ?? '#' . $r->id,
-            'nights'               => $r->check_in_date && $r->check_out_date
-                                        ? max(1, \Carbon\Carbon::parse($r->check_in_date)->diffInDays(\Carbon\Carbon::parse($r->check_out_date)))
-                                        : 0,
-            'check_in_date'        => $r->check_in_date,
-            'check_out_date'       => $r->check_out_date,
-            'departureTime'        => $r->check_out_date,
-            'status'               => $r->status,
-            'totalAmount'          => number_format((float) ($r->total_amount ?? 0), 2),
-            'paidAmount'           => number_format((float) ($r->paid_amount ?? 0), 2),
-            'balanceAmount'        => number_format(max(0, (float) ($r->total_amount ?? 0) - (float) ($r->paid_amount ?? 0)), 2),
-            'unifiedTotal'         => number_format((float) ($r->total_amount ?? 0), 2),
-            'unifiedBalance'       => number_format(max(0, (float) ($r->total_amount ?? 0) - (float) ($r->paid_amount ?? 0)), 2),
-            'roomCharges'          => number_format((float) ($r->total_room_charges ?? $r->total_amount ?? 0), 2),
-            'posCharges'           => '0.00',
-            'serviceCharges'       => '0.00',
-            'is_early_checkout'    => false,
-            'actual_nights'        => 0,
-            'scheduled_nights'     => 0,
-            'key_card'             => null,
-            'hasUnpaidBills'       => false,
-            'posSales'             => [],
-            'folio'                => null,
-            'guest'                => $r->guest,
-            'room'                 => $r->room,
-        ];
+        // Current room tax rate — always recalculate instead of using stale stored totals
+        $taxRate = \App\Models\Setting::get('room_tax_rate', \App\Models\Setting::get('tax_rate', 0)) / 100;
+
+        // Pre-load folios in one query so we can use correct paid amounts and room charges
+        $checkedInIds = \App\Models\Reservation::where('status', 'checked_in')->pluck('id');
+        $folios = \App\Models\GuestFolio::whereIn('reservation_id', $checkedInIds)
+            ->get()->keyBy('reservation_id');
+
+        $mapReservation = function ($r) use ($taxRate, $folios) {
+            $folio = $folios->get($r->id);
+
+            // Room rate — prefer reservation column, fall back to room type base price
+            $roomRate = (float) ($r->room_rate ?? 0);
+            if (!$roomRate && $r->room && $r->room->roomType) {
+                $roomRate = (float) ($r->room->roomType->base_price ?? 0);
+            }
+
+            // Nights
+            $nights = $r->check_in_date && $r->check_out_date
+                ? max(1, \Carbon\Carbon::parse($r->check_in_date)->diffInDays(\Carbon\Carbon::parse($r->check_out_date)))
+                : 1;
+
+            // Room charges — use folio if it has data, otherwise calculate from rate × nights
+            $roomCharges = ($folio && $folio->room_charges > 0)
+                ? (float) $folio->room_charges
+                : (float) ($r->total_room_charges ?? $roomRate * $nights);
+
+            // Tax: always apply current rate (0 if room_tax_rate = 0)
+            $taxAmount    = round($roomCharges * $taxRate, 2);
+            $discountAmount = $folio ? (float) ($folio->discount_amount ?? 0) : (float) ($r->discount_amount ?? 0);
+            $unifiedTotal   = round($roomCharges + $taxAmount - $discountAmount, 2);
+
+            // Paid and balance
+            $paidAmount   = $folio ? (float) ($folio->paid_amount ?? 0) : (float) ($r->paid_amount ?? 0);
+            $unifiedBalance = max(0, round($unifiedTotal - $paidAmount, 2));
+
+            return [
+                'id'                   => $r->id,
+                'guestName'            => optional($r->guest)->full_name ?? trim((optional($r->guest)->first_name ?? '') . ' ' . (optional($r->guest)->last_name ?? '')),
+                'roomNumber'           => optional($r->room)->room_number ?? 'N/A',
+                'roomType'             => optional(optional($r->room)->roomType)->name ?? 'Standard',
+                'reservation_number'   => $r->reservation_number ?? '#' . $r->id,
+                'nights'               => $nights,
+                'check_in_date'        => $r->check_in_date,
+                'check_out_date'       => $r->check_out_date,
+                'departureTime'        => $r->check_out_date,
+                'status'               => $r->status,
+                'room_rate'            => number_format($roomRate, 2),
+                'roomCharges'          => number_format($roomCharges, 2),
+                'taxAmount'            => number_format($taxAmount, 2),
+                'discountAmount'       => number_format($discountAmount, 2),
+                'posCharges'           => '0.00',
+                'serviceCharges'       => '0.00',
+                'totalAmount'          => number_format($unifiedTotal, 2),
+                'paidAmount'           => number_format($paidAmount, 2),
+                'balanceAmount'        => number_format($unifiedBalance, 2),
+                'unifiedTotal'         => number_format($unifiedTotal, 2),
+                'unifiedBalance'       => number_format($unifiedBalance, 2),
+                'is_early_checkout'    => false,
+                'actual_nights'        => $nights,
+                'scheduled_nights'     => $nights,
+                'key_card'             => null,
+                'hasUnpaidBills'       => false,
+                'posSales'             => [],
+                'folio'                => null,
+                'guest'                => $r->guest,
+                'room'                 => $r->room,
+            ];
+        };
 
         $todaysDepartures = \App\Models\Reservation::with(['guest', 'room.roomType'])
             ->where('status', 'checked_in')
@@ -2733,6 +2916,8 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
             'allCheckedIn'          => $allCheckedIn,
         ]);
     })->name('checkout');
+
+    Route::post('/checkout', [\App\Http\Controllers\FrontDesk\CheckOutController::class, 'store'])->name('checkout.store');
 
     // Room Status
     Route::get('/rooms/status', function () {
@@ -3515,7 +3700,7 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
 
         $generalKeys = [
             'hotel_name', 'hotel_address', 'hotel_phone', 'hotel_email', 'timezone',
-            'currency', 'currency_position', 'tax_rate', 'hotel_logo',
+            'currency', 'currency_position', 'tax_rate', 'room_tax_rate', 'hotel_logo',
             'auto_apply_guest_type_discount', 'auto_apply_vip_discount',
             'vip_discount_percentage', 'discount_combination_mode',
             'session_timeout', 'password_min_length', 'require_2fa', 'force_password_change',
@@ -3626,7 +3811,7 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
         // Load general settings from database
         $generalKeys = [
             'hotel_name', 'hotel_address', 'hotel_phone', 'hotel_email', 'timezone',
-            'currency', 'currency_position', 'tax_rate', 'hotel_logo',
+            'currency', 'currency_position', 'tax_rate', 'room_tax_rate', 'hotel_logo',
             'auto_apply_guest_type_discount', 'auto_apply_vip_discount',
             'vip_discount_percentage', 'discount_combination_mode',
             'session_timeout', 'password_min_length', 'require_2fa', 'force_password_change',
@@ -4760,22 +4945,67 @@ Route::middleware(['auth', 'role:front_desk'])->prefix('front-desk')->name('fron
         $user = auth()->user()->load('roles');
         $role = $user->roles->first()?->name ?? 'front-desk';
 
-        $mapReservation = function ($r) {
+        // Current room tax rate — recalculate instead of using stale stored totals
+        $taxRate = \App\Models\Setting::get('room_tax_rate', \App\Models\Setting::get('tax_rate', 0)) / 100;
+
+        // Pre-load folios for correct paid amounts and room charges
+        $checkedInIds = \App\Models\Reservation::where('status', 'checked_in')->pluck('id');
+        $folios = \App\Models\GuestFolio::whereIn('reservation_id', $checkedInIds)
+            ->get()->keyBy('reservation_id');
+
+        $mapReservation = function ($r) use ($taxRate, $folios) {
+            $folio = $folios->get($r->id);
+
+            $roomRate = (float) ($r->room_rate ?? 0);
+            if (!$roomRate && $r->room && $r->room->roomType) {
+                $roomRate = (float) ($r->room->roomType->base_price ?? 0);
+            }
+
             $checkIn  = \Carbon\Carbon::parse($r->check_in_date);
             $checkOut = \Carbon\Carbon::parse($r->check_out_date);
             $nights   = max(1, $checkIn->diffInDays($checkOut));
+
+            $roomCharges = ($folio && $folio->room_charges > 0)
+                ? (float) $folio->room_charges
+                : (float) ($r->total_room_charges ?? $roomRate * $nights);
+
+            $taxAmount      = round($roomCharges * $taxRate, 2);
+            $discountAmount = $folio ? (float) ($folio->discount_amount ?? 0) : (float) ($r->discount_amount ?? 0);
+            $unifiedTotal   = round($roomCharges + $taxAmount - $discountAmount, 2);
+            $paidAmount     = $folio ? (float) ($folio->paid_amount ?? 0) : (float) ($r->paid_amount ?? 0);
+            $unifiedBalance = max(0, round($unifiedTotal - $paidAmount, 2));
+
             return [
                 'id'            => $r->id,
-                'guestName'     => $r->guest?->full_name ?? ($r->guest?->first_name . ' ' . $r->guest?->last_name),
+                'guestName'     => $r->guest?->full_name ?? trim(($r->guest?->first_name ?? '') . ' ' . ($r->guest?->last_name ?? '')),
                 'roomNumber'    => $r->room?->room_number ?? 'N/A',
                 'roomType'      => $r->room?->roomType?->name ?? 'Standard',
                 'checkInDate'   => $r->check_in_date,
                 'checkOutDate'  => $r->check_out_date,
+                'check_in_date' => $r->check_in_date,
+                'check_out_date' => $r->check_out_date,
                 'departureTime' => $r->check_out_date,
                 'nights'        => $nights,
-                'totalAmount'   => $r->total_amount ?? 0,
-                'balanceAmount' => $r->balance_amount ?? 0,
+                'reservation_number' => $r->reservation_number ?? '#' . $r->id,
+                'room_rate'     => number_format($roomRate, 2),
+                'roomCharges'   => number_format($roomCharges, 2),
+                'taxAmount'     => number_format($taxAmount, 2),
+                'discountAmount' => number_format($discountAmount, 2),
+                'posCharges'    => '0.00',
+                'serviceCharges' => '0.00',
+                'totalAmount'   => number_format($unifiedTotal, 2),
+                'paidAmount'    => number_format($paidAmount, 2),
+                'balanceAmount' => number_format($unifiedBalance, 2),
+                'unifiedTotal'  => number_format($unifiedTotal, 2),
+                'unifiedBalance' => number_format($unifiedBalance, 2),
                 'status'        => $r->status,
+                'is_early_checkout' => false,
+                'actual_nights' => $nights,
+                'scheduled_nights' => $nights,
+                'key_card'      => null,
+                'hasUnpaidBills' => false,
+                'posSales'      => [],
+                'folio'         => null,
                 'guest'         => $r->guest,
                 'room'          => $r->room,
             ];
@@ -7164,28 +7394,50 @@ Route::middleware(['auth', 'role:accountant'])->prefix('accountant')->name('acco
             ->map(fn($group) => $group->sum('amount'))
             ->toArray();
 
-        return Inertia::render('Accountant/Reports/ProfitLoss', [
-            'user'       => $user,
-            'navigation' => app(DashboardController::class)->getNavigationForRole($role),
-            'period'     => 'monthly',
-            'currency'   => ['code' => 'USD', 'symbol' => '$'],
-            'profitLossData' => [
-                'total_revenue'              => $totalRevenue,
-                'total_cogs'                 => 0.0,
-                'total_operating_expenses'   => $totalExpenses,
-                'total_other_income_expenses'=> 0.0,
-                'gross_profit'               => $grossProfit,
-                'net_profit'                 => $netProfit,
-                'operating_income'           => $netProfit,
-                'revenue'                    => [
-                    'room_revenue' => $roomRevenue,
-                    'pos_revenue'  => $posRevenue,
-                    'other'        => max(0, $totalRevenue - $roomRevenue - $posRevenue),
-                ],
-                'cogs'                       => [],
-                'operating_expenses'         => $expensesByCategory,
-                'other_income_expenses'      => [],
+        $profitLossData = [
+            'total_revenue'              => $totalRevenue,
+            'total_cogs'                 => 0.0,
+            'total_operating_expenses'   => $totalExpenses,
+            'total_other_income_expenses'=> 0.0,
+            'gross_profit'               => $grossProfit,
+            'net_profit'                 => $netProfit,
+            'operating_income'           => $netProfit,
+            'revenue'                    => [
+                'room_revenue' => $roomRevenue,
+                'pos_revenue'  => $posRevenue,
+                'other'        => max(0, $totalRevenue - $roomRevenue - $posRevenue),
             ],
+            'cogs'                       => [],
+            'operating_expenses'         => $expensesByCategory,
+            'other_income_expenses'      => [],
+        ];
+
+        // Apply custom overrides if this is a custom accountant (data substitution hidden from non-admin/manager)
+        $isCustomAccountant = (bool) $user->is_custom_accountant;
+        if ($isCustomAccountant) {
+            $flatData = ['profitLossData' => $profitLossData];
+            $flatData = \App\Models\AccountantReportOverride::applyOverrides($user->id, 'profit_loss', $flatData);
+            $profitLossData = $flatData['profitLossData'] ?? $profitLossData;
+        }
+
+        // Admin/manager can see a warning that this user's reports are customised
+        $customAccountantsWithOverrides = [];
+        if (in_array($role, ['admin', 'manager'])) {
+            $customAccountantsWithOverrides = \App\Models\User::where('is_custom_accountant', true)
+                ->whereHas('roles', fn($q) => $q->where('name', 'accountant'))
+                ->get(['id', 'first_name', 'last_name', 'email'])
+                ->map(fn($u) => ['id' => $u->id, 'name' => trim(($u->first_name ?? '') . ' ' . ($u->last_name ?? '')), 'email' => $u->email])
+                ->toArray();
+        }
+
+        return Inertia::render('Accountant/Reports/ProfitLoss', [
+            'user'                          => $user,
+            'navigation'                    => app(DashboardController::class)->getNavigationForRole($role),
+            'period'                        => 'monthly',
+            'currency'                      => ['code' => 'USD', 'symbol' => '$'],
+            'profitLossData'                => $profitLossData,
+            'isCustomAccountant'            => $isCustomAccountant,
+            'customAccountantsWithOverrides'=> $customAccountantsWithOverrides,
         ]);
     })->name('reports.profit-loss');
 
@@ -7209,33 +7461,53 @@ Route::middleware(['auth', 'role:accountant'])->prefix('accountant')->name('acco
         $totalAssets    = $cashAssets + $receivables + $roomInventoryVal;
         $totalEquity    = $totalAssets - $totalLiabilities;
 
-        return Inertia::render('Accountant/Reports/BalanceSheet', [
-            'user'       => $user,
-            'navigation' => app(DashboardController::class)->getNavigationForRole($role),
-            'period'     => 'current',
-            'asOfDate'   => now()->toDateString(),
-            'currency'   => ['code' => 'USD', 'symbol' => '$'],
-            'balanceSheetData' => [
-                'current_assets'         => [
-                    ['account' => 'Cash & Cash Equivalents',    'amount' => $cashAssets],
-                    ['account' => 'Accounts Receivable',         'amount' => $receivables],
-                ],
-                'fixed_assets'           => [
-                    ['account' => 'Room & Property Inventory',  'amount' => (float) $roomInventoryVal],
-                ],
-                'current_liabilities'    => [
-                    ['account' => 'Accounts Payable',           'amount' => $totalLiabilities],
-                ],
-                'long_term_liabilities'  => [],
-                'equity'                 => [
-                    ['account' => "Owners' Equity",             'amount' => $totalEquity],
-                ],
-                'totalAssets'            => $totalAssets,
-                'totals'                 => [
-                    'total_liabilities' => $totalLiabilities,
-                    'total_equity'      => $totalEquity,
-                ],
+        $balanceSheetData = [
+            'current_assets'         => [
+                ['account' => 'Cash & Cash Equivalents',    'amount' => $cashAssets],
+                ['account' => 'Accounts Receivable',         'amount' => $receivables],
             ],
+            'fixed_assets'           => [
+                ['account' => 'Room & Property Inventory',  'amount' => (float) $roomInventoryVal],
+            ],
+            'current_liabilities'    => [
+                ['account' => 'Accounts Payable',           'amount' => $totalLiabilities],
+            ],
+            'long_term_liabilities'  => [],
+            'equity'                 => [
+                ['account' => "Owners' Equity",             'amount' => $totalEquity],
+            ],
+            'totalAssets'            => $totalAssets,
+            'totals'                 => [
+                'total_liabilities' => $totalLiabilities,
+                'total_equity'      => $totalEquity,
+            ],
+        ];
+
+        $isCustomAccountant = (bool) $user->is_custom_accountant;
+        if ($isCustomAccountant) {
+            $flatData = ['balanceSheetData' => $balanceSheetData];
+            $flatData = \App\Models\AccountantReportOverride::applyOverrides($user->id, 'balance_sheet', $flatData);
+            $balanceSheetData = $flatData['balanceSheetData'] ?? $balanceSheetData;
+        }
+
+        $customAccountantsWithOverrides = [];
+        if (in_array($role, ['admin', 'manager'])) {
+            $customAccountantsWithOverrides = \App\Models\User::where('is_custom_accountant', true)
+                ->whereHas('roles', fn($q) => $q->where('name', 'accountant'))
+                ->get(['id', 'first_name', 'last_name', 'email'])
+                ->map(fn($u) => ['id' => $u->id, 'name' => trim(($u->first_name ?? '') . ' ' . ($u->last_name ?? '')), 'email' => $u->email])
+                ->toArray();
+        }
+
+        return Inertia::render('Accountant/Reports/BalanceSheet', [
+            'user'                          => $user,
+            'navigation'                    => app(DashboardController::class)->getNavigationForRole($role),
+            'period'                        => 'current',
+            'asOfDate'                      => now()->toDateString(),
+            'currency'                      => ['code' => 'USD', 'symbol' => '$'],
+            'balanceSheetData'              => $balanceSheetData,
+            'isCustomAccountant'            => $isCustomAccountant,
+            'customAccountantsWithOverrides'=> $customAccountantsWithOverrides,
         ]);
     })->name('reports.balance-sheet');
 
@@ -7273,48 +7545,68 @@ Route::middleware(['auth', 'role:accountant'])->prefix('accountant')->name('acco
         $endingCash    = $beginningCash + $operatingCashFlow;
         $netCashChange = $operatingCashFlow;
 
-        return Inertia::render('Accountant/Reports/CashFlow', [
-            'user'       => $user,
-            'navigation' => app(DashboardController::class)->getNavigationForRole($role),
-            'period'     => 'monthly',
-            'currency'   => ['code' => 'USD', 'symbol' => '$'],
-            'cashFlowData' => [
-                'beginning_cash'              => $beginningCash,
-                'ending_cash'                 => $endingCash,
-                'net_cash_change'             => $netCashChange,
-                'operating_cash_flow'         => $operatingCashFlow,
-                'investing_cash_flow'         => 0.0,
-                'financing_cash_flow'         => 0.0,
-                'net_income'                  => $netIncome,
-                'room_cash_flow'              => $roomCashFlow,
-                'pos_cash_flow'               => $posCashFlow,
-                'other_revenue_cash_flow'     => $otherCashFlow,
-                'total_operating_cash_inflow' => $totalInflow,
-                'operating_expenses'          => $operatingExpenses,
-                'net_operating_cash_flow'     => $operatingCashFlow,
-                'operating_adjustments'       => [
-                    ['item' => 'Depreciation & Amortization', 'amount' => 0],
-                    ['item' => 'Working Capital Changes',     'amount' => 0],
-                ],
-                'investing_activities'        => [
-                    ['item' => 'No investing activity this period', 'amount' => 0],
-                ],
-                'financing_activities'        => [
-                    ['item' => 'No financing activity this period', 'amount' => 0],
-                ],
-                'formatted_beginning_cash'            => '$' . number_format($beginningCash, 2),
-                'formatted_ending_cash'               => '$' . number_format($endingCash, 2),
-                'formatted_net_cash_change'           => '$' . number_format($netCashChange, 2),
-                'formatted_net_operating_cash_flow'   => '$' . number_format($operatingCashFlow, 2),
-                'formatted_room_cash_flow'            => '$' . number_format($roomCashFlow, 2),
-                'formatted_pos_cash_flow'             => '$' . number_format($posCashFlow, 2),
-                'formatted_other_revenue_cash_flow'   => '$' . number_format($otherCashFlow, 2),
-                'formatted_total_operating_cash_inflow' => '$' . number_format($totalInflow, 2),
-                'formatted_operating_expenses'        => '$' . number_format($operatingExpenses, 2),
-                'formatted_net_income'                => '$' . number_format($netIncome, 2),
-                'formatted_depreciation_amortization' => '$0.00',
-                'formatted_working_capital_change'    => '$0.00',
+        $cashFlowData = [
+            'beginning_cash'              => $beginningCash,
+            'ending_cash'                 => $endingCash,
+            'net_cash_change'             => $netCashChange,
+            'operating_cash_flow'         => $operatingCashFlow,
+            'investing_cash_flow'         => 0.0,
+            'financing_cash_flow'         => 0.0,
+            'net_income'                  => $netIncome,
+            'room_cash_flow'              => $roomCashFlow,
+            'pos_cash_flow'               => $posCashFlow,
+            'other_revenue_cash_flow'     => $otherCashFlow,
+            'total_operating_cash_inflow' => $totalInflow,
+            'operating_expenses'          => $operatingExpenses,
+            'net_operating_cash_flow'     => $operatingCashFlow,
+            'operating_adjustments'       => [
+                ['item' => 'Depreciation & Amortization', 'amount' => 0],
+                ['item' => 'Working Capital Changes',     'amount' => 0],
             ],
+            'investing_activities'        => [
+                ['item' => 'No investing activity this period', 'amount' => 0],
+            ],
+            'financing_activities'        => [
+                ['item' => 'No financing activity this period', 'amount' => 0],
+            ],
+            'formatted_beginning_cash'            => '$' . number_format($beginningCash, 2),
+            'formatted_ending_cash'               => '$' . number_format($endingCash, 2),
+            'formatted_net_cash_change'           => '$' . number_format($netCashChange, 2),
+            'formatted_net_operating_cash_flow'   => '$' . number_format($operatingCashFlow, 2),
+            'formatted_room_cash_flow'            => '$' . number_format($roomCashFlow, 2),
+            'formatted_pos_cash_flow'             => '$' . number_format($posCashFlow, 2),
+            'formatted_other_revenue_cash_flow'   => '$' . number_format($otherCashFlow, 2),
+            'formatted_total_operating_cash_inflow' => '$' . number_format($totalInflow, 2),
+            'formatted_operating_expenses'        => '$' . number_format($operatingExpenses, 2),
+            'formatted_net_income'                => '$' . number_format($netIncome, 2),
+            'formatted_depreciation_amortization' => '$0.00',
+            'formatted_working_capital_change'    => '$0.00',
+        ];
+
+        $isCustomAccountant = (bool) $user->is_custom_accountant;
+        if ($isCustomAccountant) {
+            $flatData = ['cashFlowData' => $cashFlowData];
+            $flatData = \App\Models\AccountantReportOverride::applyOverrides($user->id, 'cash_flow', $flatData);
+            $cashFlowData = $flatData['cashFlowData'] ?? $cashFlowData;
+        }
+
+        $customAccountantsWithOverrides = [];
+        if (in_array($role, ['admin', 'manager'])) {
+            $customAccountantsWithOverrides = \App\Models\User::where('is_custom_accountant', true)
+                ->whereHas('roles', fn($q) => $q->where('name', 'accountant'))
+                ->get(['id', 'first_name', 'last_name', 'email'])
+                ->map(fn($u) => ['id' => $u->id, 'name' => trim(($u->first_name ?? '') . ' ' . ($u->last_name ?? '')), 'email' => $u->email])
+                ->toArray();
+        }
+
+        return Inertia::render('Accountant/Reports/CashFlow', [
+            'user'                          => $user,
+            'navigation'                    => app(DashboardController::class)->getNavigationForRole($role),
+            'period'                        => 'monthly',
+            'currency'                      => ['code' => 'USD', 'symbol' => '$'],
+            'cashFlowData'                  => $cashFlowData,
+            'isCustomAccountant'            => $isCustomAccountant,
+            'customAccountantsWithOverrides'=> $customAccountantsWithOverrides,
         ]);
     })->name('reports.cash-flow');
 
@@ -7362,26 +7654,46 @@ Route::middleware(['auth', 'role:accountant'])->prefix('accountant')->name('acco
             ->map(fn($v, $k) => ['category' => ucfirst(str_replace('_', ' ', $k ?: 'Other')), 'amount' => (float) $v])
             ->values()->toArray();
 
+        $revenueData = [
+            'total_revenue'              => $totalRevenue,
+            'room_revenue'               => $roomRevenue,
+            'pos_sales_revenue'          => $posRevenue,
+            'room_revenue_percentage'    => $roomPct,
+            'pos_sales_percentage'       => $posPct,
+            'growth_rate'                => $growthRate,
+            'average_daily_rate'         => $avgDailyRate,
+            'formatted_total_revenue'    => '$' . number_format($totalRevenue, 2),
+            'formatted_room_revenue'     => '$' . number_format($roomRevenue, 2),
+            'formatted_pos_sales_revenue'=> '$' . number_format($posRevenue, 2),
+            'formatted_average_daily_rate' => '$' . number_format($avgDailyRate, 2),
+            'revenue_by_category'        => $revenueByCategory,
+            'pos_sales_by_category'      => $posSalesByCategory,
+        ];
+
+        $isCustomAccountant = (bool) $user->is_custom_accountant;
+        if ($isCustomAccountant) {
+            $flatData = ['revenueData' => $revenueData];
+            $flatData = \App\Models\AccountantReportOverride::applyOverrides($user->id, 'revenue', $flatData);
+            $revenueData = $flatData['revenueData'] ?? $revenueData;
+        }
+
+        $customAccountantsWithOverrides = [];
+        if (in_array($role, ['admin', 'manager'])) {
+            $customAccountantsWithOverrides = \App\Models\User::where('is_custom_accountant', true)
+                ->whereHas('roles', fn($q) => $q->where('name', 'accountant'))
+                ->get(['id', 'first_name', 'last_name', 'email'])
+                ->map(fn($u) => ['id' => $u->id, 'name' => trim(($u->first_name ?? '') . ' ' . ($u->last_name ?? '')), 'email' => $u->email])
+                ->toArray();
+        }
+
         return Inertia::render('Accountant/Reports/Revenue', [
-            'user'       => $user,
-            'navigation' => app(DashboardController::class)->getNavigationForRole($role),
-            'period'     => 'monthly',
-            'currency'   => ['code' => 'USD', 'symbol' => '$'],
-            'revenueData' => [
-                'total_revenue'              => $totalRevenue,
-                'room_revenue'               => $roomRevenue,
-                'pos_sales_revenue'          => $posRevenue,
-                'room_revenue_percentage'    => $roomPct,
-                'pos_sales_percentage'       => $posPct,
-                'growth_rate'                => $growthRate,
-                'average_daily_rate'         => $avgDailyRate,
-                'formatted_total_revenue'    => '$' . number_format($totalRevenue, 2),
-                'formatted_room_revenue'     => '$' . number_format($roomRevenue, 2),
-                'formatted_pos_sales_revenue'=> '$' . number_format($posRevenue, 2),
-                'formatted_average_daily_rate' => '$' . number_format($avgDailyRate, 2),
-                'revenue_by_category'        => $revenueByCategory,
-                'pos_sales_by_category'      => $posSalesByCategory,
-            ],
+            'user'                           => $user,
+            'navigation'                     => app(DashboardController::class)->getNavigationForRole($role),
+            'period'                         => 'monthly',
+            'currency'                       => ['code' => 'USD', 'symbol' => '$'],
+            'revenueData'                    => $revenueData,
+            'isCustomAccountant'             => $isCustomAccountant,
+            'customAccountantsWithOverrides' => $customAccountantsWithOverrides,
         ]);
     })->name('reports.revenue');
 
@@ -7752,33 +8064,69 @@ Route::middleware(['auth', 'role:manager'])->prefix('manager')->name('manager.')
         $user = auth()->user()->load('roles');
         $role = $user->roles->first()?->name ?? 'manager';
 
-        $mapReservation = fn($r) => [
-            'id'                   => $r->id,
-            'guestName'            => optional($r->guest)->full_name ?? 'Guest',
-            'roomNumber'           => optional($r->room)->room_number ?? 'N/A',
-            'reservation_number'   => $r->reservation_number ?? '#' . $r->id,
-            'nights'               => $r->check_in_date && $r->check_out_date
-                                        ? \Carbon\Carbon::parse($r->check_in_date)->diffInDays(\Carbon\Carbon::parse($r->check_out_date))
-                                        : 0,
-            'check_out_date'       => $r->check_out_date,
-            'status'               => $r->status,
-            'totalAmount'          => number_format((float) ($r->total_amount ?? 0), 2),
-            'paidAmount'           => number_format((float) ($r->paid_amount ?? 0), 2),
-            'balanceAmount'        => number_format(max(0, (float) ($r->total_amount ?? 0) - (float) ($r->paid_amount ?? 0)), 2),
-            'unifiedTotal'         => number_format((float) ($r->total_amount ?? 0), 2),
-            'unifiedBalance'       => number_format(max(0, (float) ($r->total_amount ?? 0) - (float) ($r->paid_amount ?? 0)), 2),
-            'roomCharges'          => number_format((float) ($r->total_amount ?? 0), 2),
-            'posCharges'           => '0.00',
-            'serviceCharges'       => '0.00',
-            'departureTime'        => $r->check_out_date,
-            'is_early_checkout'    => false,
-            'actual_nights'        => 0,
-            'scheduled_nights'     => 0,
-            'key_card'             => null,
-            'hasUnpaidBills'       => false,
-            'posSales'             => [],
-            'folio'                => null,
-        ];
+        // Current room tax rate — recalculate instead of using stale stored totals
+        $taxRate = \App\Models\Setting::get('room_tax_rate', \App\Models\Setting::get('tax_rate', 0)) / 100;
+
+        // Pre-load folios for correct paid amounts and room charges
+        $checkedInIds = \App\Models\Reservation::where('status', 'checked_in')->pluck('id');
+        $folios = \App\Models\GuestFolio::whereIn('reservation_id', $checkedInIds)
+            ->get()->keyBy('reservation_id');
+
+        $mapReservation = function ($r) use ($taxRate, $folios) {
+            $folio = $folios->get($r->id);
+
+            $roomRate = (float) ($r->room_rate ?? 0);
+            if (!$roomRate && $r->room && $r->room->roomType) {
+                $roomRate = (float) ($r->room->roomType->base_price ?? 0);
+            }
+
+            $nights = $r->check_in_date && $r->check_out_date
+                ? max(1, \Carbon\Carbon::parse($r->check_in_date)->diffInDays(\Carbon\Carbon::parse($r->check_out_date)))
+                : 1;
+
+            $roomCharges = ($folio && $folio->room_charges > 0)
+                ? (float) $folio->room_charges
+                : (float) ($r->total_room_charges ?? $roomRate * $nights);
+
+            $taxAmount      = round($roomCharges * $taxRate, 2);
+            $discountAmount = $folio ? (float) ($folio->discount_amount ?? 0) : (float) ($r->discount_amount ?? 0);
+            $unifiedTotal   = round($roomCharges + $taxAmount - $discountAmount, 2);
+            $paidAmount     = $folio ? (float) ($folio->paid_amount ?? 0) : (float) ($r->paid_amount ?? 0);
+            $unifiedBalance = max(0, round($unifiedTotal - $paidAmount, 2));
+
+            return [
+                'id'                   => $r->id,
+                'guestName'            => optional($r->guest)->full_name ?? trim((optional($r->guest)->first_name ?? '') . ' ' . (optional($r->guest)->last_name ?? '')),
+                'roomNumber'           => optional($r->room)->room_number ?? 'N/A',
+                'roomType'             => optional(optional($r->room)->roomType)->name ?? 'Standard',
+                'reservation_number'   => $r->reservation_number ?? '#' . $r->id,
+                'nights'               => $nights,
+                'check_in_date'        => $r->check_in_date,
+                'check_out_date'       => $r->check_out_date,
+                'departureTime'        => $r->check_out_date,
+                'status'               => $r->status,
+                'room_rate'            => number_format($roomRate, 2),
+                'roomCharges'          => number_format($roomCharges, 2),
+                'taxAmount'            => number_format($taxAmount, 2),
+                'discountAmount'       => number_format($discountAmount, 2),
+                'posCharges'           => '0.00',
+                'serviceCharges'       => '0.00',
+                'totalAmount'          => number_format($unifiedTotal, 2),
+                'paidAmount'           => number_format($paidAmount, 2),
+                'balanceAmount'        => number_format($unifiedBalance, 2),
+                'unifiedTotal'         => number_format($unifiedTotal, 2),
+                'unifiedBalance'       => number_format($unifiedBalance, 2),
+                'is_early_checkout'    => false,
+                'actual_nights'        => $nights,
+                'scheduled_nights'     => $nights,
+                'key_card'             => null,
+                'hasUnpaidBills'       => false,
+                'posSales'             => [],
+                'folio'                => null,
+                'guest'                => $r->guest,
+                'room'                 => $r->room,
+            ];
+        };
 
         $todaysDepartures = \App\Models\Reservation::with(['guest', 'room'])
             ->where('status', 'checked_in')

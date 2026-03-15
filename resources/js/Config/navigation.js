@@ -645,21 +645,7 @@ export const navigationConfig = {
         { label: 'Front Desk Dashboard', routeName: 'front-desk.dashboard', icon: 'home' },
       ],
     },
-    {
-      section: 'Users',
-      condition: 'isFrontDesk',
-      groups: [
-        {
-          id: 'frontdesk-users',
-          label: 'Users',
-          icon: 'users',
-          items: [
-            { label: 'Customers',       routeName: 'front-desk.customers.index' },
-            { label: 'Customer Groups', routeName: 'front-desk.customer-groups.index' },
-          ],
-        },
-      ],
-    },
+    // ...existing code...
     {
       section: 'Front Desk',
       condition: 'isFrontDesk',

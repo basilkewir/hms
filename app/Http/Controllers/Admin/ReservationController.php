@@ -246,7 +246,7 @@ class ReservationController extends Controller
             'groupBookings' => $groupBookings,
             'availableRooms' => $availableRooms,
             'hotelServices' => $hotelServices,
-            'taxRate' => (float) Setting::get('tax_rate', 0),
+            'taxRate' => (float) Setting::get('room_tax_rate', Setting::get('tax_rate', 0)),
             'serviceChargeRate' => (float) Setting::get('service_charge_rate', 0),
             'bookingSources' => [
                 'walk_in' => 'Walk-in',
@@ -415,7 +415,7 @@ class ReservationController extends Controller
             }
         }
 
-        $taxes = ($totalRoomCharges - $totalDiscountAmount + $selectedServicesTotal) * (Setting::get('tax_rate', 0) / 100);
+        $taxes = ($totalRoomCharges - $totalDiscountAmount + $selectedServicesTotal) * (Setting::get('room_tax_rate', Setting::get('tax_rate', 0)) / 100);
         $serviceCharges = ($totalRoomCharges - $totalDiscountAmount) * (Setting::get('service_charge_rate', 0) / 100);
         $totalAmount = $totalRoomCharges - $totalDiscountAmount + $selectedServicesTotal + $taxes + $serviceCharges;
 
@@ -804,7 +804,7 @@ class ReservationController extends Controller
             $discountReason = $validated['discount_reason'] ?? $guestTypeDiscountReason;
         }
 
-        $taxes = ($totalRoomCharges - $totalDiscountAmount) * (Setting::get('tax_rate', 0) / 100);
+        $taxes = ($totalRoomCharges - $totalDiscountAmount) * (Setting::get('room_tax_rate', Setting::get('tax_rate', 0)) / 100);
         $serviceCharges = ($totalRoomCharges - $totalDiscountAmount) * (Setting::get('service_charge_rate', 0) / 100);
         $totalAmount = $totalRoomCharges - $totalDiscountAmount + $taxes + $serviceCharges;
 

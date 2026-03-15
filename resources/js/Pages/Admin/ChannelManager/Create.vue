@@ -140,6 +140,24 @@
                         <UserIcon class="h-5 w-5 mr-2 inline" />
                         Guest Information
                     </h2>
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium mb-2"
+                               :style="{ color: themeColors.textSecondary }">Select Existing Guest</label>
+                        <select v-model="form.guest_id" @change="selectGuest"
+                                class="w-full rounded-md px-3 py-2 focus:outline-none transition-colors"
+                                :style="{ 
+                                    backgroundColor: themeColors.background,
+                                    borderColor: themeColors.border,
+                                    color: themeColors.textPrimary,
+                                    borderWidth: '1px',
+                                    borderStyle: 'solid'
+                                }">
+                            <option :value="null">-- Select Guest or fill manually --</option>
+                            <option v-for="guest in guests" :key="guest.id" :value="guest.id">
+                                {{ guest.first_name }} {{ guest.last_name }}{{ guest.email ? ' (' + guest.email + ')' : '' }}
+                            </option>
+                        </select>
+                    </div>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <label class="block text-sm font-medium mb-2"
@@ -427,7 +445,6 @@
                                   placeholder="Any special requests or notes..."></textarea>
                     </div>
                 </div>
-
                 <!-- Form Actions -->
                 <div class="shadow rounded-lg p-6"
                      :style="{ 
@@ -461,8 +478,7 @@
             </form>
         </div>
     </DashboardLayout>
-</template>
-
+ </template>
 <script setup>
 import { computed } from 'vue'
 import { useForm, Link } from '@inertiajs/vue3'
@@ -492,7 +508,8 @@ loadTheme()
 
 const props = defineProps({
     roomTypes: Array,
-    commission_rates: Object
+    commission_rates: Object,
+    guests: Array
 })
 
 const form = useForm({
@@ -500,6 +517,7 @@ const form = useForm({
     booking_reference: '',
     check_in_date: '',
     check_out_date: '',
+    guest_id: null,
     guest_first_name: '',
     guest_last_name: '',
     guest_email: '',
@@ -541,6 +559,16 @@ const availableRooms = computed(() => {
     return Math.floor(Math.random() * 5) + 1
 })
 
+const selectGuest = () => {
+    const guest = props.guests.find(g => g.id === form.guest_id)
+    if (guest) {
+        form.guest_first_name = guest.first_name
+        form.guest_last_name = guest.last_name
+        form.guest_email = guest.email || ''
+        form.guest_phone = guest.phone || ''
+    }
+}
+
 const updatePricing = () => {
     if (selectedRoomType.value) {
         form.room_rate = selectedRoomType.value.base_price || 0
@@ -556,6 +584,6 @@ const openDatePicker = (inputId) => {
 }
 
 const submit = () => {
-    form.post(route('admin.channel-manager.store'))
+    form.post('/admin/channel-manager')
 }
 </script>
