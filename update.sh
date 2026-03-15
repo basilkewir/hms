@@ -109,6 +109,49 @@ success "Application files copied"
 
 step "Patching .env Settings"
 
+# APP_ENV
+if grep -q "^APP_ENV=" "$INSTALL_DIR/.env"; then
+    sed -i 's|^APP_ENV=.*|APP_ENV=production|' "$INSTALL_DIR/.env"
+else
+    echo "APP_ENV=production" >> "$INSTALL_DIR/.env"
+fi
+
+# APP_DEBUG
+if grep -q "^APP_DEBUG=" "$INSTALL_DIR/.env"; then
+    sed -i 's|^APP_DEBUG=.*|APP_DEBUG=false|' "$INSTALL_DIR/.env"
+else
+    echo "APP_DEBUG=false" >> "$INSTALL_DIR/.env"
+fi
+
+# APP_URL - set to local IP so it works as fallback
+# (AppServiceProvider dynamically overrides this for tunnel requests)
+if grep -q "^APP_URL=" "$INSTALL_DIR/.env"; then
+    sed -i 's|^APP_URL=.*|APP_URL=http://10.0.0.10|' "$INSTALL_DIR/.env"
+else
+    echo "APP_URL=http://10.0.0.10" >> "$INSTALL_DIR/.env"
+fi
+
+# SESSION_DOMAIN - empty so sessions work on both local and tunnel domain
+if grep -q "^SESSION_DOMAIN=" "$INSTALL_DIR/.env"; then
+    sed -i 's|^SESSION_DOMAIN=.*|SESSION_DOMAIN=|' "$INSTALL_DIR/.env"
+else
+    echo "SESSION_DOMAIN=" >> "$INSTALL_DIR/.env"
+fi
+
+# SESSION_SECURE_COOKIE - empty so Laravel auto-detects per request
+if grep -q "^SESSION_SECURE_COOKIE=" "$INSTALL_DIR/.env"; then
+    sed -i 's|^SESSION_SECURE_COOKIE=.*|SESSION_SECURE_COOKIE=|' "$INSTALL_DIR/.env"
+else
+    echo "SESSION_SECURE_COOKIE=" >> "$INSTALL_DIR/.env"
+fi
+
+# SESSION_SAME_SITE
+if grep -q "^SESSION_SAME_SITE=" "$INSTALL_DIR/.env"; then
+    sed -i 's|^SESSION_SAME_SITE=.*|SESSION_SAME_SITE=lax|' "$INSTALL_DIR/.env"
+else
+    echo "SESSION_SAME_SITE=lax" >> "$INSTALL_DIR/.env"
+fi
+
 # LICENSE_SERVER_URL
 if grep -q "^LICENSE_SERVER_URL=" "$INSTALL_DIR/.env"; then
     sed -i 's|^LICENSE_SERVER_URL=.*|LICENSE_SERVER_URL=https://kewirdev.com/api/license|' "$INSTALL_DIR/.env"
@@ -138,13 +181,13 @@ success "Permissions set"
 step "Installing Composer Dependencies"
 
 cd "$INSTALL_DIR"
-sudo -u www-data composer install --no-dev --optimize-autoloader --prefer-dist 2>&1 | tail -5
+composer install --no-dev --optimize-autoloader --prefer-dist 2>&1 | tail -5
 success "Composer dependencies installed"
 
 step "Running Database Migrations"
 
 cd "$INSTALL_DIR"
-if sudo -u www-data php artisan migrate --force 2>&1 | tee -a /var/log/hms_update.log; then
+if php artisan migrate --force 2>&1 | tee -a /var/log/hms_update.log; then
     success "Migrations completed"
 else
     warning "Migration issue — check /var/log/hms_update.log"
@@ -153,7 +196,7 @@ fi
 step "Seeding License Data"
 
 cd "$INSTALL_DIR"
-if sudo -u www-data php artisan db:seed --class=LicenseSeeder --force 2>&1 | tee -a /var/log/hms_update.log; then
+if php artisan db:seed --class=LicenseSeeder --force 2>&1 | tee -a /var/log/hms_update.log; then
     success "License seeded"
 else
     warning "License seeding failed — check /var/log/hms_update.log"
@@ -162,10 +205,10 @@ fi
 step "Clearing Caches"
 
 cd "$INSTALL_DIR"
-sudo -u www-data php artisan cache:clear
-sudo -u www-data php artisan config:clear
-sudo -u www-data php artisan view:clear
-sudo -u www-data php artisan route:clear
+php artisan cache:clear
+php artisan config:clear
+php artisan view:clear
+php artisan route:clear
 
 success "Caches cleared"
 

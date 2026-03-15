@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Facades\Config;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -14,11 +15,26 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        // Only force HTTPS when the request actually arrived over HTTPS
-        // (Cloudflare Tunnel sets X-Forwarded-Proto: https)
-        // Local HTTP access is left untouched so both work simultaneously
-        if (request()->server('HTTP_X_FORWARDED_PROTO') === 'https') {
+        // Dynamically set APP_URL and scheme based on the incoming request.
+        // This allows the app to work on both:
+        //   - http://10.0.0.10  (local network)
+        //   - https://donzebemanagement.qzz.io  (Cloudflare Tunnel)
+        // Cloudflare Tunnel sets X-Forwarded-Proto: https on tunneled requests.
+
+        $isHttps = request()->server('HTTP_X_FORWARDED_PROTO') === 'https'
+            || request()->server('HTTPS') === 'on';
+
+        if ($isHttps) {
             URL::forceScheme('https');
+
+            // Set APP_URL to the actual public hostname so Ziggy and
+            // CSRF token validation use the correct origin
+            $host = request()->server('HTTP_X_FORWARDED_HOST')
+                ?? request()->server('HTTP_HOST')
+                ?? parse_url(config('app.url'), PHP_URL_HOST);
+
+            Config::set('app.url', 'https://' . $host);
+            URL::forceRootUrl('https://' . $host);
         }
     }
 }
