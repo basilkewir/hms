@@ -4,7 +4,9 @@
         <div class="shadow rounded-lg p-6 mb-8"
              :style="{ 
                  backgroundColor: themeColors.card,
-                 borderColor: themeColors.border 
+                 borderColor: themeColors.border,
+                 borderWidth: '1px',
+                 borderStyle: 'solid'
              }">
             <div class="flex items-center justify-between">
                 <div>
@@ -38,78 +40,58 @@
 
         <!-- Stats Cards -->
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <div class="shadow rounded-lg p-6"
-                 :style="{ 
-                     backgroundColor: themeColors.card,
-                     borderColor: themeColors.border 
-                 }">
+            <div class="rounded-lg p-6 border shadow-sm"
+                 :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }">
                 <div class="flex items-center">
-                    <div class="p-3 rounded-full mr-4"
-                         :style="{ backgroundColor: themeColors.primary + '20' }">
-                        <span class="text-2xl">📦</span>
+                    <div class="w-12 h-12 rounded-lg flex items-center justify-center mr-4"
+                         style="background-color: rgba(59,130,246,0.1)">
+                        <ArchiveBoxIcon class="h-6 w-6" :style="{ color: themeColors.primary }" />
                     </div>
                     <div>
-                        <p class="text-sm font-medium"
-                           :style="{ color: themeColors.textSecondary }">Total Products</p>
-                        <p class="text-2xl font-bold"
-                           :style="{ color: themeColors.textPrimary }">{{ props.products.length }}</p>
+                        <p class="text-sm font-medium mb-1" :style="{ color: themeColors.textSecondary }">Total Products</p>
+                        <p class="text-2xl font-bold" :style="{ color: themeColors.textPrimary }">{{ props.products.length }}</p>
                     </div>
                 </div>
             </div>
-            
-            <div class="shadow rounded-lg p-6"
-                 :style="{ 
-                     backgroundColor: themeColors.card,
-                     borderColor: themeColors.border 
-                 }">
+
+            <div class="rounded-lg p-6 border shadow-sm"
+                 :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }">
                 <div class="flex items-center">
-                    <div class="p-3 rounded-full mr-4"
-                         :style="{ backgroundColor: '#10b98120' }">
-                        <span class="text-2xl">💰</span>
+                    <div class="w-12 h-12 rounded-lg flex items-center justify-center mr-4"
+                         style="background-color: rgba(34,197,94,0.1)">
+                        <CurrencyDollarIcon class="h-6 w-6" :style="{ color: themeColors.success }" />
                     </div>
                     <div>
-                        <p class="text-sm font-medium"
-                           :style="{ color: themeColors.textSecondary }">Total Value</p>
-                        <p class="text-2xl font-bold"
-                           :style="{ color: themeColors.textPrimary }">{{ formatCurrency(totalValue) }}</p>
+                        <p class="text-sm font-medium mb-1" :style="{ color: themeColors.textSecondary }">Total Value</p>
+                        <p class="text-2xl font-bold" :style="{ color: themeColors.textPrimary }">{{ formatCurrency(totalValue) }}</p>
                     </div>
                 </div>
             </div>
-            
-            <div class="shadow rounded-lg p-6"
-                 :style="{ 
-                     backgroundColor: themeColors.card,
-                     borderColor: themeColors.border 
-                 }">
+
+            <div class="rounded-lg p-6 border shadow-sm"
+                 :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }">
                 <div class="flex items-center">
-                    <div class="p-3 rounded-full mr-4"
-                         :style="{ backgroundColor: '#f59e0b20' }">
-                        <span class="text-2xl">⚠️</span>
+                    <div class="w-12 h-12 rounded-lg flex items-center justify-center mr-4"
+                         style="background-color: rgba(250,204,21,0.1)">
+                        <ExclamationTriangleIcon class="h-6 w-6" :style="{ color: themeColors.warning }" />
                     </div>
                     <div>
-                        <p class="text-sm font-medium"
-                           :style="{ color: themeColors.textSecondary }">Low Stock</p>
-                        <p class="text-2xl font-bold"
-                           :style="{ color: themeColors.textPrimary }">{{ lowStockCount }}</p>
+                        <p class="text-sm font-medium mb-1" :style="{ color: themeColors.textSecondary }">Low Stock</p>
+                        <p class="text-2xl font-bold" :style="{ color: themeColors.textPrimary }">{{ lowStockCount }}</p>
                     </div>
                 </div>
             </div>
-            
-            <div class="shadow rounded-lg p-6"
-                 :style="{ 
-                     backgroundColor: themeColors.card,
-                     borderColor: themeColors.border 
-                 }">
+
+            <div class="rounded-lg p-6 border shadow-sm"
+                 :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }">
                 <div class="flex items-center">
-                    <div class="p-3 rounded-full mr-4"
-                         :style="{ backgroundColor: '#10b98120' }">
-                        <span class="text-2xl">📈</span>
+                    <div class="w-12 h-12 rounded-lg flex items-center justify-center mr-4"
+                         style="background-color: rgba(139,92,246,0.1)">
+                        <ArrowTrendingUpIcon class="h-6 w-6" style="color: #8b5cf6" />
                     </div>
                     <div>
-                        <p class="text-sm font-medium"
-                           :style="{ color: themeColors.textSecondary }">Total Profit</p>
-                        <p class="text-2xl font-bold"
-                           :style="{ color: themeColors.textPrimary }">{{ formatCurrency(totalProfit) }}</p>
+                        <p class="text-sm font-medium mb-1" :style="{ color: themeColors.textSecondary }">Total Profit</p>
+                        <p class="text-2xl font-bold" :style="{ color: themeColors.textPrimary }">{{ formatCurrency(totalProfit) }}</p>
                     </div>
                 </div>
             </div>
@@ -119,7 +101,9 @@
         <div class="shadow rounded-lg p-6 mb-8"
              :style="{ 
                  backgroundColor: themeColors.card,
-                 borderColor: themeColors.border 
+                 borderColor: themeColors.border,
+                 borderWidth: '1px',
+                 borderStyle: 'solid'
              }">
             <div class="flex flex-col md:flex-row gap-4">
                 <div class="flex-1">
@@ -174,7 +158,9 @@
         <div class="shadow rounded-lg overflow-hidden"
              :style="{ 
                  backgroundColor: themeColors.card,
-                 borderColor: themeColors.border 
+                 borderColor: themeColors.border,
+                 borderWidth: '1px',
+                 borderStyle: 'solid'
              }">
             <div class="overflow-x-auto">
                 <table class="w-full">
@@ -883,6 +869,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { usePage, router } from '@inertiajs/vue3'
 import DashboardLayout from '@/Layouts/DashboardLayout.vue'
+import { ArchiveBoxIcon, CurrencyDollarIcon, ExclamationTriangleIcon, ArrowTrendingUpIcon } from '@heroicons/vue/24/outline'
 
 // Props
 const props = defineProps({

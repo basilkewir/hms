@@ -1,142 +1,202 @@
 <template>
-    <DashboardLayout title="Customers" :user="user" :navigation="navigation">
+    <DashboardLayout title="Customers" :user="user">
         <!-- Header -->
-        <div class="bg-white shadow rounded-lg p-6 mb-8">
+        <div class="shadow rounded-lg p-6 mb-8"
+             :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border, borderWidth: '1px', borderStyle: 'solid' }">
             <div class="flex items-center justify-between">
                 <div>
-                    <h1 class="text-2xl font-bold text-gray-900">Customer Management</h1>
-                    <p class="text-gray-600 mt-2">Manage customers and customer groups for POS transactions.</p>
+                    <h1 class="text-2xl font-bold mb-2" :style="{ color: themeColors.textPrimary }">Customer Management</h1>
+                    <p class="text-sm" :style="{ color: themeColors.textSecondary }">Manage customers and customer groups for POS transactions.</p>
                 </div>
-                <div class="flex space-x-3">
-                    <Link :href="route('manager.customers.create')" 
-                          class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
-                        <UserPlusIcon class="h-4 w-4 mr-2 inline" />
-                        Add New Customer
+                <div class="flex items-center gap-3">
+                    <Link :href="route('manager.customers.create')"
+                          class="px-4 py-2 rounded-md font-medium text-white flex items-center transition-colors"
+                          :style="{ backgroundColor: themeColors.primary }">
+                        <UserPlusIcon class="h-4 w-4 mr-2" />
+                        Add Customer
                     </Link>
-                    <Link :href="route('manager.customer-groups.index')" 
-                          class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">
-                        <UserGroupIcon class="h-4 w-4 mr-2 inline" />
+                    <Link :href="route('manager.customer-groups.index')"
+                          class="px-4 py-2 rounded-md font-medium text-white flex items-center transition-colors"
+                          :style="{ backgroundColor: '#8b5cf6' }">
+                        <UserGroupIcon class="h-4 w-4 mr-2" />
                         Manage Groups
                     </Link>
                 </div>
             </div>
         </div>
 
+        <!-- Stats Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <div class="rounded-lg p-6 border shadow-sm"
+                 :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }">
+                <div class="flex items-center">
+                    <div class="w-12 h-12 rounded-lg flex items-center justify-center mr-4"
+                         style="background-color: rgba(59,130,246,0.1)">
+                        <UsersIcon class="h-6 w-6" :style="{ color: themeColors.primary }" />
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium mb-1" :style="{ color: themeColors.textSecondary }">Total Customers</p>
+                        <p class="text-2xl font-bold" :style="{ color: themeColors.textPrimary }">{{ customers.total || 0 }}</p>
+                    </div>
+                </div>
+            </div>
+            <div class="rounded-lg p-6 border shadow-sm"
+                 :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }">
+                <div class="flex items-center">
+                    <div class="w-12 h-12 rounded-lg flex items-center justify-center mr-4"
+                         style="background-color: rgba(34,197,94,0.1)">
+                        <CheckCircleIcon class="h-6 w-6" :style="{ color: themeColors.success }" />
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium mb-1" :style="{ color: themeColors.textSecondary }">Active</p>
+                        <p class="text-2xl font-bold" :style="{ color: themeColors.textPrimary }">{{ activeCount }}</p>
+                    </div>
+                </div>
+            </div>
+            <div class="rounded-lg p-6 border shadow-sm"
+                 :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }">
+                <div class="flex items-center">
+                    <div class="w-12 h-12 rounded-lg flex items-center justify-center mr-4"
+                         style="background-color: rgba(239,68,68,0.1)">
+                        <XCircleIcon class="h-6 w-6" :style="{ color: themeColors.danger }" />
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium mb-1" :style="{ color: themeColors.textSecondary }">Inactive</p>
+                        <p class="text-2xl font-bold" :style="{ color: themeColors.textPrimary }">{{ (customers.total || 0) - activeCount }}</p>
+                    </div>
+                </div>
+            </div>
+            <div class="rounded-lg p-6 border shadow-sm"
+                 :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }">
+                <div class="flex items-center">
+                    <div class="w-12 h-12 rounded-lg flex items-center justify-center mr-4"
+                         style="background-color: rgba(139,92,246,0.1)">
+                        <UserGroupIcon class="h-6 w-6" style="color: #8b5cf6" />
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium mb-1" :style="{ color: themeColors.textSecondary }">Groups</p>
+                        <p class="text-2xl font-bold" :style="{ color: themeColors.textPrimary }">{{ customerGroups.length }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Filters -->
-        <div class="bg-white shadow rounded-lg p-6 mb-8">
+        <div class="rounded-lg p-6 mb-8 border shadow-sm"
+             :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }">
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Search</label>
+                    <label class="block text-sm font-medium mb-2" :style="{ color: themeColors.textSecondary }">Search</label>
                     <input type="text" v-model="filters.search" placeholder="Search customers..."
                            @input="applyFilters"
-                           class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                           class="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                           :style="{ backgroundColor: themeColors.background, borderColor: themeColors.border, color: themeColors.textPrimary }">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Customer Group</label>
+                    <label class="block text-sm font-medium mb-2" :style="{ color: themeColors.textSecondary }">Customer Group</label>
                     <select v-model="filters.group_id" @change="applyFilters"
-                            class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            class="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                            :style="{ backgroundColor: themeColors.background, borderColor: themeColors.border, color: themeColors.textPrimary }">
                         <option value="">All Groups</option>
-                        <option v-for="group in customerGroups" :key="group.id" :value="group.id">
-                            {{ group.name }}
-                        </option>
+                        <option v-for="group in customerGroups" :key="group.id" :value="group.id">{{ group.name }}</option>
                     </select>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                    <label class="block text-sm font-medium mb-2" :style="{ color: themeColors.textSecondary }">Status</label>
                     <select v-model="filters.status" @change="applyFilters"
-                            class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            class="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                            :style="{ backgroundColor: themeColors.background, borderColor: themeColors.border, color: themeColors.textPrimary }">
                         <option value="">All Status</option>
                         <option value="active">Active</option>
                         <option value="inactive">Inactive</option>
                     </select>
                 </div>
                 <div class="flex items-end">
-                    <button @click="resetFilters" 
-                            class="w-full bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300">
-                        Reset
+                    <button @click="resetFilters"
+                            class="w-full px-4 py-2 rounded-md text-sm font-medium transition-colors border"
+                            :style="{ borderColor: themeColors.border, color: themeColors.textSecondary, backgroundColor: themeColors.background }">
+                        Reset Filters
                     </button>
                 </div>
             </div>
         </div>
 
-        <!-- Customers Table -->
-        <div class="bg-white shadow rounded-lg overflow-hidden">
+        <!-- Table -->
+        <div class="rounded-lg overflow-hidden shadow"
+             :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border, borderWidth: '1px', borderStyle: 'solid' }">
+            <div class="px-6 py-4 border-b" :style="{ borderColor: themeColors.border }">
+                <h3 class="text-lg font-medium" :style="{ color: themeColors.textPrimary }">Customers</h3>
+            </div>
             <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-gray-200">
-                    <thead class="bg-gray-50">
-                        <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Customer
-                            </th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Contact
-                            </th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Group
-                            </th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Status
-                            </th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Actions
-                            </th>
+                <table class="min-w-full">
+                    <thead>
+                        <tr :style="{ backgroundColor: themeColors.background }">
+                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider"
+                                :style="{ color: themeColors.textTertiary }">Customer</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider"
+                                :style="{ color: themeColors.textTertiary }">Contact</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider"
+                                :style="{ color: themeColors.textTertiary }">Group</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider"
+                                :style="{ color: themeColors.textTertiary }">Status</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider"
+                                :style="{ color: themeColors.textTertiary }">Actions</th>
                         </tr>
                     </thead>
-                    <tbody class="bg-white divide-y divide-gray-200">
-                        <tr v-for="customer in customers.data" :key="customer.id" class="hover:bg-gray-50">
+                    <tbody>
+                        <tr v-for="customer in customers.data" :key="customer.id"
+                            class="transition-colors"
+                            :style="{ borderBottomWidth: '1px', borderBottomStyle: 'solid', borderColor: themeColors.border }"
+                            @mouseenter="e => e.currentTarget.style.backgroundColor = themeColors.hover"
+                            @mouseleave="e => e.currentTarget.style.backgroundColor = 'transparent'">
                             <td class="px-6 py-4 whitespace-nowrap">
-                                <div class="text-sm font-medium text-gray-900">
+                                <div class="text-sm font-medium" :style="{ color: themeColors.textPrimary }">
                                     {{ customer.first_name }} {{ customer.last_name }}
                                 </div>
-                                <div class="text-sm text-gray-500">{{ customer.customer_code }}</div>
+                                <div class="text-sm" :style="{ color: themeColors.textSecondary }">{{ customer.customer_code }}</div>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
-                                <div class="text-sm text-gray-900">{{ customer.email || '-' }}</div>
-                                <div class="text-sm text-gray-500">{{ customer.phone || '-' }}</div>
+                                <div class="text-sm" :style="{ color: themeColors.textPrimary }">{{ customer.email || '—' }}</div>
+                                <div class="text-sm" :style="{ color: themeColors.textSecondary }">{{ customer.phone || '—' }}</div>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
-                                <span v-if="customer.customer_group" 
-                                      class="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
+                                <span v-if="customer.customer_group"
+                                      class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                                     {{ customer.customer_group.name }}
                                 </span>
-                                <span v-else class="text-sm text-gray-500">No Group</span>
+                                <span v-else class="text-sm" :style="{ color: themeColors.textSecondary }">No Group</span>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
-                                <span :class="customer.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'"
-                                      class="px-2 py-1 text-xs font-medium rounded-full">
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                                      :class="customer.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'">
                                     {{ customer.is_active ? 'Active' : 'Inactive' }}
                                 </span>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                <Link :href="route('manager.customers.show', customer.id)" 
-                                      class="text-blue-600 hover:text-blue-900 mr-3">View</Link>
-                                <Link :href="route('manager.customers.edit', customer.id)" 
-                                      class="text-green-600 hover:text-green-900">Edit</Link>
+                                <Link :href="route('manager.customers.show', customer.id)"
+                                      class="mr-3 transition-colors" :style="{ color: themeColors.primary }">View</Link>
+                                <Link :href="route('manager.customers.edit', customer.id)"
+                                      class="transition-colors" :style="{ color: themeColors.success }">Edit</Link>
+                            </td>
+                        </tr>
+                        <tr v-if="!customers.data?.length">
+                            <td colspan="5" class="px-6 py-12 text-center">
+                                <UsersIcon class="mx-auto h-12 w-12 mb-3" :style="{ color: themeColors.textTertiary }" />
+                                <p class="text-sm font-medium" :style="{ color: themeColors.textPrimary }">No customers found</p>
+                                <p class="text-sm mt-1" :style="{ color: themeColors.textSecondary }">Get started by creating a new customer.</p>
+                                <Link :href="route('manager.customers.create')"
+                                      class="inline-flex items-center mt-4 px-4 py-2 rounded-md text-sm font-medium text-white"
+                                      :style="{ backgroundColor: themeColors.primary }">
+                                    <UserPlusIcon class="h-4 w-4 mr-2" /> Add Customer
+                                </Link>
                             </td>
                         </tr>
                     </tbody>
                 </table>
             </div>
-
-            <!-- Empty State -->
-            <div v-if="!customers.data || customers.data.length === 0" class="text-center py-12">
-                <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
-                <h3 class="mt-2 text-sm font-medium text-gray-900">No customers</h3>
-                <p class="mt-1 text-sm text-gray-500">Get started by creating a new customer.</p>
-                <div class="mt-6">
-                    <Link :href="route('manager.customers.create')"
-                          class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
-                        <UserPlusIcon class="h-4 w-4 mr-2" />
-                        Add New Customer
-                    </Link>
-                </div>
-            </div>
-
             <!-- Pagination -->
-            <div v-if="customers.links" class="px-6 py-4 border-t border-gray-200">
-                <Pagination :links="customers.links" :meta="customers" />
+            <div v-if="customers.links" class="px-6 py-4 border-t" :style="{ borderColor: themeColors.border }">
+                <Pagination :links="customers.links" />
             </div>
         </div>
     </DashboardLayout>
@@ -147,37 +207,47 @@ import { ref, computed } from 'vue'
 import { Link, router } from '@inertiajs/vue3'
 import DashboardLayout from '@/Layouts/DashboardLayout.vue'
 import Pagination from '@/Components/Pagination.vue'
-import { getNavigationForRole } from '@/Utils/navigation.js'
-import { UserPlusIcon, UserGroupIcon } from '@heroicons/vue/24/outline'
+import { useTheme } from '@/Composables/useTheme.js'
+import { UserPlusIcon, UserGroupIcon, UsersIcon, CheckCircleIcon, XCircleIcon } from '@heroicons/vue/24/outline'
+
+const { loadTheme } = useTheme()
+loadTheme()
+
+const themeColors = computed(() => ({
+    background:    'var(--kotel-background)',
+    card:          'var(--kotel-card)',
+    border:        'var(--kotel-border)',
+    textPrimary:   'var(--kotel-text-primary)',
+    textSecondary: 'var(--kotel-text-secondary)',
+    textTertiary:  'var(--kotel-text-tertiary)',
+    primary:       'var(--kotel-primary)',
+    success:       'var(--kotel-success)',
+    warning:       'var(--kotel-warning)',
+    danger:        'var(--kotel-danger)',
+    hover:         'rgba(255,255,255,0.05)',
+}))
 
 const props = defineProps({
-    user: Object,
-    customers: Object,
-    customerGroups: Array,
-    filters: Object,
+    user:           Object,
+    customers:      Object,
+    customerGroups: { type: Array, default: () => [] },
+    filters:        Object,
 })
 
-const navigation = computed(() => getNavigationForRole('manager'))
+const activeCount = computed(() => props.customers?.data?.filter(c => c.is_active).length ?? 0)
 
 const filters = ref({
-    search: props.filters?.search || '',
+    search:   props.filters?.search   || '',
     group_id: props.filters?.group_id || '',
-    status: props.filters?.status || '',
+    status:   props.filters?.status   || '',
 })
 
 const applyFilters = () => {
-    router.get(route('manager.customers.index'), filters.value, {
-        preserveState: true,
-        preserveScroll: true,
-    })
+    router.get(route('manager.customers.index'), filters.value, { preserveState: true, preserveScroll: true })
 }
 
 const resetFilters = () => {
-    filters.value = {
-        search: '',
-        group_id: '',
-        status: '',
-    }
+    filters.value = { search: '', group_id: '', status: '' }
     applyFilters()
 }
 </script>

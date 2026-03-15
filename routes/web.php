@@ -7860,24 +7860,57 @@ Route::middleware(['auth', 'role:manager'])->prefix('manager')->name('manager.')
     })->name('dashboard');
 
     // Customers
-    Route::get('/customers', function () {
+    Route::get('/customers', function (\Illuminate\Http\Request $request) {
         $user = auth()->user()->load('roles');
-        $role = $user->roles->first()?->name ?? 'staff';
+
+        $query = \App\Models\Customer::with('customerGroup')->latest();
+
+        if ($request->filled('search')) {
+            $s = $request->search;
+            $query->where(function ($q) use ($s) {
+                $q->where('first_name', 'like', "%{$s}%")
+                  ->orWhere('last_name',  'like', "%{$s}%")
+                  ->orWhere('email',      'like', "%{$s}%")
+                  ->orWhere('phone',      'like', "%{$s}%");
+            });
+        }
+        if ($request->filled('group_id')) {
+            $query->where('customer_group_id', $request->group_id);
+        }
+        if ($request->filled('status')) {
+            $query->where('is_active', $request->status === 'active');
+        }
+
+        $customers      = $query->paginate(20)->withQueryString();
+        $customerGroups = \App\Models\CustomerGroup::orderBy('name')->get(['id', 'name']);
 
         return Inertia::render('Manager/Customers/Index', [
-            'user' => $user,
-            'navigation' => app(DashboardController::class)->getNavigationForRole($role)
+            'user'           => $user,
+            'navigation'     => app(DashboardController::class)->getNavigationForRole('manager'),
+            'customers'      => $customers,
+            'customerGroups' => $customerGroups,
+            'filters'        => $request->only(['search', 'group_id', 'status']),
         ]);
     })->name('customers.index');
 
     // Customer Groups
     Route::get('/customer-groups', function () {
-        $user = auth()->user()->load('roles');
-        $role = $user->roles->first()?->name ?? 'staff';
+        $user   = auth()->user()->load('roles');
+        $groups = \App\Models\CustomerGroup::withCount('customers')->orderBy('name')->paginate(20);
+
+        $all = \App\Models\CustomerGroup::withCount('customers')->get();
+        $stats = [
+            'total'          => $all->count(),
+            'active'         => $all->where('is_active', true)->count(),
+            'inactive'       => $all->where('is_active', false)->count(),
+            'totalCustomers' => $all->sum('customers_count'),
+        ];
 
         return Inertia::render('Manager/CustomerGroups/Index', [
-            'user' => $user,
-            'navigation' => app(DashboardController::class)->getNavigationForRole($role)
+            'user'           => $user,
+            'navigation'     => app(DashboardController::class)->getNavigationForRole('manager'),
+            'customerGroups' => $groups,
+            'stats'          => $stats,
         ]);
     })->name('customer-groups.index');
 
