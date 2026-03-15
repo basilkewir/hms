@@ -22,100 +22,39 @@ class ReservationController extends Controller
 {
     public function index()
     {
-        $reservations = Reservation::with(['guest', 'room', 'roomType', 'groupBooking'])
-            ->orderBy('created_at', 'desc')
-            ->paginate(20)
-            ->through(function($reservation) {
-                return [
-                    'id' => $reservation->id,
-                    'confirmation_number' => $reservation->reservation_number,
-                    'guest_name' => $reservation->guest->full_name ?? 'N/A',
-                    'guest_email' => $reservation->guest->email ?? 'N/A',
-                    'check_in_date' => $reservation->check_in_date->format('Y-m-d'),
-                    'check_out_date' => $reservation->check_out_date->format('Y-m-d'),
-                    'room_number' => $reservation->room?->room_number,
-                    'room_type' => $reservation->roomType?->name,
-                    'total_amount' => $reservation->total_amount,
-                    'status' => $reservation->status,
-                    'booking_source' => $reservation->booking_source,
-                    'is_group_booking' => $reservation->is_group_booking,
-                    'group_booking_name' => $reservation->groupBooking?->group_name,
-                ];
-            });
-
-        $stats = [
-            'total' => Reservation::count(),
-            'confirmed' => Reservation::where('status', 'confirmed')->count(),
-            'pending' => Reservation::where('status', 'pending')->count(),
-            'checkedIn' => Reservation::where('status', 'checked_in')->count(),
-            'todayArrivals' => Reservation::whereDate('check_in_date', today())
-                ->whereIn('status', ['confirmed', 'pending'])->count(),
-            'todayDepartures' => Reservation::whereDate('check_out_date', today())
-                ->where('status', 'checked_in')->count(),
-        ];
-
-        // Booking sources breakdown
-        $bookingSources = Reservation::select('booking_source', DB::raw('count(*) as count'))
-            ->groupBy('booking_source')
-            ->get()
-            ->pluck('count', 'booking_source');
-
-        // Determine which view to render based on route
-        $user = auth()->user();
+        $user = auth()->user()->load('roles');
         $isManager = $user->hasRole('manager');
         $viewPath = $isManager ? 'Manager/Reservations/Index' : 'Admin/Reservations/Index';
 
-        // Get today's arrivals and departures for manager view
-        $todaysArrivals = [];
-        $todaysDepartures = [];
-        $roomStatus = [];
+        $reservations = Reservation::with(['guest', 'room', 'roomType'])
+            ->orderBy('created_at', 'desc')
+            ->get()
+            ->map(fn($r) => [
+                'id'                  => $r->id,
+                'confirmation_number' => $r->reservation_number,
+                'guest_name'          => $r->guest ? trim(($r->guest->first_name ?? '') . ' ' . ($r->guest->last_name ?? '')) ?: ($r->guest->full_name ?? 'N/A') : 'N/A',
+                'guest_email'         => $r->guest?->email ?? '',
+                'check_in_date'       => $r->check_in_date instanceof \Carbon\Carbon ? $r->check_in_date->format('Y-m-d') : $r->check_in_date,
+                'check_out_date'      => $r->check_out_date instanceof \Carbon\Carbon ? $r->check_out_date->format('Y-m-d') : $r->check_out_date,
+                'room_number'         => $r->room?->room_number ?? null,
+                'room_type'           => $r->roomType?->name ?? null,
+                'adults'              => $r->number_of_adults ?? $r->adults ?? 0,
+                'children'            => $r->number_of_children ?? $r->children ?? 0,
+                'status'              => $r->status,
+                'total_amount'        => $r->total_amount ?? 0,
+            ]);
 
-        if ($isManager) {
-            $today = Carbon::today();
-
-            // Today's arrivals
-            $todaysArrivals = Reservation::with(['guest', 'room', 'roomType'])
-                ->whereDate('check_in_date', $today)
-                ->whereIn('status', ['confirmed', 'pending'])
-                ->get()
-                ->map(fn($r) => [
-                    'id' => $r->id,
-                    'guest_name' => $r->guest->full_name ?? 'N/A',
-                    'room_number' => $r->room?->room_number ?? 'TBA',
-                    'expected_time' => $r->preferred_check_in_time ?? '2:00 PM',
-                    'checked_in' => $r->status === 'checked_in',
-                ]);
-
-            // Today's departures
-            $todaysDepartures = Reservation::with(['guest', 'room', 'roomType'])
-                ->whereDate('check_out_date', $today)
-                ->where('status', 'checked_in')
-                ->get()
-                ->map(fn($r) => [
-                    'id' => $r->id,
-                    'guest_name' => $r->guest->full_name ?? 'N/A',
-                    'room_number' => $r->room?->room_number ?? 'N/A',
-                    'expected_time' => $r->preferred_check_out_time ?? '11:00 AM',
-                    'checked_out' => $r->status === 'checked_out',
-                ]);
-
-            // Room status
-            $roomStatus = [
-                'available' => Room::where('status', 'available')->count(),
-                'occupied' => Room::where('status', 'occupied')->count(),
-                'cleaning' => Room::where('housekeeping_status', 'dirty')->count(),
-                'maintenance' => Room::where('status', 'maintenance')->count(),
-            ];
-        }
+        $reservationStats = [
+            'arrivals'        => Reservation::whereDate('check_in_date', today())->whereNotIn('status', ['cancelled', 'no_show'])->count(),
+            'departures'      => Reservation::whereDate('check_out_date', today())->whereNotIn('status', ['cancelled', 'no_show'])->count(),
+            'pendingCheckins' => Reservation::whereDate('check_in_date', today())->whereIn('status', ['confirmed', 'pending'])->count(),
+            'occupiedRooms'   => Reservation::where('status', 'checked_in')->count(),
+        ];
 
         return Inertia::render($viewPath, [
-            'user' => $user->load('roles'),
-            'reservations' => $reservations,
-            'reservationStats' => $stats,
-            'bookingSources' => $bookingSources,
-            'todaysArrivals' => $todaysArrivals,
-            'todaysDepartures' => $todaysDepartures,
-            'roomStatus' => $roomStatus,
+            'user'             => $user,
+            'reservations'     => $reservations,
+            'reservationStats' => $reservationStats,
         ]);
     }
 

@@ -2597,6 +2597,56 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
     Route::get('/reservations', [ReservationController::class, 'index'])->name('reservations.index');
     Route::get('/reservations/create', [ReservationController::class, 'create'])->name('reservations.create');
     Route::post('/reservations', [ReservationController::class, 'store'])->name('reservations.store');
+    Route::get('/reservations/arrivals', function () {
+        $user = auth()->user()->load('roles');
+        $role = $user->roles->first()?->name ?? 'admin';
+        $arrivals = \App\Models\Reservation::with(['guest', 'room'])
+            ->whereDate('check_in_date', today())
+            ->whereIn('status', ['confirmed', 'pending'])
+            ->latest()->get()
+            ->map(fn($r) => [
+                'id'                  => $r->id,
+                'confirmation_number' => $r->reservation_number,
+                'guest_name'          => $r->guest ? trim(($r->guest->first_name ?? '') . ' ' . ($r->guest->last_name ?? '')) : 'N/A',
+                'room_number'         => $r->room?->room_number ?? null,
+                'check_in_date'       => $r->check_in_date,
+                'status'              => $r->status,
+            ]);
+        return Inertia::render('Admin/Reservations/Arrivals', [
+            'user'       => $user,
+            'navigation' => app(DashboardController::class)->getNavigationForRole($role),
+            'arrivals'   => $arrivals,
+        ]);
+    })->name('reservations.arrivals');
+    Route::get('/reservations/departures', function () {
+        $user = auth()->user()->load('roles');
+        $role = $user->roles->first()?->name ?? 'admin';
+        $departures = \App\Models\Reservation::with(['guest', 'room'])
+            ->whereDate('check_out_date', today())
+            ->where('status', 'checked_in')
+            ->latest()->get()
+            ->map(fn($r) => [
+                'id'                  => $r->id,
+                'confirmation_number' => $r->reservation_number,
+                'guest_name'          => $r->guest ? trim(($r->guest->first_name ?? '') . ' ' . ($r->guest->last_name ?? '')) : 'N/A',
+                'room_number'         => $r->room?->room_number ?? null,
+                'check_out_date'      => $r->check_out_date,
+                'status'              => $r->status,
+            ]);
+        return Inertia::render('Admin/Reservations/Departures', [
+            'user'       => $user,
+            'navigation' => app(DashboardController::class)->getNavigationForRole($role),
+            'departures' => $departures,
+        ]);
+    })->name('reservations.departures');
+    Route::get('/room-assignment', function () {
+        $user = auth()->user()->load('roles');
+        $role = $user->roles->first()?->name ?? 'admin';
+        return Inertia::render('Admin/RoomAssignment/Index', [
+            'user'       => $user,
+            'navigation' => app(DashboardController::class)->getNavigationForRole($role),
+        ]);
+    })->name('room-assignment');
 
     // Service Charges - MUST be before wildcard routes to avoid 404
     Route::get('/reservations/service-charges', function () {
@@ -7918,10 +7968,33 @@ Route::middleware(['auth', 'role:manager'])->prefix('manager')->name('manager.')
     Route::get('/reservations', function () {
         $user = auth()->user()->load('roles');
         $role = $user->roles->first()?->name ?? 'manager';
+        $reservations = \App\Models\Reservation::with(['guest', 'room', 'roomType'])
+            ->latest()->get()
+            ->map(fn($r) => [
+                'id'                  => $r->id,
+                'confirmation_number' => $r->reservation_number,
+                'guest_name'          => $r->guest ? trim(($r->guest->first_name ?? '') . ' ' . ($r->guest->last_name ?? '')) ?: ($r->guest->full_name ?? 'N/A') : 'N/A',
+                'guest_email'         => $r->guest?->email ?? '',
+                'check_in_date'       => $r->check_in_date instanceof \Carbon\Carbon ? $r->check_in_date->format('Y-m-d') : $r->check_in_date,
+                'check_out_date'      => $r->check_out_date instanceof \Carbon\Carbon ? $r->check_out_date->format('Y-m-d') : $r->check_out_date,
+                'room_number'         => $r->room?->room_number ?? null,
+                'room_type'           => $r->roomType?->name ?? null,
+                'adults'              => $r->number_of_adults ?? $r->adults ?? 0,
+                'children'            => $r->number_of_children ?? $r->children ?? 0,
+                'status'              => $r->status,
+                'total_amount'        => $r->total_amount ?? 0,
+            ]);
+        $reservationStats = [
+            'arrivals'        => \App\Models\Reservation::whereDate('check_in_date', today())->whereNotIn('status', ['cancelled', 'no_show'])->count(),
+            'departures'      => \App\Models\Reservation::whereDate('check_out_date', today())->whereNotIn('status', ['cancelled', 'no_show'])->count(),
+            'pendingCheckins' => \App\Models\Reservation::whereDate('check_in_date', today())->whereIn('status', ['confirmed', 'pending'])->count(),
+            'occupiedRooms'   => \App\Models\Reservation::where('status', 'checked_in')->count(),
+        ];
         return Inertia::render('Manager/Reservations/Index', [
-            'user' => $user,
-            'navigation' => app(DashboardController::class)->getNavigationForRole($role),
-            'reservations' => \App\Models\Reservation::with(['guest', 'room'])->latest()->paginate(20)->withQueryString(),
+            'user'             => $user,
+            'navigation'       => app(DashboardController::class)->getNavigationForRole($role),
+            'reservations'     => $reservations,
+            'reservationStats' => $reservationStats,
         ]);
     })->name('reservations.index');
     Route::get('/reservations/arrivals', function () {

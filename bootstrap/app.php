@@ -20,6 +20,9 @@ return Application::configure(basePath: dirname(__DIR__))
                  ->appendOutputTo(storage_path('logs/housekeeping-daily.log'));
     })
     ->withMiddleware(function (Middleware $middleware): void {
+        // Trust Cloudflare Tunnel proxy so HTTPS headers are respected
+        $middleware->trustProxies(at: '*');
+
         // CORS for public booking API (must run before auth middleware)
         $middleware->api(prepend: [
             \Illuminate\Http\Middleware\HandleCors::class,
