@@ -8800,11 +8800,18 @@ Route::middleware(['auth', 'role:manager'])->prefix('manager')->name('manager.')
     Route::get('/maintenance-requests/{maintenanceRequest}', function ($id) {
         $user = auth()->user()->load('roles');
         $role = $user->roles->first()?->name ?? 'manager';
-        $request = \App\Models\MaintenanceRequest::with(['room', 'assignedTo', 'reportedBy', 'department', 'resolvedBy'])->findOrFail($id);
+        $mr = \App\Models\MaintenanceRequest::with(['room', 'assignedTo', 'reportedBy', 'department', 'resolvedBy'])->findOrFail($id);
         return Inertia::render('Manager/MaintenanceRequests/Show', [
             'user'        => $user,
             'navigation'  => app(DashboardController::class)->getNavigationForRole($role),
-            'request'     => $request,
+            'request'     => array_merge($mr->toArray(), [
+                'photos'      => $mr->photos
+                    ? array_map(fn($p) => \Illuminate\Support\Facades\Storage::url($p), $mr->photos)
+                    : [],
+                'reported_by' => $mr->reportedBy ? ['id' => $mr->reportedBy->id, 'name' => $mr->reportedBy->full_name] : null,
+                'assigned_to' => $mr->assignedTo ? ['id' => $mr->assignedTo->id, 'name' => $mr->assignedTo->full_name] : null,
+                'resolved_by' => $mr->resolvedBy ? ['id' => $mr->resolvedBy->id, 'name' => $mr->resolvedBy->full_name] : null,
+            ]),
             'routePrefix' => 'manager',
         ]);
     })->name('maintenance-requests.show');
