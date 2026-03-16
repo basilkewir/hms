@@ -51,6 +51,43 @@
                             <div v-if="errors.expense_category_id" class="mt-2 text-sm"
                                  :style="{ color: themeColors.danger }">{{ errors.expense_category_id }}</div>
                         </div>
+
+                        <div>
+                            <label class="block text-sm font-medium mb-2"
+                                   :style="{ color: themeColors.textSecondary }">Budget (Optional)</label>
+                            <select v-model="form.budget_id"
+                                    class="w-full rounded-md px-3 py-2 focus:outline-none transition-colors"
+                                    :style="{
+                                        backgroundColor: themeColors.background,
+                                        borderColor: themeColors.border,
+                                        color: themeColors.textPrimary,
+                                        borderWidth: '1px',
+                                        borderStyle: 'solid'
+                                    }">
+                                <option value="">No Budget</option>
+                                <option v-for="budget in budgets" :key="budget.id" :value="budget.id">
+                                    {{ budget.name }} ({{ formatCurrency(budget.amount) }})
+                                </option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-2"
+                                   :style="{ color: themeColors.textSecondary }">Guest (Optional)</label>
+                            <select v-model="form.guest_id"
+                                    class="w-full rounded-md px-3 py-2 focus:outline-none transition-colors"
+                                    :style="{
+                                        backgroundColor: themeColors.background,
+                                        borderColor: themeColors.border,
+                                        color: themeColors.textPrimary,
+                                        borderWidth: '1px',
+                                        borderStyle: 'solid'
+                                    }">
+                                <option value="">No Guest</option>
+                                <option v-for="guest in guests" :key="guest.id" :value="guest.id">
+                                    {{ guest.first_name }} {{ guest.last_name }}
+                                </option>
+                            </select>
+                        </div>
                         <div>
                             <label class="block text-sm font-medium mb-2"
                                    :style="{ color: themeColors.textSecondary }">Vendor Name *</label>
@@ -251,6 +288,7 @@ import { useTheme } from '@/Composables/useTheme.js'
 import { usePage } from '@inertiajs/vue3'
 import { getNavigationForRole } from '@/Utils/navigation.js'
 import { ArrowLeftIcon } from '@heroicons/vue/24/outline'
+import { formatCurrency } from '@/Utils/currency.js'
 
 // Theme system
 const { loadTheme } = useTheme()
@@ -285,11 +323,15 @@ const props = defineProps({
     user: Object,
     expense: Object,
     categories: Array,
+    budgets: { type: Array, default: () => [] },
+    guests: { type: Array, default: () => [] },
     routePrefix: { type: String, default: 'admin' }
 })
 
 const form = useForm({
     expense_category_id: props.expense?.category_id || '',
+    budget_id: props.expense?.budget_id || '',
+    guest_id: props.expense?.guest_id || '',
     vendor_name: props.expense?.vendor || '',
     description: props.expense?.description || '',
     expense_date: props.expense?.date || new Date().toISOString().split('T')[0],

@@ -109,6 +109,26 @@
                                    placeholder="e.g. Kitchen Supplies, Laundry, Maintenance..." />
                         </div>
 
+                        <!-- Budget Selection -->
+                        <div>
+                            <label class="block text-sm font-medium mb-2"
+                                   :style="{ color: themeColors.textSecondary }">Budget (Optional)</label>
+                            <select v-model="form.budget_id"
+                                    class="w-full px-4 py-2 rounded-lg border transition-colors"
+                                    :style="{
+                                        backgroundColor: themeColors.background,
+                                        borderColor: themeColors.border,
+                                        color: themeColors.textPrimary,
+                                        borderWidth: '1px',
+                                        borderStyle: 'solid'
+                                    }">
+                                <option value="">No Budget</option>
+                                <option v-for="budget in budgets" :key="budget.id" :value="budget.id">
+                                    {{ budget.name }} ({{ formatCurrency(budget.amount) }})
+                                </option>
+                            </select>
+                        </div>
+
                         <!-- Destination Location -->
                         <div>
                             <label class="block text-sm font-medium mb-2"
@@ -627,7 +647,8 @@ const props = defineProps({
     navigation: Array,
     suppliers: Array,
     products: Array,
-    locations: { type: Array, default: () => [] }
+    locations: { type: Array, default: () => [] },
+    budgets: { type: Array, default: () => [] }
 })
 
 const isSubmitting = ref(false)
@@ -646,6 +667,7 @@ const form = useForm({
     purchase_conditions: '',
     notes: '',
     tax_percentage: 0,
+    budget_id: '',
     receipt_number: '',
     receipt_file: null,
     items: [
@@ -859,6 +881,7 @@ const submitForm = () => {
     formData.append('purchase_conditions', form.purchase_conditions)
     formData.append('notes', form.notes)
     formData.append('tax_percentage', form.tax_percentage)
+    formData.append('budget_id', form.budget_id || '')
     formData.append('receipt_number', form.receipt_number)
     
     // Add receipt file if present

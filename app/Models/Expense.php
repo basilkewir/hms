@@ -29,7 +29,9 @@ class Expense extends Model
         'paid_at',
         'paid_by',
         'payment_reference',
-        'notes'
+        'notes',
+        'budget_id',
+        'guest_id'
     ];
 
     protected $casts = [

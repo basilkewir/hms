@@ -2499,6 +2499,7 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
             'user' => $user,
             'navigation' => app(DashboardController::class)->getNavigationForRole($role),
             'categories' => $categories,
+            'budgets' => \App\Models\Budget::whereIn('status', ['active','approved'])->orderBy('name')->get(['id','name','amount']),
         ]);
     })->name('expenses.create');
 
@@ -2527,6 +2528,8 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
     Route::post('/expenses', function (\Illuminate\Http\Request $request) {
         $validated = $request->validate([
             'expense_category_id' => 'nullable|exists:expense_categories,id',
+            'budget_id'           => 'nullable|exists:budgets,id',
+            'guest_id'            => 'nullable|exists:guests,id',
             'vendor_name'         => 'nullable|string|max:255',
             'description'         => 'required|string',
             'expense_date'        => 'required|date',
@@ -2576,6 +2579,8 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
             'navigation' => app(DashboardController::class)->getNavigationForRole($role),
             'expense' => $expense->load('category'),
             'categories' => $categories,
+            'budgets' => \App\Models\Budget::whereIn('status', ['active','approved'])->orderBy('name')->get(['id','name','amount']),
+            'guests' => \App\Models\Guest::orderBy('first_name')->get(['id','first_name','last_name','email']),
         ]);
     })->name('expenses.edit');
 
@@ -2590,6 +2595,8 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
             'receipt_number'      => 'nullable|string|max:100',
             'receipt_file'        => 'nullable|file|mimes:pdf,jpg,jpeg,png,webp|max:5120',
             'notes'               => 'nullable|string',
+            'budget_id'           => 'nullable|exists:budgets,id',
+            'guest_id'            => 'nullable|exists:guests,id',
         ]);
         if ($request->hasFile('receipt_file')) {
             if ($expense->receipt_file_path) {
@@ -7499,6 +7506,8 @@ Route::middleware(['auth', 'role:accountant'])->prefix('accountant')->name('acco
             'user' => $user,
             'navigation' => app(DashboardController::class)->getNavigationForRole($role),
             'categories' => $categories,
+            'budgets' => \App\Models\Budget::whereIn('status', ['active','approved'])->orderBy('name')->get(['id','name','amount']),
+            'guests' => \App\Models\Guest::orderBy('first_name')->get(['id','first_name','last_name','email']),
         ]);
     })->name('expenses.create');
 
@@ -7514,6 +7523,8 @@ Route::middleware(['auth', 'role:accountant'])->prefix('accountant')->name('acco
             'notes' => 'nullable|string|max:1000',
             'status' => 'nullable|string|in:pending,approved,rejected',
             'receipt_file' => 'nullable|file|mimes:pdf,jpg,jpeg,png,webp|max:5120',
+            'budget_id' => 'nullable|exists:budgets,id',
+            'guest_id' => 'nullable|exists:guests,id',
         ]);
 
         // Handle receipt file upload
@@ -8109,6 +8120,8 @@ Route::middleware(['auth', 'role:accountant'])->prefix('accountant')->name('acco
             'user'       => $user,
             'navigation' => app(DashboardController::class)->getNavigationForRole($role),
             'categories' => $categories,
+            'budgets' => \App\Models\Budget::whereIn('status', ['active','approved'])->orderBy('name')->get(['id','name','amount']),
+            'guests' => \App\Models\Guest::orderBy('first_name')->get(['id','first_name','last_name','email']),
         ]);
     })->name('expenses.create');
 
@@ -8122,6 +8135,8 @@ Route::middleware(['auth', 'role:accountant'])->prefix('accountant')->name('acco
             'payment_method'      => 'nullable|string|max:50',
             'receipt_number'      => 'nullable|string|max:100',
             'receipt_file'        => 'nullable|file|mimes:pdf,jpg,jpeg,png,webp|max:5120',
+            'budget_id'           => 'nullable|exists:budgets,id',
+            'guest_id'            => 'nullable|exists:guests,id',
             'notes'               => 'nullable|string',
         ]);
         if ($request->hasFile('receipt_file')) {
@@ -8989,6 +9004,8 @@ Route::middleware(['auth', 'role:manager'])->prefix('manager')->name('manager.')
             'user'        => $user,
             'navigation'  => app(DashboardController::class)->getNavigationForRole($role),
             'categories'  => \App\Models\ExpenseCategory::orderBy('name')->get(),
+                        'budgets'     => \App\Models\Budget::whereIn('status', ['active','approved'])->orderBy('name')->get(['id','name','amount']),
+            'guests'      => \App\Models\Guest::orderBy('first_name')->get(['id','first_name','last_name','email']),
             'routePrefix' => 'manager',
         ]);
     })->name('expenses.create');
@@ -9484,6 +9501,7 @@ Route::middleware(['auth', 'role:manager'])->prefix('manager')->name('manager.')
             'suppliers'  => $suppliers,
             'products'   => $products,
             'locations'  => $locations,
+            'budgets'   => \App\Models\Budget::whereIn('status', ['active','approved'])->orderBy('name')->get(['id','name','amount']),
         ]);
     })->name('purchases.create');
 
@@ -9531,6 +9549,7 @@ Route::middleware(['auth', 'role:manager'])->prefix('manager')->name('manager.')
             'purchaseOrder' => $purchaseOrder,
             'suppliers'     => $suppliers,
             'products'      => $products,
+            'budgets'       => \App\Models\Budget::whereIn('status', ['active','approved'])->orderBy('name')->get(['id','name','amount']),
         ]);
     })->name('purchases.edit');
 
@@ -10085,6 +10104,8 @@ Route::middleware(['auth', 'role:manager'])->prefix('manager')->name('manager.')
             'navigation'  => app(DashboardController::class)->getNavigationForRole($role),
             'expense'     => \App\Models\Expense::with('category')->findOrFail($id),
             'categories'  => \App\Models\ExpenseCategory::orderBy('name')->get(),
+                        'budgets'     => \App\Models\Budget::whereIn('status', ['active','approved'])->orderBy('name')->get(['id','name','amount']),
+            'guests'      => \App\Models\Guest::orderBy('first_name')->get(['id','first_name','last_name','email']),
             'routePrefix' => 'manager',
         ]);
     })->name('expenses.edit');
@@ -10899,6 +10920,7 @@ Route::middleware(['auth', 'verified'])->prefix('pos')->name('pos.')->group(func
     Route::get('/', [\App\Http\Controllers\POS\POSController::class, 'index'])->name('index');
     Route::post('/process-sale', [\App\Http\Controllers\POS\POSController::class, 'processSale'])->name('process-sale');
     Route::post('/open-drawer', [\App\Http\Controllers\POS\POSController::class, 'openDrawer'])->name('open-drawer');
+    Route::post('/close-drawer', [\App\Http\Controllers\POS\POSController::class, 'closeDrawer'])->name('close-drawer');
 
     // Locations
     Route::resource('locations', \App\Http\Controllers\POS\LocationController::class);

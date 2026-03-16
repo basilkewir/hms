@@ -54,6 +54,18 @@
                                 <option value="cancelled">Cancelled</option>
                             </select>
                         </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-2" :style="{ color: themeColors.textSecondary }">Budget <span class="text-gray-400 font-normal">(Optional)</span></label>
+                            <select v-model="form.budget_id"
+                                    class="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2 transition-all"
+                                    :style="{ borderColor: themeColors.border, backgroundColor: themeColors.background, color: themeColors.textPrimary }">
+                                <option value="">No Budget</option>
+                                <option v-for="budget in budgets" :key="budget.id" :value="budget.id">
+                                    {{ budget.name }}
+                                </option>
+                            </select>
+                            <div v-if="form.errors.budget_id" class="mt-1 text-sm" :style="{ color: themeColors.danger }">{{ form.errors.budget_id }}</div>
+                        </div>
                     </div>
                 </div>
 
@@ -94,6 +106,7 @@ import { ArrowLeftIcon } from '@heroicons/vue/24/outline'
 
 const props = defineProps({
     user: Object,
+    budgets: { type: Array, default: () => [] },
     suppliers: {
         type: Array,
         default: () => []
@@ -121,6 +134,7 @@ const themeColors = computed(() => ({
 
 const form = useForm({
     supplier_id: '',
+    budget_id: '',
     purchase_date: new Date().toISOString().slice(0, 10),
     status: 'pending',
     notes: ''

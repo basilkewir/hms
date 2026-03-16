@@ -34,23 +34,33 @@
                         <div>
                             <label class="block text-sm font-medium mb-2"
                                    :style="{ color: themeColors.textSecondary }">Select Guest *</label>
-                            <select v-model="form.guest_id" required
-                                    class="w-full rounded-md px-3 py-2 focus:outline-none transition-colors"
-                                    :style="{
-                                        backgroundColor: themeColors.background,
-                                        borderColor: themeColors.border,
-                                        color: themeColors.textPrimary,
-                                        borderWidth: '1px',
-                                        borderStyle: 'solid'
-                                    }"
-                                    @change="onGuestChange">
-                                <option value="">Select Existing Guest</option>
-                                <option v-for="guest in guests" :key="guest.id" :value="guest.id">
-                                    {{ guest.first_name }} {{ guest.last_name }} ({{ guest.email }})
-                                    <span v-if="guest.guest_type"> - {{ guest.guest_type.name }}</span>
-                                    <span v-if="guest.is_vip"> - VIP</span>
-                                </option>
-                            </select>
+                            <div class="relative">
+                                <input v-model="guestSearch" type="text"
+                                       placeholder="Search guest by name or email..."
+                                       class="w-full rounded-md px-3 py-2 focus:outline-none transition-colors"
+                                       :style="{
+                                           backgroundColor: themeColors.background,
+                                           borderColor: themeColors.border,
+                                           color: themeColors.textPrimary,
+                                           borderWidth: '1px',
+                                           borderStyle: 'solid'
+                                       }"
+                                       @focus="guestDropdownOpen = true"
+                                       @blur="setTimeout(() => guestDropdownOpen = false, 200)" />
+                                <div v-if="guestDropdownOpen && filteredGuests.length"
+                                     class="absolute z-50 w-full mt-1 rounded-md shadow-lg max-h-60 overflow-y-auto"
+                                     :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border, borderWidth: '1px', borderStyle: 'solid' }">
+                                    <div v-for="guest in filteredGuests" :key="guest.id"
+                                         class="px-3 py-2 cursor-pointer text-sm"
+                                         :style="form.guest_id === guest.id ? { backgroundColor: themeColors.primary + '30', color: themeColors.textPrimary } : { color: themeColors.textPrimary }"
+                                         @mousedown.prevent="selectGuest(guest)">
+                                        <span class="font-medium">{{ guest.first_name }} {{ guest.last_name }}</span>
+                                        <span class="ml-1 text-xs" :style="{ color: themeColors.textSecondary }">{{ guest.email }}</span>
+                                        <span v-if="guest.is_vip" class="ml-1 text-xs" :style="{ color: themeColors.warning }">⭐ VIP</span>
+                                    </div>
+                                </div>
+                                <input type="hidden" v-model="form.guest_id" required />
+                            </div>
                             <p class="text-xs mt-1"
                                :style="{ color: themeColors.textTertiary }">Or <Link :href="route('admin.guests.create')" :style="{ color: themeColors.primary }">create new guest</Link></p>
                             <div v-if="selectedGuest" class="mt-2 p-2 rounded-md"
@@ -646,6 +656,26 @@ const form = useForm({
 })()
 
 // Overbooking state
+
+const guestSearch = ref('')
+const guestDropdownOpen = ref(false)
+
+const filteredGuests = computed(() => {
+    const q = guestSearch.value.toLowerCase().trim()
+    if (!q) return props.guests || []
+    return (props.guests || []).filter(g =>
+        (g.first_name + ' ' + g.last_name).toLowerCase().includes(q) ||
+        (g.email || '').toLowerCase().includes(q) ||
+        (g.phone || '').toLowerCase().includes(q)
+    )
+})
+
+const selectGuest = (guest) => {
+    form.guest_id = guest.id
+    guestSearch.value = guest.first_name + ' ' + guest.last_name
+    guestDropdownOpen.value = false
+    onGuestChange()
+}
 const allowOverbooking = ref(false)
 const overbookingWarning = ref('')
 

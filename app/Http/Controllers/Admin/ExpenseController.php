@@ -115,6 +115,8 @@ class ExpenseController extends Controller
             'receipt_number' => 'nullable|string|max:255',
             'receipt_file' => 'nullable|file|mimes:jpg,jpeg,png,pdf,doc,docx|max:10240',
             'notes' => 'nullable|string|max:1000',
+            'budget_id' => 'nullable|exists:budgets,id',
+            'guest_id' => 'nullable|exists:guests,id',
         ]);
 
         // Generate expense number
@@ -146,6 +148,8 @@ class ExpenseController extends Controller
             'status' => 'pending',
             'submitted_by' => auth()->id(),
             'notes' => $validated['notes'] ?? null,
+            'budget_id' => $validated['budget_id'] ?? null,
+            'guest_id' => $validated['guest_id'] ?? null,
         ]);
 
         $routeName = request()->route()->getName() ?? '';
@@ -182,6 +186,8 @@ class ExpenseController extends Controller
             'receipt_number' => 'nullable|string|max:255',
             'receipt_file' => 'nullable|file|mimes:jpg,jpeg,png,pdf,doc,docx|max:10240',
             'notes' => 'nullable|string|max:1000',
+            'budget_id' => 'nullable|exists:budgets,id',
+            'guest_id' => 'nullable|exists:guests,id',
         ]);
 
         // Handle file upload if a new file is provided
@@ -213,6 +219,8 @@ class ExpenseController extends Controller
             'receipt_number' => $validated['receipt_number'] ?? null,
             'receipt_file_path' => $receiptFilePath,
             'notes' => $validated['notes'] ?? null,
+            'budget_id' => $validated['budget_id'] ?? null,
+            'guest_id' => $validated['guest_id'] ?? null,
         ]);
 
         $routeName = request()->route()->getName() ?? '';

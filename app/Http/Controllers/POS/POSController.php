@@ -476,6 +476,7 @@ class POSController extends Controller
                         PosTransaction::create([
                             'cash_drawer_session_id' => $activeSession->id,
                             'sale_id' => $sale->id,
+                            'user_id' => auth()->id(),
                             'type' => 'sale',
                             'amount' => $totalAmount,
                             'payment_method' => $validated['payment_method'],
@@ -824,6 +825,8 @@ class POSController extends Controller
 
         $locations = \App\Models\Location::where('is_active', true)->orderBy('name')->get(['id', 'name', 'type']);
 
+        $budgets = \App\Models\Budget::whereIn('status', ['active', 'approved'])->orderBy('name')->get(['id', 'name', 'amount']);
+
         $user = auth()->user()->load('roles');
 
         return Inertia::render('POS/Purchases/Create', [
@@ -831,7 +834,8 @@ class POSController extends Controller
             'navigation' => app(\App\Http\Controllers\DashboardController::class)->getNavigationForRole($user->roles->first()?->name ?? 'staff'),
             'suppliers' => $suppliers,
             'products' => $products,
-            'locations' => $locations
+            'locations' => $locations,
+            'budgets' => $budgets
         ]);
     }
 
@@ -857,6 +861,7 @@ class POSController extends Controller
             'payment_method' => 'nullable|in:cash,bank_transfer,cheque,credit_card',
             'purchase_type' => 'nullable|in:resale,expense',
             'expense_category' => 'nullable|string|max:255',
+            'budget_id' => 'nullable|exists:budgets,id',
             'location_id' => 'nullable|exists:locations,id'
         ]);
 
@@ -894,6 +899,7 @@ class POSController extends Controller
                 'location_id' => !empty($validated['location_id']) ? $validated['location_id'] : null,
                 'purchase_type' => $validated['purchase_type'] ?? 'resale',
                 'expense_category' => $validated['expense_category'] ?? null,
+                'budget_id' => !empty($validated['budget_id']) ? $validated['budget_id'] : null,
             ]);
 
             foreach ($validated['items'] as $item) {
@@ -1046,6 +1052,7 @@ class POSController extends Controller
             'tax_rate' => 'nullable|numeric|min:0|max:100',
             'shipping_cost' => 'nullable|numeric|min:0',
             'notes' => 'nullable|string',
+            'budget_id' => 'nullable|exists:budgets,id',
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|exists:products,id',
             'items.*.quantity' => 'required|integer|min:1',
@@ -1077,7 +1084,8 @@ class POSController extends Controller
                 'shipping_cost' => $shippingCost,
                 'total_amount' => $totalAmount,
                 'remaining_amount' => $totalAmount - $purchaseOrder->paid_amount,
-                'notes' => $validated['notes'] ?? null
+                'notes' => $validated['notes'] ?? null,
+                'budget_id' => !empty($validated['budget_id']) ? $validated['budget_id'] : null,
             ]);
 
             // Delete existing items

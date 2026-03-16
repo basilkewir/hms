@@ -101,6 +101,40 @@
 
                     <div>
                         <label class="block text-sm font-medium mb-2"
+                               :style="{ color: themeColors.textPrimary }">Budget (Optional)</label>
+                        <select v-model="form.budget_id"
+                                class="w-full rounded-md px-3 py-2 focus:outline-none transition-colors"
+                                :style="{
+                                    backgroundColor: themeColors.background,
+                                    borderColor: themeColors.border,
+                                    color: themeColors.textPrimary
+                                }">
+                            <option value="">No Budget</option>
+                            <option v-for="budget in budgets" :key="budget.id" :value="budget.id">
+                                {{ budget.name }}
+                            </option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium mb-2"
+                               :style="{ color: themeColors.textPrimary }">Guest (Optional)</label>
+                        <select v-model="form.guest_id"
+                                class="w-full rounded-md px-3 py-2 focus:outline-none transition-colors"
+                                :style="{
+                                    backgroundColor: themeColors.background,
+                                    borderColor: themeColors.border,
+                                    color: themeColors.textPrimary
+                                }">
+                            <option value="">No Guest</option>
+                            <option v-for="guest in guests" :key="guest.id" :value="guest.id">
+                                {{ guest.first_name }} {{ guest.last_name }}
+                            </option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium mb-2"
                                :style="{ color: themeColors.textPrimary }">Vendor/Supplier</label>
                         <input type="text" v-model="form.vendor_name"
                                class="w-full rounded-md px-3 py-2 focus:outline-none transition-colors"
@@ -248,6 +282,8 @@ const props = defineProps({
     user: Object,
     categories: Array,
     expense: Object,
+    budgets: { type: Array, default: () => [] },
+    guests: { type: Array, default: () => [] },
 })
 
 const currencySymbol = computed(() => getCurrencySymbol(getCurrentCurrency()))
@@ -260,6 +296,8 @@ const form = ref({
     expense_category_id: '',
     expense_date: new Date().toISOString().split('T')[0],
     vendor_name: '',
+    budget_id: '',
+    guest_id: '',
     payment_method: '',
     receipt_number: '',
     notes: '',
@@ -283,6 +321,8 @@ onMounted(() => {
             expense_category_id: props.expense.expense_category_id || '',
             expense_date: props.expense.expense_date || new Date().toISOString().split('T')[0],
             vendor_name: props.expense.vendor_name || '',
+            budget_id: props.expense.budget_id || '',
+            guest_id: props.expense.guest_id || '',
             payment_method: props.expense.payment_method || '',
             receipt_number: props.expense.receipt_number || '',
             notes: props.expense.notes || '',
@@ -299,6 +339,8 @@ const submitExpense = () => {
     formData.append('expense_category_id', form.value.expense_category_id)
     formData.append('expense_date', form.value.expense_date)
     if (form.value.vendor_name) formData.append('vendor_name', form.value.vendor_name)
+    if (form.value.budget_id) formData.append('budget_id', form.value.budget_id)
+    if (form.value.guest_id) formData.append('guest_id', form.value.guest_id)
     if (form.value.payment_method) formData.append('payment_method', form.value.payment_method)
     if (form.value.receipt_number) formData.append('receipt_number', form.value.receipt_number)
     if (form.value.notes) formData.append('notes', form.value.notes)

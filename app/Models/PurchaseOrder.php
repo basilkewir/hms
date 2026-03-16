@@ -27,7 +27,8 @@ class PurchaseOrder extends Model
         'notes',
         'location_id',
         'purchase_type',
-        'expense_category'
+        'expense_category',
+        'budget_id'
     ];
 
     protected $casts = [

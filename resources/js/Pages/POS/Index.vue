@@ -608,26 +608,40 @@ const processSale = async () => {
 }
 
 const handleDrawerAction = async () => {
-  if (props.activeSession) {
-    await fetch("/pos/close-drawer", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-CSRF-TOKEN": document.querySelector('meta[name="csrf-token"]').getAttribute("content")
-      },
-      body: JSON.stringify({ closing_balance: closingBalance.value })
-    })
-  } else {
-    await fetch("/pos/open-drawer", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-CSRF-TOKEN": document.querySelector('meta[name="csrf-token"]').getAttribute("content")
-      },
-      body: JSON.stringify({ opening_balance: openingBalance.value })
-    })
+  try {
+    let response
+    if (props.activeSession) {
+      response = await fetch("/pos/close-drawer", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-TOKEN": document.querySelector('meta[name="csrf-token"]').getAttribute("content")
+        },
+        body: JSON.stringify({ closing_balance: closingBalance.value })
+      })
+    } else {
+      response = await fetch("/pos/open-drawer", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-TOKEN": document.querySelector('meta[name="csrf-token"]').getAttribute("content")
+        },
+        body: JSON.stringify({ opening_balance: openingBalance.value })
+      })
+    }
+    
+    const data = await response.json()
+    
+    if (!response.ok || !data.success) {
+      throw new Error(data.message || 'Failed to process drawer action')
+    }
+    
+    showDrawerModal.value = false
+    window.location.reload()
+  } catch (error) {
+    console.error('Drawer action failed:', error)
+    alert(error.message || 'Failed to open/close drawer. Please try again.')
   }
-  showDrawerModal.value = false
 }
 
 const closeSuccessModal = () => {

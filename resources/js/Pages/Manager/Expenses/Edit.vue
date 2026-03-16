@@ -53,6 +53,42 @@
                         </div>
                         <div>
                             <label class="block text-sm font-medium mb-2"
+                                   :style="{ color: themeColors.textSecondary }">Budget (Optional)</label>
+                            <select v-model="form.budget_id"
+                                    class="w-full rounded-md px-3 py-2 focus:outline-none transition-colors"
+                                    :style="{
+                                        backgroundColor: themeColors.background,
+                                        borderColor: themeColors.border,
+                                        color: themeColors.textPrimary,
+                                        borderWidth: '1px',
+                                        borderStyle: 'solid'
+                                    }">
+                                <option value="">No Budget</option>
+                                <option v-for="budget in budgets" :key="budget.id" :value="budget.id">
+                                    {{ budget.name }}
+                                </option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-2"
+                                   :style="{ color: themeColors.textSecondary }">Guest (Optional)</label>
+                            <select v-model="form.guest_id"
+                                    class="w-full rounded-md px-3 py-2 focus:outline-none transition-colors"
+                                    :style="{
+                                        backgroundColor: themeColors.background,
+                                        borderColor: themeColors.border,
+                                        color: themeColors.textPrimary,
+                                        borderWidth: '1px',
+                                        borderStyle: 'solid'
+                                    }">
+                                <option value="">No Guest</option>
+                                <option v-for="guest in guests" :key="guest.id" :value="guest.id">
+                                    {{ guest.first_name }} {{ guest.last_name }}
+                                </option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-2"
                                    :style="{ color: themeColors.textSecondary }">Vendor Name *</label>
                             <input type="text" v-model="form.vendor_name" required
                                    placeholder="e.g., Office Depot"
@@ -285,11 +321,15 @@ const props = defineProps({
     user: Object,
     expense: Object,
     categories: Array,
+    budgets: { type: Array, default: () => [] },
+    guests: { type: Array, default: () => [] },
     routePrefix: { type: String, default: 'admin' }
 })
 
 const form = useForm({
     expense_category_id: props.expense?.category_id || '',
+    budget_id: props.expense?.budget_id || '',
+    guest_id: props.expense?.guest_id || '',
     vendor_name: props.expense?.vendor || '',
     description: props.expense?.description || '',
     expense_date: props.expense?.date || new Date().toISOString().split('T')[0],
