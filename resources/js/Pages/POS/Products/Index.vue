@@ -25,6 +25,13 @@
                             @mouseleave="$event.target.style.backgroundColor = themeColors.primary">
                         ➕ Add Product
                     </button>
+                    <button @click="deleteAllProducts"
+                            class="px-4 py-2 rounded-md transition-colors font-medium text-white flex items-center"
+                            :style="{ backgroundColor: '#dc2626' }"
+                            @mouseenter="$event.target.style.backgroundColor = '#b91c1c'"
+                            @mouseleave="$event.target.style.backgroundColor = '#dc2626'">
+                        🗑️ Delete All
+                    </button>
                     <button @click="exportProducts"
                             class="px-4 py-2 rounded-md transition-colors font-medium text-white flex items-center"
                             :style="{ 
@@ -230,6 +237,10 @@
                                     <button @click="adjustStock(product)" 
                                             class="text-green-600 hover:text-green-800 text-sm">
                                         Adjust
+                                    </button>
+                                    <button @click="deleteProduct(product.id)"
+                                            class="text-red-500 hover:text-red-700 text-sm">
+                                        Delete
                                     </button>
                                 </div>
                             </td>
@@ -1198,6 +1209,18 @@ const updateProduct = () => {
             alert('Error updating product. Please check the form and try again.')
         }
     })
+}
+
+const deleteProduct = (id) => {
+    if (confirm('Are you sure you want to delete this product?')) {
+        router.delete(route('pos.products.destroy', id))
+    }
+}
+
+const deleteAllProducts = () => {
+    if (confirm('Are you sure you want to delete ALL products? This cannot be undone.')) {
+        router.delete(route('pos.products.destroy-all'))
+    }
 }
 
 const stockAdjustment = () => {

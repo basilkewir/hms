@@ -1395,10 +1395,28 @@ onUnmounted(() => { if (timeInterval) clearInterval(timeInterval) })
   border-color: #fecaca;
 }
 @media print {
-  .receipt-modal-overlay { position: static !important; background: none !important; }
-  .receipt-modal-card { box-shadow: none !important; max-height: none !important; overflow: visible !important; }
-  .receipt-modal-actions { display: none !important; }
-  .receipt-close-btn { display: none !important; }
+  body { visibility: hidden; }
+  .receipt-modal-overlay {
+    position: fixed !important;
+    top: 0; left: 0;
+    background: none !important;
+    visibility: visible !important;
+  }
+  .receipt-modal-card {
+    visibility: visible !important;
+    position: fixed !important;
+    top: 0; left: 0;
+    width: 80mm;
+    box-shadow: none !important;
+    max-height: none !important;
+    overflow: visible !important;
+    background: #fff !important;
+    padding: 4mm;
+  }
+  .receipt-modal-card * { visibility: visible !important; }
+  .receipt-modal-actions { visibility: hidden !important; }
+  .receipt-close-btn { visibility: hidden !important; }
+  @page { margin: 0; size: 80mm auto; }
 }
 .transactions-modal {
   background: white;

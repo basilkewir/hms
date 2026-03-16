@@ -335,6 +335,18 @@ onMounted(() => {
 </script>
 
 <style>
-/* Hide thermal receipt on screen — it's only used by printPopup() */
+/* Hide thermal receipt on screen — shown only by printPopup() or @media print */
 #thermal-receipt { display: none; }
+
+@media print {
+    /* Hide ALL page chrome */
+    body { visibility: hidden; }
+    /* Show only the receipt */
+    #thermal-receipt              { visibility: visible; display: block !important;
+                                    position: fixed; top: 0; left: 0;
+                                    width: 80mm; margin: 0; padding: 4mm; }
+    #thermal-receipt *            { visibility: visible; }
+    /* Suppress browser header/footer */
+    @page { margin: 0; size: 80mm auto; }
+}
 </style>

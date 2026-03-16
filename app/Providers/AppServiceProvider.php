@@ -31,6 +31,11 @@ class AppServiceProvider extends ServiceProvider
             // (without this, XSRF-TOKEN cookie is blocked and every request gets 419)
             Config::set('session.secure', true);
 
+            // Clear SESSION_DOMAIN so the cookie is scoped to the requesting
+            // host automatically. This allows the app to work on both the local
+            // IP and any Cloudflare Tunnel domain without cookie conflicts.
+            Config::set('session.domain', null);
+
             // Set APP_URL to the actual public hostname so Ziggy and
             // CSRF token validation use the correct origin
             $host = request()->server('HTTP_X_FORWARDED_HOST')

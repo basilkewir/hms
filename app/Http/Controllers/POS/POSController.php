@@ -943,8 +943,10 @@ class POSController extends Controller
 
             DB::commit();
 
-            // Redirect to the purchase order show page with Inertia
-            return redirect()->route('pos.purchases.show', $purchaseOrder->id)
+            $user = auth()->user()->load('roles');
+            $role = $user->roles->first()?->name ?? 'admin';
+            $showRoute = $role === 'manager' ? 'manager.purchases.show' : 'pos.purchases.show';
+            return redirect()->route($showRoute, $purchaseOrder->id)
                 ->with('success', 'Purchase order created successfully');
 
         } catch (\Exception $e) {
@@ -999,8 +1001,12 @@ class POSController extends Controller
         $this->authorize('manage_purchases');
 
         // Only allow editing if status is pending or in_transit
+        $user = auth()->user()->load('roles');
+        $role = $user->roles->first()?->name ?? 'admin';
+        $showRoute = $role === 'manager' ? 'manager.purchases.show' : 'pos.purchases.show';
+
         if (!in_array($purchaseOrder->status, ['pending', 'in_transit'])) {
-            return redirect()->route('pos.purchases.show', $purchaseOrder->id)
+            return redirect()->route($showRoute, $purchaseOrder->id)
                 ->with('error', 'Cannot edit purchase order with status: ' . $purchaseOrder->status);
         }
 
@@ -1280,7 +1286,10 @@ class POSController extends Controller
                 ]);
 
                 DB::commit();
-                return redirect()->route('pos.purchases.show', $purchaseOrder->id)
+                $user = auth()->user()->load('roles');
+                $role = $user->roles->first()?->name ?? 'admin';
+                $showRoute = $role === 'manager' ? 'manager.purchases.show' : 'pos.purchases.show';
+                return redirect()->route($showRoute, $purchaseOrder->id)
                     ->with('success', 'Deal closed. Partial delivery accepted and balances settled.');
             }
 
@@ -1307,7 +1316,10 @@ class POSController extends Controller
 
             DB::commit();
 
-            return redirect()->route('pos.purchases.show', $purchaseOrder->id)
+            $user = auth()->user()->load('roles');
+            $role = $user->roles->first()?->name ?? 'admin';
+            $showRoute = $role === 'manager' ? 'manager.purchases.show' : 'pos.purchases.show';
+            return redirect()->route($showRoute, $purchaseOrder->id)
                 ->with('success', 'Purchase order received successfully.');
 
         } catch (\Exception $e) {
@@ -1639,7 +1651,8 @@ class POSController extends Controller
         $query = Sale::with([
             'user:id,first_name,last_name,email',
             'customer:id,first_name,last_name,customer_code',
-            'items.product:id,name,code'
+            'items.product:id,name,code',
+            'room:id,room_number'
         ])
             ->orderBy('sale_date', 'desc');
 

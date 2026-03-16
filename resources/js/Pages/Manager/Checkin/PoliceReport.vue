@@ -276,8 +276,21 @@ const formatDate = (d) => d ? new Date(d).toLocaleDateString('en-GB') : '—'
 
 <style>
 @media print {
+    body { visibility: hidden; }
     .no-print { display: none !important; }
-    body { background: white !important; }
-    #police-report-print { box-shadow: none !important; }
+    #police-report-print {
+        visibility: visible !important;
+        display: block !important;
+        position: fixed;
+        top: 0; left: 0;
+        width: 100%;
+        padding: 0;
+        margin: 0;
+        background: #fff !important;
+        color: #000 !important;
+        box-shadow: none !important;
+    }
+    #police-report-print * { visibility: visible !important; }
+    @page { margin: 12mm; size: A4; }
 }
 </style>

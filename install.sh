@@ -215,6 +215,9 @@ else
     INSTALL_SSL=false
 fi
 
+read -rp "Cloudflare Tunnel / Public URL (optional, e.g. https://hotel.qzz.io, leave blank): " TUNNEL_URL
+TUNNEL_URL="${TUNNEL_URL:-}"
+
 echo ""
 read -rp "Hotel Name [Grand Hotel]: " HOTEL_NAME
 HOTEL_NAME="${HOTEL_NAME:-Grand Hotel}"
@@ -328,8 +331,10 @@ DB_PASSWORD=${DB_PASSWORD}
 
 QUEUE_CONNECTION=database
 SESSION_DRIVER=database
-SESSION_DOMAIN=${APP_DOMAIN}
-SESSION_SECURE_COOKIE=${INSTALL_SSL}
+SESSION_DOMAIN=
+SESSION_SECURE_COOKIE=false
+
+TUNNEL_URL=${TUNNEL_URL}
 
 HOTEL_NAME="${HOTEL_NAME}"
 HOTEL_EMAIL="${HOTEL_EMAIL}"

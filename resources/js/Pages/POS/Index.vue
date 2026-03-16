@@ -700,6 +700,26 @@ const printReceipt = () => {
 }
 </script>
 
+<style>
+@media print {
+    body { visibility: hidden; }
+    #pos-receipt-popup {
+        visibility: visible !important;
+        display: block !important;
+        position: fixed;
+        top: 0; left: 0;
+        width: 80mm;
+        padding: 4mm;
+        margin: 0;
+        background: #fff;
+        color: #000;
+        font-family: 'Courier New', monospace;
+    }
+    #pos-receipt-popup * { visibility: visible !important; }
+    @page { margin: 0; size: 80mm auto; }
+}
+</style>
+
 <style scoped>
 .pos-container {
   height: calc(100vh - 80px);

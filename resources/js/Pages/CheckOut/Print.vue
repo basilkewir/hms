@@ -339,3 +339,22 @@ function printBill() {
 #checkout-bill-print { background: #ffffff; color: #000000; }
 </style>
 
+<style>
+@media print {
+    body { visibility: hidden; }
+    #checkout-bill-print {
+        visibility: visible !important;
+        display: block !important;
+        position: fixed;
+        top: 0; left: 0;
+        width: 100%;
+        padding: 10mm;
+        margin: 0;
+        background: #fff;
+        color: #000;
+    }
+    #checkout-bill-print * { visibility: visible !important; }
+    @page { margin: 0; size: A4; }
+}
+</style>
+

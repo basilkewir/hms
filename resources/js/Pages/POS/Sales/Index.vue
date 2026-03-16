@@ -246,6 +246,20 @@
                         </option>
                     </select>
                 </div>
+                <div>
+                    <label class="block text-sm font-medium mb-2"
+                           :style="{ color: themeColors.textPrimary }">Search by Name</label>
+                    <input type="text" v-model="filters.customer_name"
+                           placeholder="Type client name..."
+                           class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 transition-colors"
+                           :style="{
+                               backgroundColor: themeColors.background,
+                               borderWidth: '1px',
+                               borderStyle: 'solid',
+                               borderColor: themeColors.border,
+                               color: themeColors.textPrimary
+                           }" />
+                </div>
             </div>
         </div>
 
@@ -272,6 +286,8 @@
                                 :style="{ color: themeColors.textSecondary }">Customer</th>
                             <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider"
                                 :style="{ color: themeColors.textSecondary }">Staff</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider"
+                                :style="{ color: themeColors.textSecondary }">Room</th>
                             <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider"
                                 :style="{ color: themeColors.textSecondary }">Items</th>
                             <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider"
@@ -303,12 +319,19 @@
                                      :style="{ color: themeColors.textPrimary }">{{ formatDate(sale.created_at) }}</div>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
-                                <div class="text-sm"
-                                     :style="{ color: themeColors.textPrimary }">{{ sale.customer?.name || 'Guest' }}</div>
+                                <div class="text-sm" :style="{ color: themeColors.textPrimary }">
+                                    {{ sale.is_walk_in ? 'Walk-In' : (sale.customer ? (sale.customer.first_name + ' ' + sale.customer.last_name).trim() : (sale.customer_name || 'Guest')) }}
+                                </div>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
-                                <div class="text-sm"
-                                     :style="{ color: themeColors.textPrimary }">{{ sale.user?.name || 'System' }}</div>
+                                <div class="text-sm font-medium" :style="{ color: themeColors.textPrimary }">
+                                    {{ sale.user ? (sale.user.first_name + ' ' + sale.user.last_name).trim() : '—' }}
+                                </div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="text-sm" :style="{ color: sale.is_charged_to_room ? themeColors.primary : themeColors.textSecondary }">
+                                    {{ sale.room?.room_number ? 'Room ' + sale.room.room_number : (sale.is_charged_to_room ? 'Room Charge' : '—') }}
+                                </div>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="text-sm"
@@ -445,7 +468,8 @@ const filters = ref({
     date_from: '',
     date_to: '',
     payment_method: '',
-    customer_id: ''
+    customer_id: '',
+    customer_name: ''
 })
 const currentPage = ref(1)
 const perPage = ref(10)
@@ -475,9 +499,23 @@ const filteredSales = computed(() => {
         filtered = filtered.filter(sale => sale.payment_method === filters.value.payment_method)
     }
 
-    // Customer filter
+    // Customer filter by linked customer record
     if (filters.value.customer_id) {
         filtered = filtered.filter(sale => sale.customer_id == filters.value.customer_id)
+    }
+
+    // Customer filter by name text search (covers walk-ins & all sales)
+    if (filters.value.customer_name) {
+        const q = filters.value.customer_name.toLowerCase()
+        filtered = filtered.filter(sale => {
+            const name = sale.is_walk_in
+                ? 'walk-in'
+                : (sale.customer
+                    ? (sale.customer.first_name + ' ' + sale.customer.last_name).trim()
+                    : (sale.customer_name || 'guest')
+                )
+            return name.toLowerCase().includes(q)
+        })
     }
 
     return filtered
@@ -573,12 +611,13 @@ const getPaymentStatusLabel = (status) => {
 }
 
 const exportSales = () => {
-    const headers = ['Sale #', 'Date', 'Customer', 'Staff', 'Items', 'Subtotal', 'Tax', 'Discount', 'Total', 'Payment Method', 'Payment Status']
+    const headers = ['Sale #', 'Date', 'Customer', 'Staff', 'Room', 'Items', 'Subtotal', 'Tax', 'Discount', 'Total', 'Payment Method', 'Payment Status']
     const rows = filteredSales.value.map(sale => [
         sale.sale_number || '',
         formatDate(sale.created_at),
-        sale.customer?.name || 'Guest',
-        sale.user?.name || 'System',
+        sale.is_walk_in ? 'Walk-In' : (sale.customer ? (sale.customer.first_name + ' ' + sale.customer.last_name).trim() : (sale.customer_name || 'Guest')),
+        sale.user ? (sale.user.first_name + ' ' + sale.user.last_name).trim() : '—',
+        sale.room?.room_number ? 'Room ' + sale.room.room_number : (sale.is_charged_to_room ? 'Room Charge' : '—'),
         sale.items?.length || 0,
         parseFloat(sale.subtotal) || 0,
         parseFloat(sale.tax_amount) || 0,

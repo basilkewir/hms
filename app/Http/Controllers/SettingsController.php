@@ -8,6 +8,7 @@ use App\Services\LicenseValidationService;
 use App\Services\ThemeService;
 use Inertia\Inertia;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -257,6 +258,51 @@ class SettingsController extends Controller
 
         Setting::set('hotel_logo', '', 'string', 'general');
         return response()->json(['success' => true, 'message' => 'Logo removed successfully']);
+    }
+
+    /**
+     * Update APP_URL in .env dynamically (for Cloudflare Tunnel / public URL changes).
+     * Also clears SESSION_DOMAIN so the session cookie works on the new domain,
+     * and sets SESSION_SECURE_COOKIE based on whether the URL uses HTTPS.
+     */
+    public function updateTunnelUrl(Request $request)
+    {
+        $request->validate([
+            'app_url' => 'required|url|max:255',
+        ]);
+
+        $url = rtrim($request->input('app_url'), '/');
+        $isHttps = str_starts_with($url, 'https://');
+
+        $envPath = base_path('.env');
+        if (!file_exists($envPath)) {
+            return back()->with('error', '.env file not found on the server.');
+        }
+
+        $env = file_get_contents($envPath);
+
+        $replacements = [
+            'APP_URL'               => $url,
+            'SESSION_DOMAIN'        => '',                        // Let PHP scope cookie to request host
+            'SESSION_SECURE_COOKIE' => $isHttps ? 'true' : 'false',
+        ];
+
+        foreach ($replacements as $key => $value) {
+            if (preg_match("/^{$key}=/m", $env)) {
+                $env = preg_replace("/^{$key}=.*/m", "{$key}={$value}", $env);
+            } else {
+                $env .= "\n{$key}={$value}";
+            }
+        }
+
+        file_put_contents($envPath, $env);
+
+        Artisan::call('config:clear');
+        Artisan::call('cache:clear');
+
+        Log::info('Application URL updated by admin', ['url' => $url, 'user' => auth()->id()]);
+
+        return back()->with('success', 'Application URL updated successfully. You may need to re-login.');
     }
 
     /**

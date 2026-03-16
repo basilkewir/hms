@@ -201,3 +201,22 @@ function printReceipt() {
 @media screen { .no-print { display: flex; } }
 #checkin-receipt-print { background: #ffffff; color: #000000; }
 </style>
+
+<style>
+@media print {
+    body { visibility: hidden; }
+    #checkin-receipt-print {
+        visibility: visible !important;
+        display: block !important;
+        position: fixed;
+        top: 0; left: 0;
+        width: 80mm;
+        padding: 4mm;
+        margin: 0;
+        background: #fff;
+        color: #000;
+    }
+    #checkin-receipt-print * { visibility: visible !important; }
+    @page { margin: 0; size: 80mm auto; }
+}
+</style>

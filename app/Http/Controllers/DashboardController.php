@@ -1524,6 +1524,15 @@ class DashboardController extends Controller
                         ['name' => 'Housekeeping', 'href' => '/front-desk/services/housekeeping', 'icon' => 'SparklesIcon'],
                         ['name' => 'Maintenance',  'href' => '/front-desk/services/maintenance',  'icon' => 'WrenchScrewdriverIcon'],
                     ]
+                ],
+                [
+                    'name' => 'Expenses',
+                    'icon' => 'BanknotesIcon',
+                    'current' => false,
+                    'children' => [
+                        ['name' => 'All Expenses',    'href' => '/front-desk/expenses',        'icon' => 'DocumentTextIcon'],
+                        ['name' => 'Record Expense',  'href' => '/front-desk/expenses/create', 'icon' => 'PlusCircleIcon'],
+                    ]
                 ]
             ],
             'housekeeping' => [

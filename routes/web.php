@@ -2755,6 +2755,10 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
         ]);
     })->name('products.index');
 
+    // Admin product delete routes (used by Admin/POS/Products/Index.vue)
+    Route::delete('/pos/products/{product}', [\App\Http\Controllers\Admin\ProductController::class, 'destroy'])->name('pos.products.destroy');
+    Route::delete('/pos/products', [\App\Http\Controllers\Admin\ProductController::class, 'destroyAll'])->name('pos.products.destroy-all');
+
     // Reservations
     Route::get('/reservations', [ReservationController::class, 'index'])->name('reservations.index');
     Route::get('/reservations/create', [ReservationController::class, 'create'])->name('reservations.create');
@@ -4035,6 +4039,9 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
     // Logo upload / remove
     Route::post('/settings/logo', [\App\Http\Controllers\SettingsController::class, 'uploadLogo'])->name('settings.logo.upload');
     Route::delete('/settings/logo', [\App\Http\Controllers\SettingsController::class, 'removeLogo'])->name('settings.logo.remove');
+
+    // Tunnel / Application URL update (writes to .env and clears config cache)
+    Route::post('/settings/tunnel-url', [\App\Http\Controllers\SettingsController::class, 'updateTunnelUrl'])->name('settings.tunnel-url.update');
 
     // Backup
     Route::get('/settings/backup', [BackupController::class, 'index'])->name('settings.backup');
@@ -8203,6 +8210,10 @@ Route::middleware(['auth', 'role:manager'])->prefix('manager')->name('manager.')
         }
         return response()->json(['success' => true, 'message' => 'Settings updated successfully']);
     })->name('settings.update');
+
+    // Tunnel / Application URL update (manager can also trigger this)
+    Route::post('/settings/tunnel-url', [\App\Http\Controllers\SettingsController::class, 'updateTunnelUrl'])->name('settings.tunnel-url.update');
+
     Route::get('/dashboard', function () {
         $user = auth()->user()->load('roles');
         $role = $user->roles->first()?->name ?? 'manager';
@@ -11159,6 +11170,8 @@ Route::middleware(['auth', 'verified'])->prefix('pos')->name('pos.')->group(func
     // Product CRUD
     Route::post('/products', [\App\Http\Controllers\Admin\ProductController::class, 'store'])->name('products.store');
     Route::put('/products/{product}', [\App\Http\Controllers\Admin\ProductController::class, 'update'])->name('products.update');
+    Route::delete('/products/{product}', [\App\Http\Controllers\Admin\ProductController::class, 'destroy'])->name('products.destroy');
+    Route::delete('/products', [\App\Http\Controllers\Admin\ProductController::class, 'destroyAll'])->name('products.destroy-all');
 
     // Stock Adjustment
     Route::post('/adjust-stock', [\App\Http\Controllers\POS\POSController::class, 'adjustStock'])->name('pos.adjust-stock');

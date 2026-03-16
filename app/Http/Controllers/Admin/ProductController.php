@@ -24,6 +24,12 @@ class ProductController extends Controller
 
     public function store(Request $request)
     {
+        // Only allow admins and managers to create products
+        $user = auth()->user();
+        if (!$user || !$user->hasRole('admin') && !$user->hasRole('manager')) {
+            return redirect()->back()->with('error', 'Unauthorized.');
+        }
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'code' => 'nullable|string|max:50|unique:products,code',
@@ -117,8 +123,16 @@ class ProductController extends Controller
     {
         $product->delete();
 
-        return redirect()->route('admin.pos.products.index')
+        return redirect()->back()
             ->with('success', 'Product deleted successfully.');
+    }
+
+    public function destroyAll()
+    {
+        Product::query()->delete();
+
+        return redirect()->back()
+            ->with('success', 'All products deleted successfully.');
     }
 
     private function generateProductCode($categoryId)

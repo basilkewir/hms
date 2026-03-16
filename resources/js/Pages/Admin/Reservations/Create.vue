@@ -47,7 +47,7 @@
                                        }"
                                        @focus="guestDropdownOpen = true"
                                        @blur="setTimeout(() => guestDropdownOpen = false, 200)" />
-                                <div v-if="guestDropdownOpen && filteredGuests.length"
+                                <div v-if="guestDropdownOpen && (filteredGuests.length || guestSearch)"
                                      class="absolute z-50 w-full mt-1 rounded-md shadow-lg max-h-60 overflow-y-auto"
                                      :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border, borderWidth: '1px', borderStyle: 'solid' }">
                                     <div v-for="guest in filteredGuests" :key="guest.id"
@@ -57,6 +57,14 @@
                                         <span class="font-medium">{{ guest.first_name }} {{ guest.last_name }}</span>
                                         <span class="ml-1 text-xs" :style="{ color: themeColors.textSecondary }">{{ guest.email }}</span>
                                         <span v-if="guest.is_vip" class="ml-1 text-xs" :style="{ color: themeColors.warning }">⭐ VIP</span>
+                                    </div>
+                                    <div v-if="guestSearch && !filteredGuests.length"
+                                         class="px-3 py-2 text-sm"
+                                         :style="{ color: themeColors.textSecondary }">
+                                        No guest found.
+                                        <Link :href="route('admin.guests.create')"
+                                              class="ml-1 font-medium underline"
+                                              :style="{ color: themeColors.primary }">Create new guest</Link>
                                     </div>
                                 </div>
                                 <input type="hidden" v-model="form.guest_id" required />

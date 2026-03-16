@@ -7,12 +7,20 @@
           <h1 class="text-2xl font-bold text-kotel-yellow">Products Management</h1>
           <p class="text-kotel-sky-blue mt-2">Manage your POS products and inventory</p>
         </div>
-        <button 
-          @click="showAddProduct = true"
-          class="bg-kotel-yellow hover:bg-kotel-yellow/80 text-kotel-black px-4 py-2 rounded-md text-sm font-medium transition-colors"
-        >
-          Add New Product
-        </button>
+        <div class="flex items-center gap-3">
+          <button 
+            @click="showAddProduct = true"
+            class="bg-kotel-yellow hover:bg-kotel-yellow/80 text-kotel-black px-4 py-2 rounded-md text-sm font-medium transition-colors"
+          >
+            Add New Product
+          </button>
+          <button 
+            @click="deleteAllProducts"
+            class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
+          >
+            Delete All
+          </button>
+        </div>
       </div>
     </div>
 
@@ -262,6 +270,12 @@ export default {
       }
     }
 
+    const deleteAllProducts = () => {
+      if (confirm('Are you sure you want to delete ALL products? This cannot be undone.')) {
+        router.delete('/admin/pos/products')
+      }
+    }
+
     const resetForm = () => {
       form.value = {
         name: '',
@@ -283,6 +297,7 @@ export default {
       editProduct,
       saveProduct,
       deleteProduct,
+      deleteAllProducts,
       resetForm,
       formatCurrency,
       getCurrencySymbol

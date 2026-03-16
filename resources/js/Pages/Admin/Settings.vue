@@ -628,6 +628,35 @@
 
                 <!-- Integrations -->
                 <div v-show="activeTab === 'integrations'" class="space-y-6">
+
+                    <!-- Application URL / Tunnel URL -->
+                    <div class="bg-kotel-dark border border-kotel-border rounded-lg p-6">
+                        <h3 class="text-lg font-semibold text-kotel-text-primary mb-1">Application URL (Tunnel / Public URL)</h3>
+                        <p class="text-sm text-kotel-text-tertiary mb-4">
+                            Set the public URL used to access this system (e.g. your Cloudflare Tunnel address). This updates <code class="text-kotel-yellow">.env</code> and clears the config cache. Session cookies will automatically work on the new domain.
+                        </p>
+                        <div class="flex flex-col sm:flex-row gap-3 items-start">
+                            <input
+                                type="url"
+                                v-model="tunnelUrl"
+                                placeholder="https://yourhotel.qzz.io"
+                                class="flex-1 border border-kotel-border rounded-md px-3 py-2 bg-kotel-black text-kotel-text-primary focus:outline-none focus:ring-2 focus:ring-kotel-yellow"
+                            />
+                            <button
+                                @click="saveTunnelUrl"
+                                :disabled="tunnelSaving"
+                                class="px-4 py-2 bg-kotel-yellow text-black font-semibold rounded-md hover:opacity-90 disabled:opacity-50 whitespace-nowrap"
+                            >
+                                {{ tunnelSaving ? 'Saving...' : 'Update URL' }}
+                            </button>
+                        </div>
+                        <p v-if="tunnelMessage" class="mt-2 text-sm text-green-400">{{ tunnelMessage }}</p>
+                        <p v-if="tunnelError" class="mt-2 text-sm text-red-400">{{ tunnelError }}</p>
+                        <p class="mt-2 text-xs text-kotel-text-tertiary">
+                            Current: <span class="text-kotel-yellow">{{ tunnelUrl }}</span>
+                        </p>
+                    </div>
+
                     <div>
                         <h3 class="text-lg font-semibold text-kotel-text-primary">Booking Website Integration</h3>
                         <p class="text-sm text-kotel-text-tertiary mt-1">
@@ -1152,6 +1181,41 @@ const bookingApiEndpoint = computed(() => {
 })
 
 const isSaving = ref(false)
+const tunnelUrl = ref(window.location.origin)
+const tunnelSaving = ref(false)
+const tunnelMessage = ref('')
+const tunnelError = ref('')
+
+const saveTunnelUrl = async () => {
+    if (!tunnelUrl.value || !tunnelUrl.value.startsWith('http')) {
+        tunnelError.value = 'Please enter a valid URL starting with http:// or https://'
+        return
+    }
+    tunnelSaving.value = true
+    tunnelMessage.value = ''
+    tunnelError.value = ''
+    try {
+        const userRole = props.user?.roles?.[0]?.name || 'admin'
+        const base = userRole === 'manager' ? '/manager' : '/admin'
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+        const res = await fetch(`${base}/settings/tunnel-url`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken },
+            body: JSON.stringify({ app_url: tunnelUrl.value }),
+        })
+        if (res.ok || res.redirected) {
+            tunnelMessage.value = 'Application URL updated. Config cache cleared. You may need to re-login.'
+        } else {
+            const data = await res.json().catch(() => ({}))
+            tunnelError.value = data.message || 'Failed to update URL.'
+        }
+    } catch (e) {
+        tunnelError.value = 'Network error: ' + e.message
+    } finally {
+        tunnelSaving.value = false
+    }
+}
+
 const licenseInfo = ref(null)
 const licenseLoading = ref(true)
 const showChangeLicense = ref(false)
