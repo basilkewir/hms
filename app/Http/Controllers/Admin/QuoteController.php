@@ -5,7 +5,10 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Quote;
 use App\Models\Reservation;
+use App\Models\GuestFolio;
+use App\Models\FolioCharge;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 
 class QuoteController extends Controller
@@ -315,5 +318,94 @@ class QuoteController extends Controller
         $route = request()->is('manager/*') ? 'manager.quotes.index' : 'admin.quotes.index';
         return redirect()->route($route)
             ->with('success', 'Quote deleted successfully.');
+    }
+
+    public function convert($id)
+    {
+        $quote = Quote::with('items')->findOrFail($id);
+
+        if ($quote->status === 'accepted') {
+            return back()->with('error', 'This quote has already been converted to an invoice.');
+        }
+
+        // Determine total amount from quote
+        $totalAmount = (float) ($quote->total_amount ?? 0);
+
+        if ($quote->quote_type === 'guest' && $quote->reservation_id) {
+            // Guest quote — create folio linked to reservation
+            $reservation = Reservation::find($quote->reservation_id);
+
+            $existingFolio = GuestFolio::where('reservation_id', $quote->reservation_id)->first();
+            if ($existingFolio) {
+                return back()->with('error', 'An invoice already exists for this reservation.');
+            }
+
+            GuestFolio::create([
+                'reservation_id' => $quote->reservation_id,
+                'guest_id'       => $reservation?->guest_id ?? null,
+                'room_id'        => $reservation?->room_id ?? null,
+                'folio_number'   => 'FOLIO-' . strtoupper(Str::random(8)),
+                'status'         => 'open',
+                'folio_date'     => now()->toDateString(),
+                'room_charges'   => $reservation?->total_room_charges ?? 0,
+                'service_charges'=> $reservation?->service_charges ?? 0,
+                'tax_amount'     => $reservation?->taxes ?? 0,
+                'discount_amount'=> $reservation?->discount_amount ?? 0,
+                'total_amount'   => $totalAmount,
+                'paid_amount'    => 0,
+                'balance_amount' => $totalAmount,
+                'notes'          => $quote->notes,
+            ]);
+        } else {
+            // Outsider quote — create standalone folio
+            $folio = GuestFolio::create([
+                'folio_number'   => 'FOLIO-' . strtoupper(Str::random(8)),
+                'reservation_id' => null,
+                'guest_id'       => null,
+                'room_id'        => null,
+                'status'         => 'open',
+                'folio_date'     => now()->toDateString(),
+                'customer_name'  => $quote->customer_name,
+                'customer_email' => $quote->customer_email,
+                'customer_phone' => $quote->customer_phone,
+                'total_amount'   => $totalAmount,
+                'paid_amount'    => 0,
+                'balance_amount' => $totalAmount,
+                'notes'          => $quote->notes,
+            ]);
+
+            // Create folio charges from quote items
+            foreach ($quote->items as $item) {
+                $itemTotal = (float) ($item->quantity ?? 1) * (float) ($item->unit_price ?? 0);
+                FolioCharge::create([
+                    'guest_folio_id' => $folio->id,
+                    'charge_code'    => 'QUOTE-' . strtoupper(Str::random(6)),
+                    'description'    => $item->description,
+                    'charge_date'    => now()->toDateString(),
+                    'charge_time'    => now(),
+                    'quantity'       => $item->quantity ?? 1,
+                    'unit_price'     => $item->unit_price ?? 0,
+                    'total_amount'   => $itemTotal,
+                    'net_amount'     => $itemTotal,
+                    'reference_type' => 'quote_conversion',
+                    'department'     => 'Front Desk',
+                    'posted_by'      => auth()->id(),
+                    'posted_at'      => now(),
+                ]);
+            }
+        }
+
+        // Mark quote as accepted
+        $quote->update(['status' => 'accepted']);
+
+        // Redirect to invoices page (not quotes)
+        if (request()->is('front-desk/*')) {
+            return redirect()->route('front-desk.invoices.index')
+                ->with('success', 'Quote converted to invoice successfully.');
+        }
+
+        $route = request()->is('manager/*') ? 'manager.invoices.index' : 'admin.invoices.index';
+        return redirect()->route($route)
+            ->with('success', 'Quote converted to invoice successfully.');
     }
 }

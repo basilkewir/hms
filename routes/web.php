@@ -4760,6 +4760,7 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
     Route::get('/quotes/{id}/edit', [\App\Http\Controllers\Admin\QuoteController::class, 'edit'])->name('quotes.edit');
     Route::put('/quotes/{id}', [\App\Http\Controllers\Admin\QuoteController::class, 'update'])->name('quotes.update');
     Route::delete('/quotes/{id}', [\App\Http\Controllers\Admin\QuoteController::class, 'destroy'])->name('quotes.destroy');
+    Route::post('/quotes/{id}/convert', [\App\Http\Controllers\Admin\QuoteController::class, 'convert'])->name('quotes.convert');
 });
 
 // Front Desk Routes
@@ -6666,6 +6667,7 @@ Route::middleware(['auth', 'role:front_desk'])->prefix('front-desk')->name('fron
     Route::get('/quotes/{id}', [\App\Http\Controllers\Admin\QuoteController::class, 'show'])->name('quotes.show');
     Route::get('/quotes/{id}/edit', [\App\Http\Controllers\Admin\QuoteController::class, 'edit'])->name('quotes.edit');
     Route::put('/quotes/{id}', [\App\Http\Controllers\Admin\QuoteController::class, 'update'])->name('quotes.update');
+    Route::post('/quotes/{id}/convert', [\App\Http\Controllers\Admin\QuoteController::class, 'convert'])->name('quotes.convert');
 
     // Reports sub-routes (aliases kept for Ziggy/nav compatibility)
 });
@@ -10452,6 +10454,7 @@ Route::middleware(['auth', 'role:manager'])->prefix('manager')->name('manager.')
     Route::get('/quotes/create', [\App\Http\Controllers\Admin\QuoteController::class, 'create'])->name('quotes.create');
     Route::post('/quotes', [\App\Http\Controllers\Admin\QuoteController::class, 'store'])->name('quotes.store');
     Route::get('/quotes/{id}', [\App\Http\Controllers\Admin\QuoteController::class, 'show'])->name('quotes.show');
+    Route::post('/quotes/{id}/convert', [\App\Http\Controllers\Admin\QuoteController::class, 'convert'])->name('quotes.convert');
 
     // ── Property Management: Floors ──────────────────────────────────────────
     Route::get('/floors', function () {

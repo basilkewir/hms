@@ -116,7 +116,9 @@ class Quote extends Model
     {
         $year = date('Y');
         $month = date('m');
-        $lastQuote = self::where('quote_number', 'LIKE', "QT-{$year}-{$month}-%")
+        // Include soft-deleted records so we never reuse a unique quote number
+        $lastQuote = self::withTrashed()
+            ->where('quote_number', 'LIKE', "QT-{$year}-{$month}-%")
             ->orderBy('quote_number', 'desc')
             ->first();
 

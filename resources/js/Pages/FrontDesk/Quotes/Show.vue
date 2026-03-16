@@ -261,17 +261,8 @@ const sendQuote = () => {
 }
 
 const convertToInvoice = () => {
-    if (confirm(`Convert quote #${props.quote.quote_number} to invoice?`)) {
-        router.post(route('front-desk.invoices.store'), {
-            quote_id: props.quote.id,
-            customer_name: props.quote.customer_name,
-            customer_email: props.quote.customer_email,
-            total_amount: props.quote.total_amount
-        }, {
-            onSuccess: () => {
-                alert('Invoice created successfully!')
-            }
-        })
+    if (confirm(`Convert quote #${props.quote.quote_number} to invoice? You will be redirected to the invoices page.`)) {
+        router.post(route('front-desk.quotes.convert', props.quote.id))
     }
 }
 
