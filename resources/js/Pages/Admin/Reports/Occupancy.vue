@@ -231,6 +231,7 @@ import { computed } from 'vue'
 import { useTheme } from '@/Composables/useTheme'
 import DashboardLayout from '@/Layouts/DashboardLayout.vue'
 import { getNavigationForRole } from '@/Utils/navigation.js'
+import { formatCurrency } from '@/Utils/currency.js'
 
 const props = defineProps({
     user: Object,
@@ -279,14 +280,10 @@ const formatDate = (d) => {
     return isNaN(dt.getTime()) ? '' : dt.toLocaleDateString()
 }
 
-const formatCurrency = (val) => {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(val ?? 0)
-}
-
 const badgeClass = (status) => {
     const s = (status || '').toLowerCase()
     if (s.includes('checked_in') || s === 'checked_in') return 'bg-blue-100 text-blue-800'
-    if (s.includes('checked_out') || s === 'checked_out') return 'bg-gray-100 text-gray-700'
+    if (s.includes('checked_out') || s === 'checked_out') return 'bg-slate-600 text-white'
     if (s.includes('confirm')) return 'bg-green-100 text-green-800'
     if (s.includes('cancel')) return 'bg-red-100 text-red-800'
     if (s.includes('pending')) return 'bg-yellow-100 text-yellow-800'

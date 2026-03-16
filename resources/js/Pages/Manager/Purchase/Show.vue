@@ -68,7 +68,7 @@
         <div v-if="purchase.notes" class="mb-8">
             <div class="rounded-lg p-6 border shadow-sm" :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }">
                 <h3 class="text-lg font-semibold mb-4" :style="{ color: themeColors.textPrimary }">Notes</h3>
-                <p :style="{ color: themeColors.textSecondary }}" class="whitespace-pre-wrap">{{ purchase.notes }}</p>
+                <p :style="{ color: themeColors.textSecondary }" class="whitespace-pre-wrap">{{ purchase.notes }}</p>
             </div>
         </div>
 

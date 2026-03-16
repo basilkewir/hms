@@ -26,7 +26,13 @@
             </div>
 
             <form @submit.prevent="createRoom" class="space-y-6">
-                <!-- Basic Information -->
+                <!-- Validation Errors -->
+                <div v-if="Object.keys(pageErrors).length" class="rounded-md p-4 border" :style="{ backgroundColor: 'rgba(239,68,68,0.1)', borderColor: themeColors.danger }">
+                    <p class="text-sm font-semibold mb-1" :style="{ color: themeColors.danger }">Please fix the following errors:</p>
+                    <ul class="list-disc list-inside space-y-1">
+                        <li v-for="(msg, field) in pageErrors" :key="field" class="text-sm" :style="{ color: themeColors.danger }">{{ msg }}</li>
+                    </ul>
+                </div>
                 <div>
                     <h3 class="text-lg font-medium mb-4"
                         :style="{ color: themeColors.textPrimary }">Basic Information</h3>
@@ -374,7 +380,7 @@
 
 <script setup>
 import { ref, computed } from 'vue'
-import { Link } from '@inertiajs/vue3'
+import { Link, router, usePage } from '@inertiajs/vue3'
 import DashboardLayout from '@/Layouts/DashboardLayout.vue'
 import { getNavigationForRole } from '@/Utils/navigation.js'
 import { useTheme } from '@/Composables/useTheme.js'
@@ -410,6 +416,7 @@ const props = defineProps({
 
 const navigation = computed(() => getNavigationForRole('admin'))
 const isSubmitting = ref(false)
+const pageErrors = computed(() => usePage().props.errors || {})
 
 const amenities = [
     { id: 1, name: 'Air Conditioning' },
@@ -449,12 +456,14 @@ const form = ref({
 
 const createRoom = () => {
     isSubmitting.value = true
-    // Simulate API call
-    setTimeout(() => {
-        alert('Room created successfully!')
-        isSubmitting.value = false
-        resetForm()
-    }, 2000)
+    const payload = {
+        ...form.value,
+        iptv_active: form.value.has_iptv ? 1 : 0,
+    }
+    router.post(route('admin.rooms.store'), payload, {
+        onFinish: () => { isSubmitting.value = false },
+        onError: () => { isSubmitting.value = false },
+    })
 }
 
 const resetForm = () => {

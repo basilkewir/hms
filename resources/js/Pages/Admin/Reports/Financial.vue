@@ -80,6 +80,7 @@ import { computed } from 'vue'
 import DashboardLayout from '@/Layouts/DashboardLayout.vue'
 import { getNavigationForRole } from '@/Utils/navigation.js'
 import { useTheme } from '@/Composables/useTheme'
+import { formatCurrency } from '@/Utils/currency.js'
 
 const props = defineProps({
     user: Object,
@@ -108,10 +109,7 @@ const themeColors = computed(() => ({
     hover: currentTheme.value.theme_mode === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.02)'
 }))
 
-const formatCurrency = (v) => {
-    const num = Number(v || 0)
-    return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2 }).format(num)
-}
+
 const formatDate = (d) => {
     if (!d) return ''
     const dt = new Date(d)
