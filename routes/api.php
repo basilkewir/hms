@@ -502,12 +502,14 @@ Route::middleware('auth:sanctum')->group(function () {
             $task = \App\Models\HousekeepingTask::with(['room.roomType', 'assignedTo'])
                 ->findOrFail($taskId);
 
-            // Verify user has access to this task
-            if ($task->assigned_to !== $request->user()->id && !$request->user()->hasRole('admin')) {
+            // Verify user has access to this task.
+            // Allow: assigned to this user, OR unassigned (null), OR admin.
+            $userId = $request->user()->id;
+            $isAssignedToUser = !is_null($task->assigned_to) && (int) $task->assigned_to === (int) $userId;
+            $isUnassigned = is_null($task->assigned_to);
+            if (!$isAssignedToUser && !$isUnassigned && !$request->user()->hasRole('admin')) {
                 return response()->json(['message' => 'Unauthorized'], 403);
             }
-
-            // Handle scheduled_time - it's stored as string (H:i format)
             $scheduledTime = null;
             if ($task->scheduled_time) {
                 if (is_string($task->scheduled_time)) {
@@ -540,8 +542,12 @@ Route::middleware('auth:sanctum')->group(function () {
 
             $task = \App\Models\HousekeepingTask::findOrFail($taskId);
 
-            // Verify user has access to this task
-            if ($task->assigned_to !== $request->user()->id && !$request->user()->hasRole('admin')) {
+            // Verify user has access to this task.
+            // Allow: assigned to this user, OR unassigned (null), OR admin.
+            $userId = $request->user()->id;
+            $isAssignedToUser = !is_null($task->assigned_to) && (int) $task->assigned_to === (int) $userId;
+            $isUnassigned = is_null($task->assigned_to);
+            if (!$isAssignedToUser && !$isUnassigned && !$request->user()->hasRole('admin')) {
                 return response()->json(['message' => 'Unauthorized'], 403);
             }
 
