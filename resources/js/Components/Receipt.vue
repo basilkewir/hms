@@ -87,6 +87,7 @@
         <div class="receipt-divider"></div>
         <div class="receipt-thank-you">Thank you for your business!</div>
         <div class="receipt-footer-text">Have a great day!</div>
+        <div v-if="hotelWebsite" class="receipt-website-footer">{{ hotelWebsite }}</div>
       </div>
     </div>
   </div>
@@ -113,6 +114,14 @@ const props = defineProps({
     default: ''
   },
   hotelEmail: {
+    type: String,
+    default: ''
+  },
+  hotelLogo: {
+    type: String,
+    default: ''
+  },
+  hotelWebsite: {
     type: String,
     default: ''
   }
@@ -182,7 +191,8 @@ const formatPaymentMethod = (method) => {
 
 .receipt-address,
 .receipt-phone,
-.receipt-email {
+.receipt-email,
+.receipt-website {
   font-size: 12px;
   margin: 4px 0;
   color: #333;
@@ -295,12 +305,23 @@ const formatPaymentMethod = (method) => {
   margin-top: 8px;
 }
 
+.receipt-website-footer {
+  font-size: 11px;
+  color: #666;
+  margin-top: 6px;
+}
+
 /* Print Styles */
 @media print {
   .receipt-container {
     max-width: 100%;
-    padding: 10px;
+    padding: 4mm;
     box-shadow: none;
+    border-radius: 0;
+  }
+  
+  .receipt-logo {
+    max-height: 40px;
   }
   
   @page {

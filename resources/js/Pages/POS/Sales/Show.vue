@@ -260,6 +260,8 @@
             :hotelAddress="hotelAddress"
             :hotelPhone="hotelPhone"
             :hotelEmail="hotelEmail"
+            :hotelLogo="hotelLogo"
+            :hotelWebsite="hotelWebsite"
         />
     </div>
 </template>
@@ -312,6 +314,8 @@ const hotelName    = computed(() => page.props?.branding?.hotel_name    || page.
 const hotelAddress = computed(() => page.props?.branding?.hotel_address || page.props?.hotelSettings?.address || '')
 const hotelPhone   = computed(() => page.props?.branding?.hotel_phone   || page.props?.hotelSettings?.phone   || '')
 const hotelEmail   = computed(() => page.props?.branding?.contact?.email || '')
+const hotelLogo    = computed(() => page.props?.branding?.hotel_logo    || '')
+const hotelWebsite = computed(() => page.props?.branding?.hotel_website || '')
 
 const getItemProfit = (item) => {
     const cost    = (item.unit_cost || 0) * item.quantity

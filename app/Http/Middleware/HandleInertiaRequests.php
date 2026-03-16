@@ -98,6 +98,7 @@ class HandleInertiaRequests extends Middleware
             'branding' => [
                 'hotel_name' => Setting::get('hotel_name'),
                 'hotel_logo' => Setting::get('hotel_logo'),
+                'hotel_website' => Setting::get('hotel_website', ''),
                 'contact' => [
                     'email' => Setting::get('hotel_email'),
                     'phone' => Setting::get('hotel_phone'),

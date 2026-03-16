@@ -633,36 +633,60 @@ class CheckOutController extends Controller
         $paymentMethod = $validated['payment_method'] ?? 'cash';
         $outstandingAmount = (float) ($validated['outstanding_amount'] ?? 0);
 
-        if ($paymentStatus === 'paid') {
-            $outstandingAmount = 0;
-        } elseif ($paymentStatus === 'pending') {
-            $outstandingAmount = max($totalAmount - $previousPaid, 0);
-        }
-
-        $maxOutstanding = max($totalAmount - $previousPaid, 0);
-        $outstandingAmount = min($outstandingAmount, $maxOutstanding);
-        $additionalPayment = max($totalAmount - $outstandingAmount - $previousPaid, 0);
-
-        if ($additionalPayment > 0) {
+        // Handle early checkout refund: guest paid more than the recalculated total
+        $refundAmount = 0;
+        if ($previousPaid > $totalAmount && $totalAmount > 0) {
+            $refundAmount = round($previousPaid - $totalAmount, 2);
+            // Record a refund payment (negative amount)
             Payment::create([
-                'payment_number' => 'PAY-' . strtoupper(Str::random(8)),
+                'payment_number' => 'REF-' . strtoupper(Str::random(8)),
                 'guest_folio_id' => $folio->id,
                 'reservation_id' => $reservation->id,
                 'payment_method' => $paymentMethod,
-                'amount' => $additionalPayment,
+                'amount' => -$refundAmount,
                 'currency' => Setting::get('currency', 'USD'),
                 'exchange_rate' => 1,
-                'local_amount' => $additionalPayment,
+                'local_amount' => -$refundAmount,
                 'status' => 'completed',
                 'processed_at' => now(),
                 'processed_by' => auth()->check() ? auth()->id() : null,
-                'notes' => 'Checkout payment',
+                'notes' => 'Early checkout refund – ' . ($actualNights ?? 0) . ' night(s) charged instead of ' . ($scheduledNights ?? 0),
             ]);
-        }
+            $folio->paid_amount = $totalAmount;
+            $folio->balance_amount = 0;
+            $folio->save();
+        } else {
+            if ($paymentStatus === 'paid') {
+                $outstandingAmount = 0;
+            } elseif ($paymentStatus === 'pending') {
+                $outstandingAmount = max($totalAmount - $previousPaid, 0);
+            }
 
-        $folio->paid_amount = $previousPaid + $additionalPayment;
-        $folio->balance_amount = $totalAmount - $folio->paid_amount;
-        $folio->save();
+            $maxOutstanding = max($totalAmount - $previousPaid, 0);
+            $outstandingAmount = min($outstandingAmount, $maxOutstanding);
+            $additionalPayment = max($totalAmount - $outstandingAmount - $previousPaid, 0);
+
+            if ($additionalPayment > 0) {
+                Payment::create([
+                    'payment_number' => 'PAY-' . strtoupper(Str::random(8)),
+                    'guest_folio_id' => $folio->id,
+                    'reservation_id' => $reservation->id,
+                    'payment_method' => $paymentMethod,
+                    'amount' => $additionalPayment,
+                    'currency' => Setting::get('currency', 'USD'),
+                    'exchange_rate' => 1,
+                    'local_amount' => $additionalPayment,
+                    'status' => 'completed',
+                    'processed_at' => now(),
+                    'processed_by' => auth()->check() ? auth()->id() : null,
+                    'notes' => 'Checkout payment',
+                ]);
+            }
+
+            $folio->paid_amount = $previousPaid + $additionalPayment;
+            $folio->balance_amount = $totalAmount - $folio->paid_amount;
+            $folio->save();
+        }
 
         // Update reservation with actual checkout time and recalculated amounts
         $reservation->update([
@@ -679,6 +703,9 @@ class CheckOutController extends Controller
             'paid_amount' => $folio->paid_amount,
             'balance_amount' => $folio->balance_amount,
         ]);
+
+        // Store refund amount in session for the receipt
+        session(['checkout_refund_amount_' . $reservation->id => $refundAmount]);
 
         if ($reservation->room) {
             $room = $reservation->room;
@@ -871,6 +898,7 @@ class CheckOutController extends Controller
                     'total_price' => $i->total_price,
                 ]),
             ])->values(),
+            'refund_amount' => session('checkout_refund_amount_' . $reservation->id, 0),
         ];
 
         $user = auth()->user();
@@ -879,6 +907,7 @@ class CheckOutController extends Controller
         elseif ($user->hasRole('manager')) $role = 'manager';
 
         $receiptSize = Setting::get('receipt_size_front_desk', 'A4');
+        $refundAmount = session('checkout_refund_amount_' . $reservation->id, 0);
 
         return Inertia::render('CheckOut/Print', [
             'user' => $user->load('roles'),
@@ -889,6 +918,9 @@ class CheckOutController extends Controller
             'hotelAddress' => Setting::get('hotel_address', ''),
             'hotelPhone' => Setting::get('hotel_phone', ''),
             'hotelEmail' => Setting::get('hotel_email', ''),
+            'hotelLogo' => Setting::get('hotel_logo', ''),
+            'hotelWebsite' => Setting::get('hotel_website', ''),
+            'refundAmount' => $refundAmount,
         ]);
     }
 }

@@ -2967,6 +2967,7 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
     })->name('checkin');
 
     Route::post('/checkin', [\App\Http\Controllers\FrontDesk\CheckInController::class, 'store'])->name('checkin.store');
+    Route::get('/checkin/receipt', [\App\Http\Controllers\FrontDesk\CheckInController::class, 'printReceipt'])->name('checkin.receipt');
 
     // Police report: list of all currently checked-in guests (accessible to admin, manager, front_desk)
     Route::get('/checkin/police-report', function () {
@@ -5313,6 +5314,7 @@ Route::middleware(['auth', 'role:front_desk'])->prefix('front-desk')->name('fron
     })->name('checkin');
 
     Route::post('/checkin', [\App\Http\Controllers\FrontDesk\CheckInController::class, 'store'])->name('checkin.store');
+    Route::get('/checkin/receipt', [\App\Http\Controllers\FrontDesk\CheckInController::class, 'printReceipt'])->name('checkin.receipt');
 
     Route::get('/checkout', [CheckOutController::class, 'index'])->name('checkout');
 
@@ -8646,6 +8648,7 @@ Route::middleware(['auth', 'role:manager'])->prefix('manager')->name('manager.')
         ]);
     })->name('checkin');
     Route::post('/checkin', [\App\Http\Controllers\FrontDesk\CheckInController::class, 'store'])->name('checkin.store');
+    Route::get('/checkin/receipt', [\App\Http\Controllers\FrontDesk\CheckInController::class, 'printReceipt'])->name('checkin.receipt');
     Route::get('/checkout', [CheckOutController::class, 'index'])->name('checkout');
 
     Route::post('/checkout', [CheckOutController::class, 'store'])->name('checkout.store');

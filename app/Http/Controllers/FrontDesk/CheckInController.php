@@ -248,7 +248,21 @@ class CheckInController extends Controller
         $paymentMsg  = $paymentAmount > 0 ? ' — payment of $' . number_format($paymentAmount, 2) . ' recorded' : '';
         $successMsg  = 'Guest checked in successfully' . $keyCardMsg . $paymentMsg;
 
-        // Redirect based on user role
+        // If a payment was made at check-in, redirect to the check-in receipt
+        if ($paymentAmount > 0) {
+            $user = auth()->user();
+            if ($user->hasRole('admin')) {
+                return redirect()->route('admin.checkin.receipt', ['reservation_id' => $reservation->id])
+                    ->with('success', $successMsg);
+            } elseif ($user->hasRole('manager')) {
+                return redirect()->route('manager.checkin.receipt', ['reservation_id' => $reservation->id])
+                    ->with('success', $successMsg);
+            }
+            return redirect()->route('front-desk.checkin.receipt', ['reservation_id' => $reservation->id])
+                ->with('success', $successMsg);
+        }
+
+        // Redirect based on user role (no payment)
         $user = auth()->user();
         if ($user->hasRole('admin')) {
             return redirect()->route('admin.dashboard')->with('success', $successMsg);
@@ -257,6 +271,64 @@ class CheckInController extends Controller
         }
 
         return redirect()->route('front-desk.checkin')->with('success', $successMsg);
+    }
+
+    /**
+     * Print check-in payment receipt.
+     */
+    public function printReceipt(Request $request)
+    {
+        $reservationId = $request->query('reservation_id');
+        if (!$reservationId) {
+            return redirect()->back()->withErrors(['reservation_id' => 'Reservation ID required.']);
+        }
+
+        $reservation = Reservation::with(['guest', 'room', 'roomType'])->find($reservationId);
+        if (!$reservation) {
+            return redirect()->back()->withErrors(['reservation' => 'Reservation not found.']);
+        }
+
+        $folio = GuestFolio::where('reservation_id', $reservation->id)->first();
+
+        // Get the most recent payment for this check-in
+        $lastPayment = \App\Models\Payment::where('reservation_id', $reservation->id)
+            ->where('amount', '>', 0)
+            ->latest('processed_at')
+            ->first();
+
+        $user = auth()->user();
+        $role = 'front_desk';
+        if ($user->hasRole('admin')) $role = 'admin';
+        elseif ($user->hasRole('manager')) $role = 'manager';
+
+        return Inertia::render('CheckIn/Receipt', [
+            'user' => $user->load('roles'),
+            'role' => $role,
+            'receipt' => [
+                'reservation_number' => $reservation->reservation_number,
+                'guest_name' => $reservation->guest->full_name ?? 'N/A',
+                'room_number' => $reservation->room->room_number ?? 'N/A',
+                'check_in_date' => $reservation->check_in_date?->format('Y-m-d'),
+                'check_out_date' => $reservation->check_out_date?->format('Y-m-d'),
+                'actual_check_in' => $reservation->actual_check_in?->format('Y-m-d H:i'),
+                'nights' => $reservation->check_in_date && $reservation->check_out_date
+                    ? $reservation->check_in_date->diffInDays($reservation->check_out_date)
+                    : 0,
+                'room_rate' => $reservation->room_rate ?? ($reservation->roomType->base_price ?? 0),
+                'total_amount' => $folio ? $folio->total_amount : ($reservation->total_amount ?? 0),
+                'paid_amount' => $folio ? $folio->paid_amount : ($reservation->paid_amount ?? 0),
+                'balance_amount' => $folio ? $folio->balance_amount : ($reservation->balance_amount ?? 0),
+                'payment_amount' => $lastPayment ? $lastPayment->amount : 0,
+                'payment_method' => $lastPayment ? $lastPayment->payment_method : 'cash',
+                'folio_number' => $folio->folio_number ?? null,
+            ],
+            'hotelName' => Setting::get('hotel_name', 'Hotel'),
+            'hotelAddress' => Setting::get('hotel_address', ''),
+            'hotelPhone' => Setting::get('hotel_phone', ''),
+            'hotelEmail' => Setting::get('hotel_email', ''),
+            'hotelLogo' => Setting::get('hotel_logo', ''),
+            'hotelWebsite' => Setting::get('hotel_website', ''),
+        ]);
     }
 
     /**

@@ -30,11 +30,13 @@
             <div id="checkout-bill-print" class="rounded-lg shadow-xl p-8 print:p-6 print:shadow-none" :style="{ backgroundColor: '#ffffff', color: '#000000' }">
                 <!-- Header -->
                 <div class="text-center border-b pb-4 mb-6" :style="{ borderColor: '#d1d5db' }">
+                    <img v-if="hotelLogo" :src="hotelLogo" alt="Hotel Logo" class="h-16 max-w-xs object-contain mx-auto mb-3">
                     <h1 class="text-2xl font-bold mb-1">{{ hotelName }}</h1>
                     <div class="text-xs leading-5" :style="{ color: '#4b5563' }">
                         <div v-if="hotelAddress">{{ hotelAddress }}</div>
                         <div v-if="hotelPhone">{{ hotelPhone }}</div>
                         <div v-if="hotelEmail">{{ hotelEmail }}</div>
+                        <div v-if="hotelWebsite">{{ hotelWebsite }}</div>
                     </div>
                     <div class="mt-3 font-semibold">Guest Checkout Bill</div>
                 </div>
@@ -203,7 +205,11 @@
                             <span class="font-medium text-gray-600">Paid Amount</span>
                             <span class="font-medium tabular-nums">{{ formatCurrency(bill?.paid_amount ?? 0) }}</span>
                         </div>
-                        <div v-if="(bill?.balance_amount ?? 0) > 0" class="flex justify-between py-2 text-red-600 font-semibold">
+                        <div v-if="(refundAmount ?? 0) > 0" class="flex justify-between py-2 text-green-600 font-bold border-t-2 border-gray-300">
+                            <span>💚 Refund Due (Early Checkout)</span>
+                            <span class="tabular-nums">{{ formatCurrency(refundAmount) }}</span>
+                        </div>
+                        <div v-else-if="(bill?.balance_amount ?? 0) > 0" class="flex justify-between py-2 text-red-600 font-semibold">
                             <span>Balance Due</span>
                             <span class="tabular-nums">{{ formatCurrency(bill?.balance_amount ?? 0) }}</span>
                         </div>
@@ -219,6 +225,7 @@
                     <div class="text-[12px] text-gray-600 mb-2">
                         <p class="font-semibold">Thank you for choosing {{ hotelName }}!</p>
                         <p>We hope you enjoyed your stay and look forward to welcoming you back.</p>
+                        <p v-if="hotelWebsite" class="mt-1">{{ hotelWebsite }}</p>
                     </div>
                     <div class="text-[11px] text-gray-500">
                         <p>This is a computer-generated receipt. No signature required.</p>
@@ -268,6 +275,9 @@ const props = defineProps({
     hotelAddress: String,
     hotelPhone: String,
     hotelEmail: String,
+    hotelLogo: { type: String, default: '' },
+    hotelWebsite: { type: String, default: '' },
+    refundAmount: { type: Number, default: 0 },
 })
 
 const navigation = computed(() => getNavigationForRole(props.role))
@@ -444,6 +454,10 @@ body {
     .p-8 { padding: 1rem; }
     .mb-8 { margin-bottom: 1rem; }
     .mt-8 { margin-top: 1rem; }
+    .h-16 { height: 4rem; }
+    .max-w-xs { max-width: 20rem; }
+    .object-contain { object-fit: contain; }
+    .mx-auto { margin-left: auto; margin-right: auto; }
 }
     `
     
@@ -469,6 +483,15 @@ ${el.outerHTML}
 <style scoped>
 @media print {
     .no-print { display: none !important; }
+    /* Hide everything on page except the receipt div */
+    :deep(nav),
+    :deep(header),
+    :deep(aside),
+    :deep(footer),
+    :deep(.sidebar),
+    :deep(.navigation) {
+        display: none !important;
+    }
 }
 
 /* Force white background and black text for the entire receipt */
@@ -580,6 +603,27 @@ ${el.outerHTML}
     
     #checkout-bill-print .text-blue-700 {
         color: #1e40af !important;
+    }
+}
+</style>
+
+<!-- Global print styles: hide entire layout, show only receipt when printing directly -->
+<style>
+@media print {
+    /* Hide all layout chrome */
+    body > *:not(#app),
+    nav, aside, header.layout-header, .sidebar, .nav-wrapper,
+    [class*="navigation"], [class*="sidebar"], [class*="navbar"] {
+        display: none !important;
+    }
+    /* Show only the receipt content */
+    #checkout-bill-print {
+        display: block !important;
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 100% !important;
+        background: #fff !important;
     }
 }
 </style>

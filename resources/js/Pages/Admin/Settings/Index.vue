@@ -326,6 +326,12 @@
                                    class="w-full border border-kotel-border rounded-md px-3 py-2 bg-kotel-black text-kotel-text-primary focus:outline-none focus:ring-2 focus:ring-kotel-yellow">
                         </div>
                         <div>
+                            <label class="block text-sm font-medium text-kotel-text-secondary mb-2">Website URL</label>
+                            <input type="url" v-model="settings.hotel_website"
+                                   placeholder="https://www.yourhotel.com"
+                                   class="w-full border border-kotel-border rounded-md px-3 py-2 bg-kotel-black text-kotel-text-primary focus:outline-none focus:ring-2 focus:ring-kotel-yellow">
+                        </div>
+                        <div>
                             <label class="block text-sm font-medium text-kotel-text-secondary mb-2">Timezone</label>
                             <select v-model="settings.timezone"
                                     class="w-full border border-kotel-border rounded-md px-3 py-2 bg-kotel-black text-kotel-text-primary focus:outline-none focus:ring-2 focus:ring-kotel-yellow">
@@ -1240,6 +1246,7 @@ const settings = ref({
     hotel_address: props.settings?.general?.hotel_address || '123 Hotel Street, City, State 12345',
     hotel_phone: props.settings?.general?.hotel_phone || '+1 (555) 123-4567',
     hotel_email: props.settings?.general?.hotel_email || 'info@grandhotel.com',
+    hotel_website: props.settings?.general?.hotel_website || '',
     timezone: props.settings?.general?.timezone || 'America/New_York',
     currency: props.settings?.general?.currency || 'USD',
     currency_position: props.settings?.general?.currency_position || 'prefix',
@@ -1510,6 +1517,7 @@ const saveSettings = async () => {
             settingsToSave.hotel_address = settings.value.hotel_address
             settingsToSave.hotel_phone = settings.value.hotel_phone
             settingsToSave.hotel_email = settings.value.hotel_email
+            settingsToSave.hotel_website = settings.value.hotel_website
             settingsToSave.timezone = settings.value.timezone
             settingsToSave.currency = settings.value.currency
             settingsToSave.currency_position = settings.value.currency_position
