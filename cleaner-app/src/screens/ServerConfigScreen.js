@@ -1,14 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
+  View, Text, TextInput, TouchableOpacity, StyleSheet,
+  Alert, KeyboardAvoidingView, Platform, ScrollView, Image,
 } from 'react-native';
 import { validateServerUrl, formatServerUrl } from '../utils/validation';
 import { testServerUrl } from '../utils/connection';
@@ -19,30 +12,22 @@ export default function ServerConfigScreen({ navigation }) {
   const [serverUrl, setServerUrl] = useState('');
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    loadServerUrl();
-  }, []);
+  useEffect(() => { loadServerUrl(); }, []);
 
   const loadServerUrl = async () => {
     const url = await Storage.getServerUrl();
-    if (url) {
-      setServerUrl(url);
-    }
+    if (url) setServerUrl(url);
   };
 
   const handleSave = async () => {
     const error = validateServerUrl(serverUrl);
-    if (error) {
-      Alert.alert('Validation Error', error);
-      return;
-    }
+    if (error) { Alert.alert('Validation Error', error); return; }
 
     setLoading(true);
     try {
       const formattedUrl = formatServerUrl(serverUrl);
-      
       const connectionTest = await testServerUrl(formattedUrl);
-      
+
       if (!connectionTest.success) {
         Alert.alert(
           'Connection Warning',
@@ -54,7 +39,6 @@ export default function ServerConfigScreen({ navigation }) {
         );
         return;
       }
-      
       await saveUrl(formattedUrl);
     } catch (error) {
       Alert.alert('Error', 'Failed to save server URL: ' + error.message);
@@ -65,12 +49,8 @@ export default function ServerConfigScreen({ navigation }) {
   const saveUrl = async (formattedUrl) => {
     try {
       await Storage.setServerUrl(formattedUrl);
-      
       Alert.alert('Success', 'Server URL saved successfully', [
-        {
-          text: 'OK',
-          onPress: () => navigation.replace('Login'),
-        },
+        { text: 'OK', onPress: () => navigation.replace('Login') },
       ]);
     } catch (error) {
       Alert.alert('Error', 'Failed to save server URL');
@@ -79,16 +59,21 @@ export default function ServerConfigScreen({ navigation }) {
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.container}
-    >
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.content}>
-          <Text style={styles.title}>Server Configuration</Text>
+
+        {/* Logo */}
+        <View style={styles.logoContainer}>
+          <Image source={require('../../assets/kotelcleaner.png')} style={styles.logo} resizeMode="contain" />
+          <Text style={styles.appName}>Kotel Cleaner</Text>
+        </View>
+
+        {/* Card */}
+        <View style={styles.card}>
+          <Text style={styles.title}>Server Setup</Text>
           <Text style={styles.subtitle}>
-            Enter the server URL where the hotel management system is running.
-            {'\n\n'}Example: http://192.168.1.100:8000
+            Enter the URL of your hotel management server.{'\n\n'}
+            Example: http://192.168.1.100:8000
           </Text>
 
           <View style={styles.inputContainer}>
@@ -102,7 +87,7 @@ export default function ServerConfigScreen({ navigation }) {
               autoCorrect={false}
               keyboardType="url"
               editable={!loading}
-              placeholderTextColor={Colors.gray}
+              placeholderTextColor={Colors.textTertiary}
             />
           </View>
 
@@ -111,15 +96,16 @@ export default function ServerConfigScreen({ navigation }) {
             onPress={handleSave}
             disabled={loading}
           >
-            <Text style={styles.buttonText}>
-              {loading ? 'Saving...' : 'Save & Continue'}
-            </Text>
+            <Text style={styles.buttonText}>{loading ? 'Saving...' : 'Save & Continue'}</Text>
           </TouchableOpacity>
 
-          <Text style={styles.hint}>
-            💡 Tip: Ask your IT administrator for the correct server IP address
-          </Text>
+          <View style={styles.hintBox}>
+            <Text style={styles.hintText}>
+              💡 Ask your IT administrator for the correct server IP address
+            </Text>
+          </View>
         </View>
+
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -133,29 +119,46 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     justifyContent: 'center',
-    padding: 20,
+    padding: 24,
   },
-  content: {
-    backgroundColor: Colors.white,
-    borderRadius: 10,
-    padding: 20,
-    shadowColor: Colors.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+  logoContainer: {
+    alignItems: 'center',
+    marginBottom: 32,
+  },
+  logo: {
+    width: 90,
+    height: 90,
+    marginBottom: 12,
+  },
+  appName: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: Colors.textPrimary,
+    letterSpacing: 0.5,
+  },
+  card: {
+    backgroundColor: Colors.card,
+    borderRadius: 16,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: Colors.info,
+    shadowColor: Colors.info,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 8,
   },
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: Colors.black,
-    marginBottom: 10,
+    fontSize: 22,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+    marginBottom: 6,
     textAlign: 'center',
   },
   subtitle: {
-    fontSize: 14,
-    color: Colors.gray,
-    marginBottom: 30,
+    fontSize: 13,
+    color: Colors.textSecondary,
+    marginBottom: 28,
     textAlign: 'center',
     lineHeight: 20,
   },
@@ -163,40 +166,55 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   label: {
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: '600',
-    color: Colors.black,
-    marginBottom: 8,
+    color: Colors.textSecondary,
+    marginBottom: 6,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   input: {
-    borderWidth: 2,
-    borderColor: Colors.skyBlue,
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    backgroundColor: Colors.white,
-    color: Colors.black,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    borderRadius: 10,
+    padding: 13,
+    fontSize: 15,
+    backgroundColor: Colors.cardAlt,
+    color: Colors.textPrimary,
   },
   button: {
-    backgroundColor: Colors.black,
-    borderRadius: 8,
-    padding: 16,
+    backgroundColor: Colors.info,
+    borderRadius: 10,
+    padding: 15,
     alignItems: 'center',
-    marginTop: 10,
+    shadowColor: Colors.info,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 6,
   },
   buttonDisabled: {
-    backgroundColor: Colors.gray,
+    backgroundColor: Colors.grayLight,
+    shadowOpacity: 0,
   },
   buttonText: {
-    color: Colors.yellow,
+    color: Colors.white,
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
-  hint: {
+  hintBox: {
     marginTop: 20,
+    backgroundColor: Colors.infoLight,
+    borderRadius: 8,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: Colors.info,
+  },
+  hintText: {
     fontSize: 12,
-    color: Colors.gray,
+    color: Colors.info,
     textAlign: 'center',
-    fontStyle: 'italic',
+    lineHeight: 18,
   },
 });

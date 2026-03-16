@@ -643,6 +643,14 @@ const form = useForm({
     send_confirmation_email: false,
 })
 
+// Auto-select guest from URL query param (e.g. when navigating from guest show page)
+;(() => {
+    const urlGuestId = new URLSearchParams(window.location.search).get('guest_id')
+    if (urlGuestId) {
+        form.guest_id = parseInt(urlGuestId)
+    }
+})()
+
 // Multi-room selection state
 const roomSelections = ref([
     { room_type_id: '', room_id: '', selectedRoomType: null, selectedRoom: null }

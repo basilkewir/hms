@@ -183,13 +183,13 @@ const styles = StyleSheet.create({
     padding: 15,
   },
   requestCard: {
-    backgroundColor: Colors.white,
+    backgroundColor: Colors.card,
     borderRadius: 10,
     padding: 15,
     marginBottom: 15,
     shadowColor: Colors.black,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 3,
     borderLeftWidth: 4,
@@ -204,7 +204,7 @@ const styles = StyleSheet.create({
   requestNumber: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.gray,
+    color: Colors.textSecondary,
   },
   statusBadge: {
     paddingHorizontal: 10,
@@ -219,12 +219,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: Colors.black,
+    color: Colors.textPrimary,
     marginBottom: 8,
   },
   description: {
     fontSize: 14,
-    color: Colors.gray,
+    color: Colors.textSecondary,
     marginBottom: 10,
   },
   metaContainer: {
@@ -249,7 +249,7 @@ const styles = StyleSheet.create({
   },
   room: {
     fontSize: 14,
-    color: Colors.black,
+    color: Colors.textPrimary,
     marginBottom: 5,
   },
   assigned: {
@@ -268,16 +268,18 @@ const styles = StyleSheet.create({
     padding: 10,
     backgroundColor: Colors.skyBlueLight,
     borderRadius: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: Colors.skyBlue,
   },
   notesLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: Colors.black,
+    color: Colors.textPrimary,
     marginBottom: 5,
   },
   notes: {
     fontSize: 14,
-    color: Colors.gray,
+    color: Colors.textSecondary,
   },
   emptyContainer: {
     padding: 40,

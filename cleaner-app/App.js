@@ -3,7 +3,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
-import { ActivityIndicator, View, Text } from 'react-native';
+import { ActivityIndicator, View, Text, Image, StyleSheet } from 'react-native';
 
 import ServerConfigScreen from './src/screens/ServerConfigScreen';
 import LoginScreen from './src/screens/LoginScreen';
@@ -16,6 +16,7 @@ import ProfileScreen from './src/screens/ProfileScreen';
 import { Storage } from './src/services/storage';
 import { authService } from './src/services/authService';
 import { checkServerConnection } from './src/utils/connection';
+import { Colors } from './src/constants/colors';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -26,7 +27,6 @@ function MainTabs() {
       screenOptions={({ route }) => ({
         tabBarIcon: ({ focused, color, size }) => {
           let iconName;
-
           if (route.name === 'Tasks') {
             iconName = focused ? 'list' : 'list-outline';
           } else if (route.name === 'Maintenance') {
@@ -36,39 +36,35 @@ function MainTabs() {
           } else if (route.name === 'Profile') {
             iconName = focused ? 'person' : 'person-outline';
           }
-
           return <Ionicons name={iconName} size={size} color={color} />;
         },
-        tabBarActiveTintColor: '#FFD700', // Yellow
-        tabBarInactiveTintColor: '#6b7280',
+        tabBarActiveTintColor: Colors.accent,
+        tabBarInactiveTintColor: Colors.textTertiary,
         tabBarStyle: {
-          backgroundColor: '#000000', // Black
-          borderTopColor: '#87CEEB', // Sky Blue
+          backgroundColor: Colors.card,
+          borderTopColor: Colors.primary,
           borderTopWidth: 2,
+          paddingBottom: 4,
+          height: 60,
         },
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: '600',
+        },
+        headerStyle: {
+          backgroundColor: Colors.card,
+          borderBottomColor: Colors.primary,
+          borderBottomWidth: 1,
+        },
+        headerTintColor: Colors.textPrimary,
+        headerTitleStyle: { fontWeight: '700', fontSize: 17 },
         headerShown: true,
       })}
     >
-      <Tab.Screen
-        name="Tasks"
-        component={TasksScreen}
-        options={{ title: 'My Tasks' }}
-      />
-      <Tab.Screen
-        name="Maintenance"
-        component={MaintenanceScreen}
-        options={{ title: 'Report Issue' }}
-      />
-      <Tab.Screen
-        name="CheckMaintenance"
-        component={CheckMaintenanceScreen}
-        options={{ title: 'Check Status' }}
-      />
-      <Tab.Screen
-        name="Profile"
-        component={ProfileScreen}
-        options={{ title: 'Profile' }}
-      />
+      <Tab.Screen name="Tasks" component={TasksScreen} options={{ title: 'My Tasks' }} />
+      <Tab.Screen name="Maintenance" component={MaintenanceScreen} options={{ title: 'Report Issue' }} />
+      <Tab.Screen name="CheckMaintenance" component={CheckMaintenanceScreen} options={{ title: 'Check Status' }} />
+      <Tab.Screen name="Profile" component={ProfileScreen} options={{ title: 'Profile' }} />
     </Tab.Navigator>
   );
 }
@@ -84,41 +80,21 @@ export default function App() {
   const checkInitialRoute = async () => {
     try {
       const serverUrl = await Storage.getServerUrl();
-      
-      // If no server URL is saved, show config screen
       if (!serverUrl) {
         setInitialRoute('ServerConfig');
         setLoading(false);
         return;
       }
-
-      // Server URL exists, check connection (non-blocking)
-      // We check connection but don't block the app if it fails
-      // User can still try to login or change server URL from profile
       const connectionCheck = await checkServerConnection();
-      
       if (!connectionCheck.connected) {
         console.warn('Server connection check failed:', connectionCheck.error);
-        // Still proceed to login - user can change server URL if needed
       }
-
-      // Check authentication status
       const isAuthenticated = await authService.isAuthenticated();
-      
-      if (!isAuthenticated) {
-        setInitialRoute('Login');
-      } else {
-        setInitialRoute('Main');
-      }
+      setInitialRoute(isAuthenticated ? 'Main' : 'Login');
     } catch (error) {
       console.error('Error checking initial route:', error);
-      // If there's an error but server URL exists, still try login
       const serverUrl = await Storage.getServerUrl();
-      if (serverUrl) {
-        setInitialRoute('Login');
-      } else {
-        setInitialRoute('ServerConfig');
-      }
+      setInitialRoute(serverUrl ? 'Login' : 'ServerConfig');
     } finally {
       setLoading(false);
     }
@@ -126,28 +102,51 @@ export default function App() {
 
   if (loading || !initialRoute) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F5F5F5' }}>
-        <ActivityIndicator size="large" color="#87CEEB" />
-        <Text style={{ marginTop: 10, color: '#666' }}>Loading...</Text>
+      <View style={styles.loadingScreen}>
+        <Image source={require('./assets/kotelcleaner.png')} style={styles.loadingLogo} resizeMode="contain" />
+        <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 32 }} />
+        <Text style={styles.loadingText}>Loading...</Text>
       </View>
     );
   }
 
   return (
     <NavigationContainer>
-      <Stack.Navigator
-        initialRouteName={initialRoute}
-        screenOptions={{ headerShown: false }}
-      >
+      <Stack.Navigator initialRouteName={initialRoute} screenOptions={{ headerShown: false }}>
         <Stack.Screen name="ServerConfig" component={ServerConfigScreen} />
         <Stack.Screen name="Login" component={LoginScreen} />
         <Stack.Screen name="Main" component={MainTabs} />
         <Stack.Screen
           name="CompleteTask"
           component={CompleteTaskScreen}
-          options={{ headerShown: true, title: 'Complete Task' }}
+          options={{
+            headerShown: true,
+            title: 'Complete Task',
+            headerStyle: { backgroundColor: Colors.card },
+            headerTintColor: Colors.textPrimary,
+            headerTitleStyle: { fontWeight: '700' },
+          }}
         />
       </Stack.Navigator>
     </NavigationContainer>
   );
 }
+
+const styles = StyleSheet.create({
+  loadingScreen: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: Colors.background,
+  },
+  loadingLogo: {
+    width: 140,
+    height: 140,
+  },
+  loadingText: {
+    marginTop: 12,
+    color: Colors.textSecondary,
+    fontSize: 14,
+    fontWeight: '500',
+  },
+});

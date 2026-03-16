@@ -4,29 +4,36 @@
     "slug": "cleaner-app",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/kotelcleaner.png",
     "userInterfaceStyle": "light",
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/kotelcleaner.png",
       "resizeMode": "contain",
-      "backgroundColor": "#FFD700"
+      "backgroundColor": "#0f172a"
     },
     "assetBundlePatterns": [
       "**/*"
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.hotel.cleaner"
+      "bundleIdentifier": "com.kotel.cleaner"
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#FFD700"
+        "foregroundImage": "./assets/kotelcleaner.png",
+        "backgroundColor": "#0f172a"
       },
-      "package": "com.hotel.cleaner"
+      "package": "com.hotel.cleaner",
+      "versionCode": 1
     },
     "web": {
-      "favicon": "./assets/favicon.png"
-    }
+      "favicon": "./assets/kotelcleaner.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "d58e3b86-0782-4be7-ab25-5f55d29390df"
+      }
+    },
+    "owner": "basilkewir"
   }
 }

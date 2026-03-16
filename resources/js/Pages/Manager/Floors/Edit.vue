@@ -7,22 +7,26 @@
                     <div>
                         <label class="block text-sm font-medium text-kotel-sky-blue mb-2">Floor Number *</label>
                         <input v-model="form.floor_number" type="number" required 
-                               class="w-full bg-kotel-black/50 border border-kotel-yellow/30 rounded-md px-3 py-2 text-white placeholder-kotel-sky-blue/60 focus:outline-none focus:ring-2 focus:ring-kotel-yellow focus:border-kotel-yellow">
+                               class="w-full bg-kotel-black/50 border border-kotel-yellow/30 rounded-md px-3 py-2 text-white placeholder-kotel-sky-blue/60 focus:outline-none focus:ring-2 focus:ring-kotel-yellow focus:border-kotel-yellow"
+                               style="-webkit-text-fill-color: white; caret-color: white;">
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-kotel-sky-blue mb-2">Name</label>
                         <input v-model="form.name" type="text" 
-                               class="w-full bg-kotel-black/50 border border-kotel-yellow/30 rounded-md px-3 py-2 text-white placeholder-kotel-sky-blue/60 focus:outline-none focus:ring-2 focus:ring-kotel-yellow focus:border-kotel-yellow">
+                               class="w-full bg-kotel-black/50 border border-kotel-yellow/30 rounded-md px-3 py-2 text-white placeholder-kotel-sky-blue/60 focus:outline-none focus:ring-2 focus:ring-kotel-yellow focus:border-kotel-yellow"
+                               style="-webkit-text-fill-color: white; caret-color: white;">
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-kotel-sky-blue mb-2">Description</label>
                         <textarea v-model="form.description" rows="3"
-                                  class="w-full bg-kotel-black/50 border border-kotel-yellow/30 rounded-md px-3 py-2 text-white placeholder-kotel-sky-blue/60 focus:outline-none focus:ring-2 focus:ring-kotel-yellow focus:border-kotel-yellow"></textarea>
+                                  class="w-full bg-kotel-black/50 border border-kotel-yellow/30 rounded-md px-3 py-2 text-white placeholder-kotel-sky-blue/60 focus:outline-none focus:ring-2 focus:ring-kotel-yellow focus:border-kotel-yellow"
+                                  style="-webkit-text-fill-color: white; caret-color: white;"></textarea>
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-kotel-sky-blue mb-2">Sort Order</label>
                         <input v-model="form.sort_order" type="number" 
-                               class="w-full bg-kotel-black/50 border border-kotel-yellow/30 rounded-md px-3 py-2 text-white placeholder-kotel-sky-blue/60 focus:outline-none focus:ring-2 focus:ring-kotel-yellow focus:border-kotel-yellow">
+                               class="w-full bg-kotel-black/50 border border-kotel-yellow/30 rounded-md px-3 py-2 text-white placeholder-kotel-sky-blue/60 focus:outline-none focus:ring-2 focus:ring-kotel-yellow focus:border-kotel-yellow"
+                               style="-webkit-text-fill-color: white; caret-color: white;">
                     </div>
                     <div class="flex items-center">
                         <input v-model="form.is_active" type="checkbox" class="mr-2 w-4 h-4 text-kotel-yellow bg-kotel-black/50 border-kotel-yellow/30 rounded focus:ring-kotel-yellow focus:border-kotel-yellow">
@@ -34,7 +38,7 @@
                             class="bg-kotel-yellow text-kotel-black px-4 py-2 rounded hover:bg-kotel-yellow/90 disabled:opacity-50 transition-colors">
                         Update Floor
                     </button>
-                    <Link :href="route('admin.floors.index')" 
+                    <Link :href="route('manager.floors.index')" 
                           class="bg-kotel-gray text-kotel-sky-blue px-4 py-2 rounded hover:bg-kotel-gray/80 transition-colors">
                         Cancel
                     </Link>
@@ -55,7 +59,7 @@ const props = defineProps({
     floor: Object,
 })
 
-const navigation = computed(() => getNavigationForRole('admin'))
+const navigation = computed(() => getNavigationForRole('manager'))
 
 const form = useForm({
     floor_number: props.floor.floor_number,
@@ -66,6 +70,6 @@ const form = useForm({
 })
 
 const submit = () => {
-    form.put(route('admin.floors.update', props.floor.id))
+    form.put(route('manager.floors.update', props.floor.id))
 }
 </script>

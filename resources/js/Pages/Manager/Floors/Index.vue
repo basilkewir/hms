@@ -9,7 +9,7 @@
                     <p class="text-kotel-sky-blue mt-1"
                        style="color: #87CEEB;">Manage building floors</p>
                 </div>
-                <Link :href="route('admin.floors.create')" 
+                <Link :href="route('manager.floors.create')" 
                       class="bg-kotel-yellow text-kotel-black px-4 py-2 rounded hover:bg-kotel-yellow/90 transition-colors"
                       style="background-color: #FFD700; color: #000000;">
                     Add Floor
@@ -65,7 +65,7 @@
                                 </span>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                <Link :href="route('admin.floors.edit', floor.id)" 
+                                <Link :href="route('manager.floors.edit', floor.id)" 
                                       class="text-kotel-yellow hover:text-kotel-yellow/80 mr-3 transition-colors"
                                       style="color: #FFD700;">Edit</Link>
                                 <button @click="deleteFloor(floor)" 
@@ -91,11 +91,11 @@ const props = defineProps({
     floors: Array,
 })
 
-const navigation = computed(() => getNavigationForRole('admin'))
+const navigation = computed(() => getNavigationForRole('manager'))
 
 const deleteFloor = (floor) => {
     if (confirm(`Are you sure you want to delete ${floor.name || 'Floor ' + floor.floor_number}?`)) {
-        router.delete(route('admin.floors.destroy', floor.id))
+        router.delete(route('manager.floors.destroy', floor.id))
     }
 }
 </script>

@@ -135,6 +135,98 @@
                 </div>
             </div>
 
+            <!-- Rooms Currently in Maintenance Report -->
+            <div class="rounded-lg border mb-6" :style="{ backgroundColor: themeColors.background, borderColor: themeColors.border, borderWidth: '1px', borderStyle: 'solid' }">
+                <div class="flex items-center px-6 py-4 border-b" :style="{ borderColor: themeColors.border }">
+                    <WrenchScrewdriverIcon class="h-5 w-5 mr-2" :style="{ color: themeColors.warning }" />
+                    <h2 class="text-base font-semibold" :style="{ color: themeColors.textPrimary }">Rooms Currently in Maintenance</h2>
+                    <span class="ml-3 px-2 py-0.5 text-xs font-semibold rounded-full"
+                          :style="{ backgroundColor: 'rgba(250,204,21,0.15)', color: themeColors.warning }">
+                        {{ (maintenanceRooms || []).length }} room(s) active
+                    </span>
+                </div>
+                <div v-if="!maintenanceRooms || maintenanceRooms.length === 0" class="px-6 py-8 text-center">
+                    <CheckCircleIcon class="h-10 w-10 mx-auto mb-2" :style="{ color: themeColors.success }" />
+                    <p class="text-sm" :style="{ color: themeColors.textTertiary }">No rooms are currently in active maintenance.</p>
+                </div>
+                <div v-else class="overflow-x-auto">
+                    <table class="min-w-full divide-y" :style="{ borderColor: themeColors.border }">
+                        <thead :style="{ backgroundColor: themeColors.card }">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider" :style="{ color: themeColors.textSecondary }">Room</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider" :style="{ color: themeColors.textSecondary }">Issue / Description</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider" :style="{ color: themeColors.textSecondary }">Category</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider" :style="{ color: themeColors.textSecondary }">Priority</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider" :style="{ color: themeColors.textSecondary }">Status</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider" :style="{ color: themeColors.textSecondary }">Assigned To</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider" :style="{ color: themeColors.textSecondary }">Reported By</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider" :style="{ color: themeColors.textSecondary }">Reported</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider" :style="{ color: themeColors.textSecondary }">Days Open</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y" :style="{ borderColor: themeColors.border }">
+                            <tr v-for="item in maintenanceRooms" :key="item.id"
+                                :style="{ backgroundColor: item.priority === 'urgent' ? 'rgba(239,68,68,0.07)' : themeColors.background }">
+                                <td class="px-4 py-3 whitespace-nowrap text-sm font-bold" :style="{ color: themeColors.textPrimary }">Room {{ item.room_number }}</td>
+                                <td class="px-4 py-3 text-sm" style="max-width:280px;">
+                                    <div class="font-medium" :style="{ color: themeColors.textPrimary }">{{ item.title }}</div>
+                                    <div class="text-xs mt-0.5 truncate" :style="{ color: themeColors.textTertiary }" :title="item.description">{{ item.description }}</div>
+                                </td>
+                                <td class="px-4 py-3 whitespace-nowrap text-sm capitalize" :style="{ color: themeColors.textSecondary }">{{ item.category }}</td>
+                                <td class="px-4 py-3 whitespace-nowrap">
+                                    <span class="px-2 py-0.5 text-xs font-semibold rounded-full" :style="getPriorityStyle(item.priority)">{{ formatStatus(item.priority) }}</span>
+                                </td>
+                                <td class="px-4 py-3 whitespace-nowrap">
+                                    <span class="px-2 py-0.5 text-xs font-semibold rounded-full" :style="getStatusStyle(item.status)">{{ formatStatus(item.status) }}</span>
+                                </td>
+                                <td class="px-4 py-3 whitespace-nowrap text-sm" :style="{ color: themeColors.textSecondary }">{{ item.assigned_to || 'Unassigned' }}</td>
+                                <td class="px-4 py-3 whitespace-nowrap text-sm" :style="{ color: themeColors.textSecondary }">{{ item.reported_by || '—' }}</td>
+                                <td class="px-4 py-3 whitespace-nowrap text-sm" :style="{ color: themeColors.textTertiary }">{{ item.reported_at }}</td>
+                                <td class="px-4 py-3 whitespace-nowrap text-center">
+                                    <span class="px-2 py-0.5 text-xs font-semibold rounded-full"
+                                          :style="item.days_open >= 7 ? { backgroundColor: 'var(--kotel-danger)', color: 'white' } : item.days_open >= 3 ? { backgroundColor: 'var(--kotel-warning)', color: 'white' } : { backgroundColor: 'var(--kotel-success)', color: 'white' }">
+                                        {{ item.days_open }}d
+                                    </span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Recurring Issue Alerts -->
+            <div v-if="recurringAlerts && recurringAlerts.length > 0"
+                 class="rounded-lg border mb-6 overflow-hidden"
+                 :style="{ borderColor: 'var(--kotel-danger)', borderWidth: '2px', borderStyle: 'solid' }">
+                <div class="px-6 py-3 flex items-center gap-2" :style="{ backgroundColor: 'var(--kotel-danger)', color: 'white' }">
+                    <ExclamationTriangleIcon class="h-5 w-5 flex-shrink-0" />
+                    <span class="text-sm font-semibold">Recurring Issue Alerts — Frequent maintenance detected in the last 30 days</span>
+                </div>
+                <div class="divide-y" :style="{ borderColor: themeColors.border }">
+                    <div v-for="alert in recurringAlerts" :key="alert.label + alert.type"
+                         class="px-6 py-3 flex items-center justify-between"
+                         :style="{ backgroundColor: themeColors.card }">
+                        <div class="flex items-center gap-3">
+                            <ExclamationCircleIcon class="h-5 w-5 flex-shrink-0"
+                                :style="{ color: alert.count >= 5 ? 'var(--kotel-danger)' : 'var(--kotel-warning)' }" />
+                            <div>
+                                <span class="text-sm font-medium" :style="{ color: themeColors.textPrimary }">{{ alert.message }}</span>
+                                <span class="ml-2 text-xs px-2 py-0.5 rounded-full uppercase font-medium"
+                                      :style="alert.type === 'room'
+                                        ? { backgroundColor: 'rgba(59,130,246,0.15)', color: 'var(--kotel-primary)' }
+                                        : { backgroundColor: 'rgba(139,92,246,0.15)', color: '#8b5cf6' }">
+                                    {{ alert.type }}
+                                </span>
+                            </div>
+                        </div>
+                        <span class="text-base font-bold flex-shrink-0 ml-4"
+                              :style="{ color: alert.count >= 5 ? 'var(--kotel-danger)' : 'var(--kotel-warning)' }">
+                            {{ alert.count }}&times;
+                        </span>
+                    </div>
+                </div>
+            </div>
+
             <!-- Filter Tabs -->
             <div class="mb-6">
                 <div class="border-b"
@@ -445,6 +537,8 @@ const props = defineProps({
     stats: Object,
     maintenanceStaff: Array,
     routePrefix: { type: String, default: 'manager' },
+    maintenanceRooms: { type: Array, default: () => [] },
+    recurringAlerts:  { type: Array, default: () => [] },
 })
 
 const showAssign = ref(false)

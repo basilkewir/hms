@@ -2,6 +2,8 @@
 
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Http\Request;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\HR\TrainingProgramController;
@@ -706,65 +708,192 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
         return response()->noContent();
     })->name('customer-groups.export');
 
-    // Reports Dashboard
+    // Reports Dashboard - Comprehensive Analytics
     Route::get('/reports', function () {
         $user = auth()->user()->load('roles');
         $role = $user->roles->first()?->name ?? 'staff';
 
-        $stats = [
-            'total_customers' => 0,
-            'total_sales' => 0,
-            'revenue_today' => 0,
-            'revenue_month' => 0,
+        // Initialize comprehensive KPIs
+        $kpis = [
+            'total_revenue' => 0, 'total_expenses' => 0, 'net_profit' => 0, 'profit_margin' => 0,
+            'outstanding_invoices' => 0, 'unpaid_count' => 0,
+            'total_customers' => 0, 'new_customers' => 0, 'total_suppliers' => 0, 'total_payables' => 0,
+            'monthly_revenue' => 0, 'revenue_growth' => 0, 'monthly_expenses' => 0, 'monthly_expense_count' => 0,
+            'occupancy_rate' => 0, 'rooms_occupied' => 0, 'total_rooms' => 0, 'average_daily_rate' => 0,
+            'avg_transaction_value' => 0, 'total_transactions' => 0, 'return_rate' => 0, 'retention_rate' => 90,
         ];
 
-        $recentSales = [];
-        $recentCustomers = [];
+        $recentSales = $recentExpenses = $outstandingInvoices = $topSuppliers = $topProducts = $topCustomers = [];
 
-        // Safely compute stats if models exist
         try {
-            if (class_exists(\App\Models\Customer::class)) {
-                $stats['total_customers'] = \App\Models\Customer::count();
-                $recentCustomers = \App\Models\Customer::orderByDesc('created_at')
-                    ->limit(5)
-                    ->get(['id','first_name','last_name','customer_code','created_at'])
-                    ->map(fn($c) => [
-                        'id' => $c->id,
-                        'first_name' => $c->first_name,
-                        'last_name' => $c->last_name,
-                        'customer_code' => $c->customer_code,
-                        'created_at' => $c->created_at,
-                    ]);
-            }
+            $today = now()->toDateString();
+            $startOfMonth = now()->startOfMonth()->toDateString();
+            $endOfMonth = now()->endOfMonth()->toDateString();
+            $lastMonthStart = now()->subMonth()->startOfMonth()->toDateString();
+            $lastMonthEnd = now()->subMonth()->endOfMonth()->toDateString();
 
+            // Revenue & Expenses
             if (class_exists(\App\Models\Sale::class)) {
-                $stats['total_sales'] = \App\Models\Sale::count();
-                $today        = now()->toDateString();
-                $startOfMonth = now()->startOfMonth()->toDateString();
-                $endOfMonth   = now()->endOfMonth()->toDateString();
-                $stats['revenue_today'] = (float) \App\Models\Sale::whereDate('created_at', $today)->sum('total_amount');
-                $stats['revenue_month'] = (float) \App\Models\Sale::whereBetween('created_at', [$startOfMonth.' 00:00:00', $endOfMonth.' 23:59:59'])->sum('total_amount');
+                $kpis['total_revenue'] = (float) \App\Models\Sale::sum('total_amount');
+                $kpis['total_transactions'] = \App\Models\Sale::count();
+                $kpis['avg_transaction_value'] = $kpis['total_transactions'] > 0 ? $kpis['total_revenue'] / $kpis['total_transactions'] : 0;
+                $kpis['monthly_revenue'] = (float) \App\Models\Sale::whereBetween('created_at', [$startOfMonth.' 00:00:00', $endOfMonth.' 23:59:59'])->sum('total_amount');
+                $lastMonthRev = (float) \App\Models\Sale::whereBetween('created_at', [$lastMonthStart.' 00:00:00', $lastMonthEnd.' 23:59:59'])->sum('total_amount');
+                $kpis['revenue_growth'] = $lastMonthRev > 0 ? round((($kpis['monthly_revenue'] - $lastMonthRev) / $lastMonthRev) * 100, 1) : 0;
 
-                $recentSales = \App\Models\Sale::orderByDesc('created_at')
-                    ->limit(5)
-                    ->get(['id','sale_number','sale_date','created_at','total_amount'])
-                    ->map(fn($s) => [
-                        'id'           => $s->id,
-                        'sale_number'  => $s->sale_number,
-                        'sale_date'    => $s->sale_date ?? $s->created_at,
-                        'total_amount' => (float) $s->total_amount,
-                    ]);
+                // Recent sales with guest/customer name
+                $recentSales = \DB::table('sales')
+                    ->leftJoin('guests', 'sales.guest_id', '=', 'guests.id')
+                    ->select('sales.id', 'sales.sale_number', 'sales.sale_date', 'sales.created_at', 'sales.total_amount', 'sales.payment_status',
+                        \DB::raw("COALESCE(NULLIF(sales.customer_name,''), CONCAT(guests.first_name,' ',guests.last_name)) as customer_name"))
+                    ->orderByDesc('sales.created_at')->limit(5)->get()
+                    ->map(fn($s) => ['id' => $s->id, 'sale_number' => $s->sale_number, 'sale_date' => $s->sale_date ?? $s->created_at, 'total_amount' => (float)$s->total_amount, 'status' => $s->payment_status ?? 'pending', 'customer_name' => $s->customer_name])
+                    ->toArray();
+
+                // Top products by revenue (sale_items uses total_price column)
+                if (\Schema::hasTable('sale_items') && \Schema::hasTable('products')) {
+                    $topProducts = \DB::table('sale_items')
+                        ->join('products', 'sale_items.product_id', '=', 'products.id')
+                        ->select('products.id', 'products.name', \DB::raw('SUM(sale_items.quantity) as quantity_sold'), \DB::raw('SUM(sale_items.total_price) as revenue'))
+                        ->groupBy('products.id', 'products.name')
+                        ->orderByDesc('revenue')
+                        ->limit(5)
+                        ->get()
+                        ->map(fn($p) => ['id' => $p->id, 'name' => $p->name, 'quantity_sold' => (int)$p->quantity_sold, 'revenue' => (float)$p->revenue])
+                        ->toArray();
+                }
             }
+
+            if (class_exists(\App\Models\Expense::class)) {
+                $kpis['total_expenses'] = (float) \App\Models\Expense::sum('amount');
+                $kpis['monthly_expenses'] = (float) \App\Models\Expense::whereBetween('created_at', [$startOfMonth.' 00:00:00', $endOfMonth.' 23:59:59'])->sum('amount');
+                $kpis['monthly_expense_count'] = \App\Models\Expense::whereBetween('created_at', [$startOfMonth.' 00:00:00', $endOfMonth.' 23:59:59'])->count();
+
+                // Recent expenses with category name via join
+                $recentExpenses = \DB::table('expenses')
+                    ->leftJoin('expense_categories', 'expenses.expense_category_id', '=', 'expense_categories.id')
+                    ->select('expenses.id', 'expense_categories.name as category', 'expenses.description', 'expenses.vendor_name', 'expenses.amount', 'expenses.expense_date', 'expenses.created_at')
+                    ->orderByDesc('expenses.created_at')->limit(5)->get()
+                    ->map(fn($e) => ['id' => $e->id, 'category' => $e->category ?? 'Uncategorized', 'description' => $e->description ?: $e->vendor_name, 'amount' => (float)$e->amount, 'date' => $e->expense_date ?? $e->created_at])
+                    ->toArray();
+            }
+
+            $kpis['net_profit'] = $kpis['total_revenue'] - $kpis['total_expenses'];
+            $kpis['profit_margin'] = $kpis['total_revenue'] > 0 ? round(($kpis['net_profit'] / $kpis['total_revenue']) * 100, 1) : 0;
+
+            // Customers
+            if (class_exists(\App\Models\Customer::class)) {
+                $kpis['total_customers'] = \App\Models\Customer::count();
+                $kpis['new_customers'] = \App\Models\Customer::where('created_at', '>=', $startOfMonth)->count();
+
+                // Top customers
+                if (\Schema::hasTable('sales')) {
+                    $topCustomers = \DB::table('customers')
+                        ->select('customers.id', 'customers.first_name', 'customers.last_name', \DB::raw("CONCAT(customers.first_name, ' ', customers.last_name) as name"), \DB::raw('COUNT(sales.id) as order_count'), \DB::raw('SUM(sales.total_amount) as total_spent'))
+                        ->leftJoin('sales', 'customers.id', '=', 'sales.customer_id')
+                        ->groupBy('customers.id', 'customers.first_name', 'customers.last_name')
+                        ->orderByDesc('total_spent')
+                        ->limit(5)
+                        ->get()
+                        ->map(fn($c) => ['id' => $c->id, 'name' => $c->name, 'order_count' => (int)$c->order_count, 'total_spent' => (float)($c->total_spent ?? 0)])
+                        ->toArray();
+                }
+            }
+
+            // Outstanding balances from reservations (unpaid/partial)
+            if (\Schema::hasTable('reservations')) {
+                $kpis['outstanding_invoices'] = (float) \DB::table('reservations')
+                    ->whereIn('payment_status', ['unpaid', 'partial'])
+                    ->whereNotIn('status', ['cancelled', 'canceled'])
+                    ->sum('balance_amount');
+                $kpis['unpaid_count'] = \DB::table('reservations')
+                    ->whereIn('payment_status', ['unpaid', 'partial'])
+                    ->whereNotIn('status', ['cancelled', 'canceled'])
+                    ->count();
+
+                $outstandingInvoices = \DB::table('reservations')
+                    ->leftJoin('guests', 'reservations.guest_id', '=', 'guests.id')
+                    ->select('reservations.id', 'reservations.reservation_number as invoice_number', 'reservations.balance_amount as outstanding_amount', 'reservations.check_out_date as due_date', 'reservations.payment_status',
+                        \DB::raw("CONCAT(guests.first_name,' ',guests.last_name) as customer_name"))
+                    ->whereIn('reservations.payment_status', ['unpaid', 'partial'])
+                    ->whereNotIn('reservations.status', ['cancelled', 'canceled'])
+                    ->orderByDesc('reservations.check_out_date')->limit(5)->get()
+                    ->map(fn($r) => [
+                        'id' => $r->id, 'invoice_number' => $r->invoice_number,
+                        'customer_name' => $r->customer_name,
+                        'outstanding_amount' => (float)$r->outstanding_amount,
+                        'due_date' => $r->due_date,
+                        'days_overdue' => max(0, now()->diffInDays($r->due_date, false) * -1)
+                    ])
+                    ->toArray();
+            }
+
+            // Suppliers & Payables via purchase_orders.remaining_amount
+            if (class_exists(\App\Models\Supplier::class)) {
+                $kpis['total_suppliers'] = \App\Models\Supplier::where('is_active', true)->count();
+                $kpis['total_payables'] = (float) \DB::table('purchase_orders')->sum('remaining_amount');
+
+                $supplierPayables = \DB::table('suppliers')
+                    ->join('purchase_orders', 'suppliers.id', '=', 'purchase_orders.supplier_id')
+                    ->select('suppliers.id', 'suppliers.name',
+                        \DB::raw('SUM(purchase_orders.remaining_amount) as balance_due'),
+                        \DB::raw('SUM(purchase_orders.total_amount) as total_ordered'),
+                        \DB::raw('SUM(purchase_orders.paid_amount) as total_paid'))
+                    ->where('suppliers.is_active', true)
+                    ->groupBy('suppliers.id', 'suppliers.name')
+                    ->having('balance_due', '>', 0)
+                    ->orderByDesc('balance_due')
+                    ->limit(5)
+                    ->get();
+
+                $topSuppliers = $supplierPayables->map(fn($s) => [
+                    'id' => $s->id, 'name' => $s->name,
+                    'balance_due' => (float)$s->balance_due,
+                    'payment_percentage' => $s->total_ordered > 0 ? round(($s->total_paid / $s->total_ordered) * 100, 1) : 0
+                ])->toArray();
+            }
+
+            // Occupancy metrics
+            if (class_exists(\App\Models\Room::class)) {
+                $kpis['total_rooms'] = \App\Models\Room::count();
+                
+                if (\Schema::hasTable('reservations')) {
+                    $occupiedToday = \App\Models\Reservation::where('check_in_date', '<=', $today)
+                        ->where('check_out_date', '>', $today)
+                        ->whereNotIn('status', ['cancelled', 'canceled'])
+                        ->count();
+                    $kpis['rooms_occupied'] = $occupiedToday;
+                    $kpis['occupancy_rate'] = $kpis['total_rooms'] > 0 ? round(($occupiedToday / $kpis['total_rooms']) * 100, 1) : 0;
+                }
+
+                // Average Daily Rate (ADR) — use total_amount, divide by nights occupied
+                if (\Schema::hasTable('reservations')) {
+                    $adrData = \DB::table('reservations')
+                        ->whereDate('check_in_date', '>=', $startOfMonth)
+                        ->whereDate('check_in_date', '<=', $endOfMonth)
+                        ->whereNotIn('status', ['cancelled', 'canceled'])
+                        ->selectRaw('SUM(total_amount) as rev, SUM(nights) as nights')
+                        ->first();
+                    $totalNights = max(1, (int)($adrData->nights ?? 0));
+                    $kpis['average_daily_rate'] = $adrData->rev > 0 ? round($adrData->rev / $totalNights, 2) : 0;
+                }
+            }
+
         } catch (\Throwable $e) {
-            // Swallow errors; show zeros/defaults
+            // Log error but continue with defaults
+            \Log::warning('Reports dashboard data gathering error: ' . $e->getMessage());
         }
 
         return Inertia::render('Admin/Reports/Index', [
             'user' => $user,
             'navigation' => app(DashboardController::class)->getNavigationForRole($role),
-            'stats' => $stats,
+            'kpis' => $kpis,
             'recentSales' => $recentSales,
-            'recentCustomers' => $recentCustomers,
+            'recentExpenses' => $recentExpenses,
+            'outstandingInvoices' => $outstandingInvoices,
+            'topSuppliers' => $topSuppliers,
+            'topProducts' => $topProducts,
+            'topCustomers' => $topCustomers,
         ]);
     })->name('reports.index');
 
@@ -773,126 +902,152 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
         $user = auth()->user()->load('roles');
         $role = $user->roles->first()?->name ?? 'staff';
 
+        $today        = now()->toDateString();
+        $startOfMonth = now()->startOfMonth()->toDateString();
+        $endOfMonth   = now()->endOfMonth()->toDateString();
+
         $stats = [
-            'total_rooms' => 0,
-            'occupied_today' => 0,
-            'available_today' => 0,
-            'occupancy_today_pct' => 0.0,
-            'occupancy_month_pct' => 0.0,
+            'total_rooms' => 0, 'occupied_today' => 0, 'available_today' => 0,
+            'cleaning_rooms' => 0, 'dirty_rooms' => 0, 'clean_rooms' => 0,
+            'occupancy_today_pct' => 0.0, 'occupancy_month_pct' => 0.0,
+            'arrivals_today' => 0, 'departures_today' => 0,
+            'adr' => 0.0, 'revpar' => 0.0, 'avg_nights' => 0.0, 'monthly_revenue' => 0.0,
         ];
-        $byType = [];
-        $recentReservations = [];
+        $byType = $monthlyTrend = $statusBreakdown = $recentReservations = [];
 
         try {
-            $today = now()->toDateString();
-            $startOfMonth = now()->startOfMonth()->toDateString();
-            $endOfMonth = now()->endOfMonth()->toDateString();
-
+            // --- Room inventory counts ---
             if (class_exists(\App\Models\Room::class)) {
-                $stats['total_rooms'] = \App\Models\Room::count();
+                $stats['total_rooms']    = (int) \App\Models\Room::count();
+                $stats['cleaning_rooms'] = (int) \App\Models\Room::where('status', 'cleaning')->count();
+                $stats['clean_rooms']    = (int) \App\Models\Room::where('housekeeping_status', 'clean')->count();
+                $stats['dirty_rooms']    = (int) \App\Models\Room::where('housekeeping_status', 'dirty')->count();
 
-                // Rooms by type with occupied count
-                if (\Schema::hasColumn('rooms', 'type')) {
-                    // Get room_ids occupied today
+                // By room type – rooms use room_type_id FK to room_types table
+                if (\Schema::hasTable('room_types') && \Schema::hasColumn('rooms', 'room_type_id')) {
                     $occupiedRoomIds = class_exists(\App\Models\Reservation::class)
-                        ? \App\Models\Reservation::query()
-                            ->when(\Schema::hasColumn('reservations','check_in_date'), fn($q) => $q->where('check_in_date','<=',$today)->where('check_out_date','>',$today))
-                            ->when(\Schema::hasColumn('reservations','status'), fn($q) => $q->whereNotIn('status',['cancelled','canceled']))
+                        ? \App\Models\Reservation::where('check_in_date', '<=', $today)
+                            ->where('check_out_date', '>', $today)
+                            ->whereNotIn('status', ['cancelled', 'canceled'])
                             ->whereNotNull('room_id')
-                            ->pluck('room_id')
-                            ->unique()
-                            ->values()
-                            ->toArray()
+                            ->pluck('room_id')->unique()->toArray()
                         : [];
 
-                    $byType = \App\Models\Room::select('type', \DB::raw('count(*) as total'))
-                        ->groupBy('type')
+                    $byType = \DB::table('rooms')
+                        ->join('room_types', 'rooms.room_type_id', '=', 'room_types.id')
+                        ->select('room_types.id as rt_id', 'room_types.name as type', \DB::raw('COUNT(rooms.id) as total'))
+                        ->where('rooms.is_active', true)
+                        ->groupBy('room_types.id', 'room_types.name')
+                        ->orderBy('room_types.name')
                         ->get()
                         ->map(function ($r) use ($occupiedRoomIds) {
-                            $occupied = \App\Models\Room::where('type', $r->type)
+                            $occupied = \DB::table('rooms')
+                                ->where('room_type_id', $r->rt_id)
                                 ->whereIn('id', $occupiedRoomIds)
                                 ->count();
                             return [
                                 'type'          => $r->type,
                                 'total'         => (int) $r->total,
-                                'occupied'      => $occupied,
+                                'occupied'      => (int) $occupied,
                                 'occupancy_pct' => $r->total > 0 ? round(($occupied / $r->total) * 100, 1) : 0.0,
                             ];
                         })->toArray();
-                } elseif (\Schema::hasColumn('rooms', 'room_type_id')) {
-                    // Fallback: group by room_type_id, join with room_types table if exists
-                    $byType = \App\Models\Room::select('room_type_id', \DB::raw('count(*) as total'))
-                        ->groupBy('room_type_id')
-                        ->with('roomType:id,name')
-                        ->get()
-                        ->map(fn($r) => [
-                            'type'          => $r->roomType?->name ?? 'Type '.$r->room_type_id,
-                            'total'         => (int) $r->total,
-                            'occupied'      => 0,
-                            'occupancy_pct' => 0.0,
-                        ])->toArray();
                 }
             }
 
+            // --- Reservation metrics ---
             if (class_exists(\App\Models\Reservation::class)) {
-                // Occupied today: reservations overlapping today and not cancelled
-                $occupiedTodayQuery = \App\Models\Reservation::query();
-                if (\Schema::hasColumn('reservations', 'check_in_date') && \Schema::hasColumn('reservations', 'check_out_date')) {
-                    $occupiedTodayQuery->where('check_in_date', '<=', $today)
-                        ->where('check_out_date', '>', $today);
-                }
-                if (\Schema::hasColumn('reservations', 'status')) {
-                    $occupiedTodayQuery->whereNotIn('status', ['cancelled', 'canceled']);
-                }
-                $stats['occupied_today'] = (int) $occupiedTodayQuery->distinct('room_id')->count('room_id');
-                $stats['available_today'] = max(0, $stats['total_rooms'] - $stats['occupied_today']);
+                $stats['occupied_today'] = (int) \App\Models\Reservation::where('check_in_date', '<=', $today)
+                    ->where('check_out_date', '>', $today)
+                    ->whereNotIn('status', ['cancelled', 'canceled'])
+                    ->whereNotNull('room_id')
+                    ->distinct('room_id')->count('room_id');
+
+                $stats['available_today']    = max(0, $stats['total_rooms'] - $stats['occupied_today']);
                 $stats['occupancy_today_pct'] = $stats['total_rooms'] > 0 ? round(($stats['occupied_today'] / $stats['total_rooms']) * 100, 1) : 0.0;
 
-                // Monthly occupancy approximation using room-nights
-                if ($stats['total_rooms'] > 0 && \Schema::hasColumn('reservations', 'check_in_date') && \Schema::hasColumn('reservations', 'check_out_date')) {
-                    $monthNights = (int) now()->endOfMonth()->day;
-                    $totalRoomNights = $stats['total_rooms'] * $monthNights;
-
-                    $occupiedNights = (int) \App\Models\Reservation::query()
-                        ->where(function ($q) use ($startOfMonth, $endOfMonth) {
-                            $q->whereBetween('check_in_date', [$startOfMonth, $endOfMonth])
-                              ->orWhereBetween('check_out_date', [$startOfMonth, $endOfMonth])
-                              ->orWhere(function ($qq) use ($startOfMonth, $endOfMonth) {
-                                  $qq->where('check_in_date', '<=', $startOfMonth)
-                                     ->where('check_out_date', '>=', $endOfMonth);
-                              });
-                        })
-                        ->when(\Schema::hasColumn('reservations', 'status'), function ($q) {
-                            $q->whereNotIn('status', ['cancelled', 'canceled']);
-                        })
-                        ->sum(\DB::raw('DATEDIFF(LEAST(check_out_date, "'.$endOfMonth.'"), GREATEST(check_in_date, "'.$startOfMonth.'"))'));
-
+                // Monthly occupancy using room-nights
+                if ($stats['total_rooms'] > 0) {
+                    $daysInMonth     = (int) now()->endOfMonth()->day;
+                    $totalRoomNights = $stats['total_rooms'] * $daysInMonth;
+                    $occupiedNights  = (int) \App\Models\Reservation::whereNotIn('status', ['cancelled', 'canceled'])
+                        ->where(fn($q) => $q
+                            ->whereBetween('check_in_date', [$startOfMonth, $endOfMonth])
+                            ->orWhereBetween('check_out_date', [$startOfMonth, $endOfMonth])
+                            ->orWhere(fn($qq) => $qq->where('check_in_date', '<=', $startOfMonth)->where('check_out_date', '>=', $endOfMonth))
+                        )
+                        ->sum(\DB::raw('DATEDIFF(LEAST(check_out_date,"'.$endOfMonth.'"),GREATEST(check_in_date,"'.$startOfMonth.'"))'));
                     $stats['occupancy_month_pct'] = $totalRoomNights > 0 ? round(($occupiedNights / $totalRoomNights) * 100, 1) : 0.0;
                 }
 
-                // Recent reservations list
-                $recentReservations = \App\Models\Reservation::orderByDesc('created_at')
-                    ->limit(8)
-                    ->get(['id','reservation_code','guest_name','room_id','check_in_date','check_out_date','status'])
+                // Arrivals & departures today
+                $stats['arrivals_today']   = (int) \App\Models\Reservation::whereDate('check_in_date', $today)
+                    ->whereNotIn('status', ['cancelled', 'canceled', 'checked_out'])->count();
+                $stats['departures_today'] = (int) \App\Models\Reservation::whereDate('check_out_date', $today)
+                    ->whereNotIn('status', ['cancelled', 'canceled', 'checked_out'])->count();
+
+                // ADR & RevPAR for current month
+                $monthlyRevenue = (float) \App\Models\Reservation::whereNotIn('status', ['cancelled', 'canceled'])
+                    ->whereBetween('check_in_date', [$startOfMonth, $endOfMonth])
+                    ->sum('total_amount');
+                $monthlyNights  = (int) \App\Models\Reservation::whereNotIn('status', ['cancelled', 'canceled'])
+                    ->whereBetween('check_in_date', [$startOfMonth, $endOfMonth])
+                    ->sum('nights');
+                $stats['monthly_revenue'] = $monthlyRevenue;
+                $stats['adr']             = $monthlyNights > 0 ? round($monthlyRevenue / $monthlyNights, 2) : 0.0;
+                $stats['revpar']          = ($stats['total_rooms'] > 0 && now()->day > 0)
+                    ? round($monthlyRevenue / ($stats['total_rooms'] * now()->day), 2) : 0.0;
+                $stats['avg_nights']      = round((float) \App\Models\Reservation::whereNotIn('status', ['cancelled', 'canceled'])->avg('nights'), 1);
+
+                // Status breakdown
+                $statusBreakdown = \App\Models\Reservation::select('status', \DB::raw('count(*) as count'))
+                    ->groupBy('status')->get()
+                    ->map(fn($s) => ['status' => $s->status, 'count' => (int) $s->count])
+                    ->toArray();
+
+                // Monthly trend – last 6 months
+                $monthlyTrend = collect(range(5, 0))->map(function ($i) use ($stats) {
+                    $s   = now()->subMonths($i)->startOfMonth()->toDateString();
+                    $e   = now()->subMonths($i)->endOfMonth()->toDateString();
+                    $cnt = (int) \App\Models\Reservation::whereNotIn('status', ['cancelled', 'canceled'])
+                        ->whereBetween('check_in_date', [$s, $e])->count();
+                    return [
+                        'month'  => now()->subMonths($i)->format('M Y'),
+                        'booked' => $cnt,
+                        'pct'    => $stats['total_rooms'] > 0 ? round(($cnt / $stats['total_rooms']) * 100, 1) : 0.0,
+                    ];
+                })->values()->toArray();
+
+                // Recent reservations with guest name and room number
+                $recentReservations = \App\Models\Reservation::with([
+                    'guest:id,first_name,last_name',
+                    'room:id,room_number',
+                ])
+                    ->orderByDesc('created_at')->limit(10)
+                    ->get(['id', 'reservation_number', 'guest_id', 'room_id', 'check_in_date', 'check_out_date', 'nights', 'room_rate', 'total_amount', 'status'])
                     ->map(fn($r) => [
-                        'id' => $r->id,
-                        'reservation_code' => $r->reservation_code ?? $r->id,
-                        'guest_name' => $r->guest_name ?? null,
-                        'room_id' => $r->room_id,
-                        'check_in_date' => $r->check_in_date,
-                        'check_out_date' => $r->check_out_date,
-                        'status' => $r->status ?? 'booked',
-                    ]);
+                        'id'                 => $r->id,
+                        'reservation_number' => $r->reservation_number ?? '#' . $r->id,
+                        'guest_name'         => $r->guest ? trim($r->guest->first_name . ' ' . $r->guest->last_name) : 'Walk-in',
+                        'room_number'        => $r->room?->room_number ?? ($r->room_id ? 'Room ' . $r->room_id : 'N/A'),
+                        'check_in_date'      => $r->check_in_date,
+                        'check_out_date'     => $r->check_out_date,
+                        'nights'             => (int) ($r->nights ?? 0),
+                        'total_amount'       => (float) ($r->total_amount ?? 0),
+                        'status'             => $r->status ?? 'booked',
+                    ])->toArray();
             }
         } catch (\Throwable $e) {
-            // Keep defaults
+            \Log::warning('Admin occupancy report error: ' . $e->getMessage());
         }
 
         return Inertia::render('Admin/Reports/Occupancy', [
-            'user' => $user,
-            'navigation' => app(DashboardController::class)->getNavigationForRole($role),
-            'stats' => $stats,
-            'byType' => $byType,
+            'user'               => $user,
+            'navigation'         => app(DashboardController::class)->getNavigationForRole($role),
+            'stats'              => $stats,
+            'byType'             => $byType,
+            'monthlyTrend'       => $monthlyTrend,
+            'statusBreakdown'    => $statusBreakdown,
             'recentReservations' => $recentReservations,
         ]);
     })->name('reports.occupancy');
@@ -3396,6 +3551,55 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
             ->groupBy('category')
             ->pluck('count', 'category');
 
+        // Rooms currently in active maintenance
+        $maintenanceRooms = \App\Models\MaintenanceRequest::with(['room', 'assignedTo', 'reportedBy'])
+            ->whereIn('status', ['open', 'assigned', 'in_progress', 'on_hold'])
+            ->whereNotNull('room_id')
+            ->orderByRaw("FIELD(priority, 'urgent', 'high', 'normal', 'low')")
+            ->orderBy('reported_at', 'asc')
+            ->get()
+            ->map(fn($r) => [
+                'id'             => $r->id,
+                'request_number' => $r->request_number,
+                'room_number'    => $r->room?->room_number,
+                'title'          => $r->title,
+                'description'    => $r->description,
+                'category'       => $r->category,
+                'priority'       => $r->priority,
+                'status'         => $r->status,
+                'assigned_to'    => $r->assignedTo?->full_name,
+                'reported_by'    => $r->reportedBy?->full_name,
+                'reported_at'    => $r->reported_at?->format('Y-m-d H:i'),
+                'days_open'      => $r->reported_at ? (int) $r->reported_at->diffInDays(now()) : 0,
+            ]);
+
+        // Recurring alerts: same room 3+ times or same category 5+ times in last 30 days
+        $roomAlerts = \App\Models\MaintenanceRequest::selectRaw('room_id, count(*) as cnt')
+            ->whereNotNull('room_id')
+            ->where('reported_at', '>=', now()->subDays(30))
+            ->groupBy('room_id')
+            ->having('cnt', '>=', 3)
+            ->with('room')
+            ->get()
+            ->map(fn($r) => [
+                'type'    => 'room',
+                'label'   => 'Room ' . ($r->room?->room_number ?? $r->room_id),
+                'count'   => $r->cnt,
+                'message' => 'Room ' . ($r->room?->room_number ?? $r->room_id) . ' has had ' . $r->cnt . ' maintenance requests in the last 30 days.',
+            ]);
+        $categoryAlerts = \App\Models\MaintenanceRequest::selectRaw('category, count(*) as cnt')
+            ->where('reported_at', '>=', now()->subDays(30))
+            ->groupBy('category')
+            ->having('cnt', '>=', 5)
+            ->get()
+            ->map(fn($r) => [
+                'type'    => 'category',
+                'label'   => ucfirst($r->category),
+                'count'   => $r->cnt,
+                'message' => ucfirst($r->category) . ' issues have occurred ' . $r->cnt . ' times in the last 30 days.',
+            ]);
+        $recurringAlerts = $roomAlerts->concat($categoryAlerts)->sortByDesc('count')->values()->all();
+
         return Inertia::render('Admin/Maintenance/Index', [
             'user' => $user,
             'navigation' => app(DashboardController::class)->getNavigationForRole($role),
@@ -3403,6 +3607,8 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
             'recentRequests' => $recentRequests,
             'categories' => $categories,
             'categoryBreakdown' => $categoryBreakdown,
+            'maintenanceRooms' => $maintenanceRooms,
+            'recurringAlerts'  => $recurringAlerts,
         ]);
     })->name('maintenance');
 
@@ -3930,69 +4136,120 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
         $user = auth()->user()->load('roles');
         $role = $user->roles->first()?->name ?? 'staff';
 
-        $stats = ['total_rooms' => 0, 'occupied_today' => 0, 'available_today' => 0, 'occupancy_today_pct' => 0.0, 'occupancy_month_pct' => 0.0];
-        $byType = [];
-        $recentReservations = [];
+        $today        = now()->toDateString();
+        $startOfMonth = now()->startOfMonth()->toDateString();
+        $endOfMonth   = now()->endOfMonth()->toDateString();
+
+        $stats = [
+            'total_rooms' => 0, 'occupied_today' => 0, 'available_today' => 0,
+            'cleaning_rooms' => 0, 'dirty_rooms' => 0, 'clean_rooms' => 0,
+            'occupancy_today_pct' => 0.0, 'occupancy_month_pct' => 0.0,
+            'arrivals_today' => 0, 'departures_today' => 0,
+            'adr' => 0.0, 'revpar' => 0.0, 'avg_nights' => 0.0, 'monthly_revenue' => 0.0,
+        ];
+        $byType = $monthlyTrend = $statusBreakdown = $recentReservations = [];
 
         try {
-            $today        = now()->toDateString();
-            $startOfMonth = now()->startOfMonth()->toDateString();
-            $endOfMonth   = now()->endOfMonth()->toDateString();
-
             if (class_exists(\App\Models\Room::class)) {
-                $stats['total_rooms'] = \App\Models\Room::count();
-                if (\Schema::hasColumn('rooms', 'type')) {
-                    $byType = \App\Models\Room::select('type', \DB::raw('count(*) as total'))
-                        ->groupBy('type')->get()
-                        ->map(fn($r) => ['type' => $r->type, 'total' => (int)$r->total])->toArray();
+                $stats['total_rooms']    = (int) \App\Models\Room::count();
+                $stats['cleaning_rooms'] = (int) \App\Models\Room::where('status', 'cleaning')->count();
+                $stats['clean_rooms']    = (int) \App\Models\Room::where('housekeeping_status', 'clean')->count();
+                $stats['dirty_rooms']    = (int) \App\Models\Room::where('housekeeping_status', 'dirty')->count();
+
+                if (\Schema::hasTable('room_types') && \Schema::hasColumn('rooms', 'room_type_id')) {
+                    $occupiedRoomIds = class_exists(\App\Models\Reservation::class)
+                        ? \App\Models\Reservation::where('check_in_date', '<=', $today)
+                            ->where('check_out_date', '>', $today)
+                            ->whereNotIn('status', ['cancelled', 'canceled'])
+                            ->whereNotNull('room_id')
+                            ->pluck('room_id')->unique()->toArray()
+                        : [];
+                    $byType = \DB::table('rooms')
+                        ->join('room_types', 'rooms.room_type_id', '=', 'room_types.id')
+                        ->select('room_types.id as rt_id', 'room_types.name as type', \DB::raw('COUNT(rooms.id) as total'))
+                        ->where('rooms.is_active', true)
+                        ->groupBy('room_types.id', 'room_types.name')
+                        ->orderBy('room_types.name')
+                        ->get()
+                        ->map(function ($r) use ($occupiedRoomIds) {
+                            $occ = \DB::table('rooms')->where('room_type_id', $r->rt_id)->whereIn('id', $occupiedRoomIds)->count();
+                            return ['type' => $r->type, 'total' => (int)$r->total, 'occupied' => (int)$occ,
+                                'occupancy_pct' => $r->total > 0 ? round(($occ / $r->total) * 100, 1) : 0.0];
+                        })->toArray();
                 }
             }
 
             if (class_exists(\App\Models\Reservation::class)) {
-                $q = \App\Models\Reservation::query();
-                if (\Schema::hasColumn('reservations', 'check_in_date') && \Schema::hasColumn('reservations', 'check_out_date')) {
-                    $q->where('check_in_date', '<=', $today)->where('check_out_date', '>', $today);
-                }
-                if (\Schema::hasColumn('reservations', 'status')) {
-                    $q->whereNotIn('status', ['cancelled', 'canceled']);
-                }
-                $stats['occupied_today']      = (int) $q->distinct('room_id')->count('room_id');
+                $stats['occupied_today'] = (int) \App\Models\Reservation::where('check_in_date', '<=', $today)
+                    ->where('check_out_date', '>', $today)->whereNotIn('status', ['cancelled', 'canceled'])
+                    ->whereNotNull('room_id')->distinct('room_id')->count('room_id');
                 $stats['available_today']     = max(0, $stats['total_rooms'] - $stats['occupied_today']);
                 $stats['occupancy_today_pct'] = $stats['total_rooms'] > 0 ? round(($stats['occupied_today'] / $stats['total_rooms']) * 100, 1) : 0.0;
 
-                if ($stats['total_rooms'] > 0 && \Schema::hasColumn('reservations', 'check_in_date')) {
-                    $monthNights    = (int) now()->endOfMonth()->day;
-                    $totalRoomNights = $stats['total_rooms'] * $monthNights;
-                    $occupiedNights = (int) \App\Models\Reservation::query()
-                        ->where(function ($q) use ($startOfMonth, $endOfMonth) {
-                            $q->whereBetween('check_in_date', [$startOfMonth, $endOfMonth])
-                              ->orWhereBetween('check_out_date', [$startOfMonth, $endOfMonth])
-                              ->orWhere(fn($qq) => $qq->where('check_in_date', '<=', $startOfMonth)->where('check_out_date', '>=', $endOfMonth));
-                        })
-                        ->when(\Schema::hasColumn('reservations', 'status'), fn($q) => $q->whereNotIn('status', ['cancelled', 'canceled']))
+                if ($stats['total_rooms'] > 0) {
+                    $daysInMonth    = (int) now()->endOfMonth()->day;
+                    $totalRmNights  = $stats['total_rooms'] * $daysInMonth;
+                    $occNights      = (int) \App\Models\Reservation::whereNotIn('status', ['cancelled', 'canceled'])
+                        ->where(fn($q) => $q->whereBetween('check_in_date', [$startOfMonth, $endOfMonth])
+                            ->orWhereBetween('check_out_date', [$startOfMonth, $endOfMonth])
+                            ->orWhere(fn($qq) => $qq->where('check_in_date', '<=', $startOfMonth)->where('check_out_date', '>=', $endOfMonth)))
                         ->sum(\DB::raw('DATEDIFF(LEAST(check_out_date,"'.$endOfMonth.'"),GREATEST(check_in_date,"'.$startOfMonth.'"))'));
-                    $stats['occupancy_month_pct'] = $totalRoomNights > 0 ? round(($occupiedNights / $totalRoomNights) * 100, 1) : 0.0;
+                    $stats['occupancy_month_pct'] = $totalRmNights > 0 ? round(($occNights / $totalRmNights) * 100, 1) : 0.0;
                 }
 
-                $recentReservations = \App\Models\Reservation::orderByDesc('created_at')->limit(8)
-                    ->get(['id','reservation_code','guest_name','room_id','check_in_date','check_out_date','status'])
+                $stats['arrivals_today']   = (int) \App\Models\Reservation::whereDate('check_in_date', $today)
+                    ->whereNotIn('status', ['cancelled', 'canceled', 'checked_out'])->count();
+                $stats['departures_today'] = (int) \App\Models\Reservation::whereDate('check_out_date', $today)
+                    ->whereNotIn('status', ['cancelled', 'canceled', 'checked_out'])->count();
+
+                $monthRev = (float) \App\Models\Reservation::whereNotIn('status', ['cancelled', 'canceled'])
+                    ->whereBetween('check_in_date', [$startOfMonth, $endOfMonth])->sum('total_amount');
+                $monthNts = (int) \App\Models\Reservation::whereNotIn('status', ['cancelled', 'canceled'])
+                    ->whereBetween('check_in_date', [$startOfMonth, $endOfMonth])->sum('nights');
+                $stats['monthly_revenue'] = $monthRev;
+                $stats['adr']             = $monthNts > 0 ? round($monthRev / $monthNts, 2) : 0.0;
+                $stats['revpar']          = ($stats['total_rooms'] > 0 && now()->day > 0)
+                    ? round($monthRev / ($stats['total_rooms'] * now()->day), 2) : 0.0;
+                $stats['avg_nights']      = round((float) \App\Models\Reservation::whereNotIn('status', ['cancelled', 'canceled'])->avg('nights'), 1);
+
+                $statusBreakdown = \App\Models\Reservation::select('status', \DB::raw('count(*) as count'))
+                    ->groupBy('status')->get()
+                    ->map(fn($s) => ['status' => $s->status, 'count' => (int)$s->count])->toArray();
+
+                $monthlyTrend = collect(range(5, 0))->map(function ($i) use ($stats) {
+                    $s  = now()->subMonths($i)->startOfMonth()->toDateString();
+                    $e  = now()->subMonths($i)->endOfMonth()->toDateString();
+                    $cnt = (int) \App\Models\Reservation::whereNotIn('status', ['cancelled', 'canceled'])->whereBetween('check_in_date', [$s, $e])->count();
+                    return ['month' => now()->subMonths($i)->format('M Y'), 'booked' => $cnt,
+                        'pct' => $stats['total_rooms'] > 0 ? round(($cnt / $stats['total_rooms']) * 100, 1) : 0.0];
+                })->values()->toArray();
+
+                $recentReservations = \App\Models\Reservation::with(['guest:id,first_name,last_name', 'room:id,room_number'])
+                    ->orderByDesc('created_at')->limit(10)
+                    ->get(['id', 'reservation_number', 'guest_id', 'room_id', 'check_in_date', 'check_out_date', 'nights', 'total_amount', 'status'])
                     ->map(fn($r) => [
-                        'id'               => $r->id,
-                        'reservation_code' => $r->reservation_code ?? $r->id,
-                        'guest_name'       => $r->guest_name ?? null,
-                        'room_id'          => $r->room_id,
-                        'check_in_date'    => $r->check_in_date,
-                        'check_out_date'   => $r->check_out_date,
-                        'status'           => $r->status ?? 'booked',
-                    ]);
+                        'id'                 => $r->id,
+                        'reservation_number' => $r->reservation_number ?? '#' . $r->id,
+                        'guest_name'         => $r->guest ? trim($r->guest->first_name . ' ' . $r->guest->last_name) : 'Walk-in',
+                        'room_number'        => $r->room?->room_number ?? ($r->room_id ? 'Room ' . $r->room_id : 'N/A'),
+                        'check_in_date'      => $r->check_in_date,
+                        'check_out_date'     => $r->check_out_date,
+                        'nights'             => (int) ($r->nights ?? 0),
+                        'total_amount'       => (float) ($r->total_amount ?? 0),
+                        'status'             => $r->status ?? 'booked',
+                    ])->toArray();
             }
-        } catch (\Throwable $e) {}
+        } catch (\Throwable $e) {
+            \Log::warning('Admin occupancy report error: ' . $e->getMessage());
+        }
 
         return Inertia::render('Admin/Reports/Occupancy', [
             'user'               => $user,
             'navigation'         => app(DashboardController::class)->getNavigationForRole($role),
             'stats'              => $stats,
             'byType'             => $byType,
+            'monthlyTrend'       => $monthlyTrend,
+            'statusBreakdown'    => $statusBreakdown,
             'recentReservations' => $recentReservations,
         ]);
     })->name('reports.occupancy');
@@ -5932,13 +6189,64 @@ Route::middleware(['auth', 'role:front_desk'])->prefix('front-desk')->name('fron
             ? \App\Models\Department::orderBy('name')->get(['id', 'name'])
             : collect();
 
+        // Rooms currently in active maintenance
+        $maintenanceRooms = \App\Models\MaintenanceRequest::with(['room', 'assignedTo', 'reportedBy'])
+            ->whereIn('status', ['open', 'assigned', 'in_progress', 'on_hold'])
+            ->whereNotNull('room_id')
+            ->orderByRaw("FIELD(priority, 'urgent', 'high', 'normal', 'low')")
+            ->orderBy('reported_at', 'asc')
+            ->get()
+            ->map(fn($r) => [
+                'id'             => $r->id,
+                'request_number' => $r->request_number,
+                'room_number'    => $r->room?->room_number,
+                'title'          => $r->title,
+                'description'    => $r->description,
+                'category'       => $r->category,
+                'priority'       => $r->priority,
+                'status'         => $r->status,
+                'assigned_to'    => $r->assignedTo?->full_name,
+                'reported_by'    => $r->reportedBy?->full_name,
+                'reported_at'    => $r->reported_at?->format('Y-m-d H:i'),
+                'days_open'      => $r->reported_at ? (int) $r->reported_at->diffInDays(now()) : 0,
+            ]);
+
+        // Recurring alerts: same room 3+ times or same category 5+ times in last 30 days
+        $roomAlerts = \App\Models\MaintenanceRequest::selectRaw('room_id, count(*) as cnt')
+            ->whereNotNull('room_id')
+            ->where('reported_at', '>=', now()->subDays(30))
+            ->groupBy('room_id')
+            ->having('cnt', '>=', 3)
+            ->with('room')
+            ->get()
+            ->map(fn($r) => [
+                'type'    => 'room',
+                'label'   => 'Room ' . ($r->room?->room_number ?? $r->room_id),
+                'count'   => $r->cnt,
+                'message' => 'Room ' . ($r->room?->room_number ?? $r->room_id) . ' has had ' . $r->cnt . ' maintenance requests in the last 30 days.',
+            ]);
+        $categoryAlerts = \App\Models\MaintenanceRequest::selectRaw('category, count(*) as cnt')
+            ->where('reported_at', '>=', now()->subDays(30))
+            ->groupBy('category')
+            ->having('cnt', '>=', 5)
+            ->get()
+            ->map(fn($r) => [
+                'type'    => 'category',
+                'label'   => ucfirst($r->category),
+                'count'   => $r->cnt,
+                'message' => ucfirst($r->category) . ' issues have occurred ' . $r->cnt . ' times in the last 30 days.',
+            ]);
+        $recurringAlerts = $roomAlerts->concat($categoryAlerts)->sortByDesc('count')->values()->all();
+
         return Inertia::render('FrontDesk/Services/Maintenance', [
-            'user'        => $user,
-            'navigation'  => app(DashboardController::class)->getNavigationForRole($role),
-            'requests'    => $requests,
-            'stats'       => $stats,
-            'rooms'       => $rooms,
-            'departments' => $departments,
+            'user'             => $user,
+            'navigation'       => app(DashboardController::class)->getNavigationForRole($role),
+            'requests'         => $requests,
+            'stats'            => $stats,
+            'rooms'            => $rooms,
+            'departments'      => $departments,
+            'maintenanceRooms' => $maintenanceRooms,
+            'recurringAlerts'  => $recurringAlerts,
         ]);
     })->name('services.maintenance');
 
@@ -7205,7 +7513,15 @@ Route::middleware(['auth', 'role:accountant'])->prefix('accountant')->name('acco
             'payment_method' => 'nullable|string|max:50',
             'notes' => 'nullable|string|max:1000',
             'status' => 'nullable|string|in:pending,approved,rejected',
+            'receipt_file' => 'nullable|file|mimes:pdf,jpg,jpeg,png,webp|max:5120',
         ]);
+
+        // Handle receipt file upload
+        if ($request->hasFile('receipt_file')) {
+            $validated['receipt_file_path'] = $request->file('receipt_file')
+                ->store('expenses/receipts', 'public');
+        }
+        unset($validated['receipt_file']);
 
         // Generate expense number
         $validated['expense_number'] = 'EXP-' . strtoupper(\Illuminate\Support\Str::random(8));
@@ -7217,6 +7533,24 @@ Route::middleware(['auth', 'role:accountant'])->prefix('accountant')->name('acco
 
         return redirect()->route('accountant.expenses.index')->with('success', 'Expense created successfully.');
     })->name('expenses.store');
+
+    Route::get('/expenses/{expense}', function (\App\Models\Expense $expense) {
+        $user = auth()->user()->load('roles');
+        $role = $user->roles->first()?->name ?? 'accountant';
+        $exp  = $expense->load(['category', 'submittedBy', 'approvedBy']);
+        $receiptUrl = $exp->receipt_file_path
+            ? '/storage/' . $exp->receipt_file_path
+            : null;
+        return Inertia::render('Admin/Expenses/Show', [
+            'user'           => $user,
+            'navigation'     => app(DashboardController::class)->getNavigationForRole($role),
+            'expense'        => $exp,
+            'receipt_url'    => $receiptUrl,
+            'submitter_name' => $exp->submittedBy ? trim($exp->submittedBy->first_name . ' ' . $exp->submittedBy->last_name) : null,
+            'approver_name'  => $exp->approvedBy  ? trim($exp->approvedBy->first_name  . ' ' . $exp->approvedBy->last_name)  : null,
+            'routePrefix'    => 'accountant',
+        ]);
+    })->name('expenses.show');
 
     Route::get('/invoices', [\App\Http\Controllers\Accountant\InvoiceController::class, 'index'])->name('invoices.index');
     Route::get('/invoices/export', [\App\Http\Controllers\Accountant\InvoiceController::class, 'export'])->name('invoices.export');
@@ -7721,6 +8055,102 @@ Route::middleware(['auth', 'role:accountant'])->prefix('accountant')->name('acco
     Route::get('/invoices/overdue', [\App\Http\Controllers\Accountant\InvoiceController::class, 'overdue'])->name('invoices.overdue');
     Route::get('/invoices/paid', [\App\Http\Controllers\Accountant\InvoiceController::class, 'paid'])->name('invoices.paid');
     Route::post('/invoices/send-reminders', [\App\Http\Controllers\Accountant\InvoiceController::class, 'sendReminders'])->name('invoices.sendReminders');
+
+    // Expenses
+    Route::get('/expenses', function () {
+        $user = auth()->user()->load('roles');
+        $role = $user->roles->first()?->name ?? 'front_desk';
+        $categories = \App\Models\ExpenseCategory::orderBy('name')->get();
+
+        $query = \App\Models\Expense::with(['category', 'submittedBy'])->latest();
+        if (request('status'))     { $query->where('status', request('status')); }
+        if (request('category'))   { $query->where('expense_category_id', request('category')); }
+        if (request('start_date')) { $query->whereDate('expense_date', '>=', request('start_date')); }
+        if (request('end_date'))   { $query->whereDate('expense_date', '<=', request('end_date')); }
+
+        $expenses = $query->paginate(20)->through(fn($e) => [
+            'id'             => $e->id,
+            'description'    => $e->description,
+            'vendor'         => $e->vendor_name,
+            'category'       => $e->category?->name ?? 'Uncategorized',
+            'category_id'    => $e->expense_category_id,
+            'category_color' => $e->category?->color,
+            'amount'         => (float) $e->amount,
+            'date'           => $e->expense_date?->toDateString(),
+            'status'         => $e->status,
+            'payment_method' => $e->payment_method,
+            'receipt_number' => $e->receipt_number,
+            'notes'          => $e->notes,
+        ]);
+
+        $expenseStats = [
+            'thisMonth'  => (float) \App\Models\Expense::whereMonth('expense_date', now()->month)
+                                        ->whereYear('expense_date', now()->year)->sum('amount'),
+            'pending'    => \App\Models\Expense::where('status', 'pending')->count(),
+            'total'      => \App\Models\Expense::count(),
+            'categories' => \App\Models\ExpenseCategory::where('is_active', true)->count(),
+        ];
+
+        return Inertia::render('Admin/Expenses/Index', [
+            'user'         => $user,
+            'navigation'   => app(DashboardController::class)->getNavigationForRole($role),
+            'expenses'     => $expenses,
+            'categories'   => $categories,
+            'expenseStats' => $expenseStats,
+            'filters'      => request()->only(['status', 'category', 'start_date', 'end_date']),
+        ]);
+    })->name('expenses.index');
+
+    Route::get('/expenses/create', function () {
+        $user = auth()->user()->load('roles');
+        $role = $user->roles->first()?->name ?? 'front_desk';
+        $categories = \App\Models\ExpenseCategory::where('is_active', true)->orderBy('name')->get();
+        return Inertia::render('Admin/Expenses/Create', [
+            'user'       => $user,
+            'navigation' => app(DashboardController::class)->getNavigationForRole($role),
+            'categories' => $categories,
+        ]);
+    })->name('expenses.create');
+
+    Route::post('/expenses', function (\Illuminate\Http\Request $request) {
+        $validated = $request->validate([
+            'expense_category_id' => 'nullable|exists:expense_categories,id',
+            'vendor_name'         => 'nullable|string|max:255',
+            'description'         => 'required|string',
+            'expense_date'        => 'required|date',
+            'amount'              => 'required|numeric|min:0.01',
+            'payment_method'      => 'nullable|string|max:50',
+            'receipt_number'      => 'nullable|string|max:100',
+            'receipt_file'        => 'nullable|file|mimes:pdf,jpg,jpeg,png,webp|max:5120',
+            'notes'               => 'nullable|string',
+        ]);
+        if ($request->hasFile('receipt_file')) {
+            $validated['receipt_file_path'] = $request->file('receipt_file')
+                ->store('expenses/receipts', 'public');
+        }
+        unset($validated['receipt_file']);
+        $validated['submitted_by']   = request()->user()->id;
+        $validated['status']         = 'pending';
+        $validated['expense_number'] = 'EXP-' . strtoupper(uniqid());
+        $validated['currency']       = \App\Models\Setting::get('currency', 'USD');
+        \App\Models\Expense::create($validated);
+        return redirect()->route('front-desk.expenses.index')->with('success', 'Expense recorded successfully.');
+    })->name('expenses.store');
+
+    Route::get('/expenses/{expense}', function (\App\Models\Expense $expense) {
+        $user = auth()->user()->load('roles');
+        $role = $user->roles->first()?->name ?? 'front_desk';
+        $exp  = $expense->load(['category', 'submittedBy', 'approvedBy']);
+        $receiptUrl = $exp->receipt_file_path ? '/storage/' . $exp->receipt_file_path : null;
+        return Inertia::render('Admin/Expenses/Show', [
+            'user'           => $user,
+            'navigation'     => app(DashboardController::class)->getNavigationForRole($role),
+            'expense'        => $exp,
+            'receipt_url'    => $receiptUrl,
+            'submitter_name' => $exp->submittedBy ? trim($exp->submittedBy->first_name . ' ' . $exp->submittedBy->last_name) : null,
+            'approver_name'  => $exp->approvedBy  ? trim($exp->approvedBy->first_name  . ' ' . $exp->approvedBy->last_name)  : null,
+        ]);
+    })->name('expenses.show');
 });
 
 // Manager Routes
@@ -8004,7 +8434,7 @@ Route::middleware(['auth', 'role:manager'])->prefix('manager')->name('manager.')
     Route::get('/reservations/{reservation}', function ($id) {
         $user = auth()->user()->load('roles');
         $role = $user->roles->first()?->name ?? 'manager';
-        $reservation = \App\Models\Reservation::with(['guest', 'room'])->findOrFail($id);
+        $reservation = \App\Models\Reservation::with(['guest', 'room', 'checkedInBy', 'checkedOutBy'])->findOrFail($id);
         return Inertia::render('Manager/Reservations/Show', ['user' => $user, 'navigation' => app(DashboardController::class)->getNavigationForRole($role), 'reservation' => $reservation]);
     })->name('reservations.show');
     Route::get('/reservations/{reservation}/edit', function ($id) {
@@ -8284,6 +8714,55 @@ Route::middleware(['auth', 'role:manager'])->prefix('manager')->name('manager.')
         $maintenanceStaff = \App\Models\User::where('is_active', true)->get(['id', 'first_name', 'last_name', 'email'])
             ->map(fn($u) => ['id' => $u->id, 'name' => trim($u->first_name . ' ' . $u->last_name), 'email' => $u->email]);
 
+        // Rooms currently in active maintenance
+        $maintenanceRooms = \App\Models\MaintenanceRequest::with(['room', 'assignedTo', 'reportedBy'])
+            ->whereIn('status', ['open', 'assigned', 'in_progress', 'on_hold'])
+            ->whereNotNull('room_id')
+            ->orderByRaw("FIELD(priority, 'urgent', 'high', 'normal', 'low')")
+            ->orderBy('reported_at', 'asc')
+            ->get()
+            ->map(fn($r) => [
+                'id'             => $r->id,
+                'request_number' => $r->request_number,
+                'room_number'    => $r->room?->room_number,
+                'title'          => $r->title,
+                'description'    => $r->description,
+                'category'       => $r->category,
+                'priority'       => $r->priority,
+                'status'         => $r->status,
+                'assigned_to'    => $r->assignedTo?->full_name,
+                'reported_by'    => $r->reportedBy?->full_name,
+                'reported_at'    => $r->reported_at?->format('Y-m-d H:i'),
+                'days_open'      => $r->reported_at ? (int) $r->reported_at->diffInDays(now()) : 0,
+            ]);
+
+        // Recurring alerts: same room 3+ times or same category 5+ times in last 30 days
+        $roomAlerts = \App\Models\MaintenanceRequest::selectRaw('room_id, count(*) as cnt')
+            ->whereNotNull('room_id')
+            ->where('reported_at', '>=', now()->subDays(30))
+            ->groupBy('room_id')
+            ->having('cnt', '>=', 3)
+            ->with('room')
+            ->get()
+            ->map(fn($r) => [
+                'type'    => 'room',
+                'label'   => 'Room ' . ($r->room?->room_number ?? $r->room_id),
+                'count'   => $r->cnt,
+                'message' => 'Room ' . ($r->room?->room_number ?? $r->room_id) . ' has had ' . $r->cnt . ' maintenance requests in the last 30 days.',
+            ]);
+        $categoryAlerts = \App\Models\MaintenanceRequest::selectRaw('category, count(*) as cnt')
+            ->where('reported_at', '>=', now()->subDays(30))
+            ->groupBy('category')
+            ->having('cnt', '>=', 5)
+            ->get()
+            ->map(fn($r) => [
+                'type'    => 'category',
+                'label'   => ucfirst($r->category),
+                'count'   => $r->cnt,
+                'message' => ucfirst($r->category) . ' issues have occurred ' . $r->cnt . ' times in the last 30 days.',
+            ]);
+        $recurringAlerts = $roomAlerts->concat($categoryAlerts)->sortByDesc('count')->values()->all();
+
         return Inertia::render('Manager/MaintenanceRequests/Index', [
             'user'             => $user,
             'navigation'       => app(DashboardController::class)->getNavigationForRole($role),
@@ -8291,6 +8770,8 @@ Route::middleware(['auth', 'role:manager'])->prefix('manager')->name('manager.')
             'stats'            => $stats,
             'maintenanceStaff' => $maintenanceStaff,
             'routePrefix'      => 'manager',
+            'maintenanceRooms' => $maintenanceRooms,
+            'recurringAlerts'  => $recurringAlerts,
         ]);
     })->name('maintenance-requests.index');
     Route::get('/maintenance-requests/create', function () {
@@ -9691,17 +10172,23 @@ Route::middleware(['auth', 'role:manager'])->prefix('manager')->name('manager.')
         }
 
         if ($status = $request->input('status')) {
-            $query->where('current_status', $status);
+            if (in_array($status, ['on_duty', 'off_duty'])) {
+                $query->where('is_active', $status === 'on_duty');
+            } elseif ($status === 'absent') {
+                $query->where('employment_status', 'on_leave');
+            }
+            // 'on_break' has no DB equivalent; skip filter to avoid crash
         }
 
         $staffMembers = $query->latest()->paginate(20)->withQueryString();
 
         $allStaff = \App\Models\User::whereHas('roles', fn($q) => $q->whereNotIn('name', ['admin', 'manager']));
+        $total = (clone $allStaff)->count();
         $staffStats = [
-            'total'   => (clone $allStaff)->count(),
-            'onDuty'  => (clone $allStaff)->where('current_status', 'on_duty')->count(),
-            'onBreak' => (clone $allStaff)->where('current_status', 'on_break')->count(),
-            'absent'  => (clone $allStaff)->where('current_status', 'absent')->count(),
+            'total'   => $total,
+            'onDuty'  => (clone $allStaff)->where('is_active', true)->count(),
+            'onBreak' => 0,
+            'absent'  => (clone $allStaff)->where('employment_status', 'on_leave')->count(),
         ];
 
         $departments = \App\Models\Department::orderBy('name')->get(['id', 'name']);
@@ -9728,11 +10215,18 @@ Route::middleware(['auth', 'role:manager'])->prefix('manager')->name('manager.')
     Route::get('/expenses/{expense}', function ($id) {
         $user = auth()->user()->load('roles');
         $role = $user->roles->first()?->name ?? 'manager';
+        $exp  = \App\Models\Expense::with(['category', 'submittedBy', 'approvedBy'])->findOrFail($id);
+        $receiptUrl = $exp->receipt_file_path
+            ? '/storage/' . $exp->receipt_file_path
+            : null;
         return Inertia::render('Admin/Expenses/Show', [
-            'user'        => $user,
-            'navigation'  => app(DashboardController::class)->getNavigationForRole($role),
-            'expense'     => \App\Models\Expense::with('category')->findOrFail($id),
-            'routePrefix' => 'manager',
+            'user'           => $user,
+            'navigation'     => app(DashboardController::class)->getNavigationForRole($role),
+            'expense'        => $exp,
+            'receipt_url'    => $receiptUrl,
+            'submitter_name' => $exp->submittedBy ? trim($exp->submittedBy->first_name . ' ' . $exp->submittedBy->last_name) : null,
+            'approver_name'  => $exp->approvedBy  ? trim($exp->approvedBy->first_name  . ' ' . $exp->approvedBy->last_name)  : null,
+            'routePrefix'    => 'manager',
         ]);
     })->name('expenses.show');
     Route::post('/expenses/{expense}/approve', function (\App\Models\Expense $expense) {
@@ -11134,7 +11628,7 @@ Route::middleware(['auth', 'verified'])->prefix('pos')->name('pos.')->group(func
 });
 
 // HR Management Routes (accessible to HR and Admin roles)
-Route::middleware(['auth', 'role:hr|admin'])->prefix('hr')->name('hr.')->group(function () {
+Route::middleware(['auth', 'role:hr|admin|manager'])->prefix('hr')->name('hr.')->group(function () {
     // Dashboard
     Route::get('/dashboard', function () {
         $user = auth()->user()->load('roles');
@@ -11305,9 +11799,119 @@ Route::middleware(['auth', 'role:hr|admin'])->prefix('hr')->name('hr.')->group(f
     Route::get('/reports/occupancy', function () {
         $user = auth()->user()->load('roles');
         $role = $user->roles->first()?->name ?? 'staff';
+
+        $today        = now()->toDateString();
+        $startOfMonth = now()->startOfMonth()->toDateString();
+        $endOfMonth   = now()->endOfMonth()->toDateString();
+
+        $stats = [
+            'total_rooms' => 0, 'occupied_today' => 0, 'available_today' => 0,
+            'cleaning_rooms' => 0, 'dirty_rooms' => 0, 'clean_rooms' => 0,
+            'occupancy_today_pct' => 0.0, 'occupancy_month_pct' => 0.0,
+            'arrivals_today' => 0, 'departures_today' => 0,
+            'adr' => 0.0, 'revpar' => 0.0, 'avg_nights' => 0.0, 'monthly_revenue' => 0.0,
+        ];
+        $byType = $monthlyTrend = $statusBreakdown = $recentReservations = [];
+
+        try {
+            if (class_exists(\App\Models\Room::class)) {
+                $stats['total_rooms']    = (int) \App\Models\Room::count();
+                $stats['cleaning_rooms'] = (int) \App\Models\Room::where('status', 'cleaning')->count();
+                $stats['clean_rooms']    = (int) \App\Models\Room::where('housekeeping_status', 'clean')->count();
+                $stats['dirty_rooms']    = (int) \App\Models\Room::where('housekeeping_status', 'dirty')->count();
+
+                if (\Schema::hasTable('room_types') && \Schema::hasColumn('rooms', 'room_type_id')) {
+                    $occupiedRoomIds = class_exists(\App\Models\Reservation::class)
+                        ? \App\Models\Reservation::where('check_in_date', '<=', $today)
+                            ->where('check_out_date', '>', $today)
+                            ->whereNotIn('status', ['cancelled', 'canceled'])
+                            ->whereNotNull('room_id')->pluck('room_id')->unique()->toArray()
+                        : [];
+                    $byType = \DB::table('rooms')
+                        ->join('room_types', 'rooms.room_type_id', '=', 'room_types.id')
+                        ->select('room_types.id as rt_id', 'room_types.name as type', \DB::raw('COUNT(rooms.id) as total'))
+                        ->where('rooms.is_active', true)->groupBy('room_types.id', 'room_types.name')
+                        ->orderBy('room_types.name')->get()
+                        ->map(function ($r) use ($occupiedRoomIds) {
+                            $occ = \DB::table('rooms')->where('room_type_id', $r->rt_id)->whereIn('id', $occupiedRoomIds)->count();
+                            return ['type' => $r->type, 'total' => (int)$r->total, 'occupied' => (int)$occ,
+                                'occupancy_pct' => $r->total > 0 ? round(($occ / $r->total) * 100, 1) : 0.0];
+                        })->toArray();
+                }
+            }
+
+            if (class_exists(\App\Models\Reservation::class)) {
+                $stats['occupied_today'] = (int) \App\Models\Reservation::where('check_in_date', '<=', $today)
+                    ->where('check_out_date', '>', $today)->whereNotIn('status', ['cancelled', 'canceled'])
+                    ->whereNotNull('room_id')->distinct('room_id')->count('room_id');
+                $stats['available_today']     = max(0, $stats['total_rooms'] - $stats['occupied_today']);
+                $stats['occupancy_today_pct'] = $stats['total_rooms'] > 0 ? round(($stats['occupied_today'] / $stats['total_rooms']) * 100, 1) : 0.0;
+
+                if ($stats['total_rooms'] > 0) {
+                    $daysInMonth   = (int) now()->endOfMonth()->day;
+                    $totalRmNights = $stats['total_rooms'] * $daysInMonth;
+                    $occNights     = (int) \App\Models\Reservation::whereNotIn('status', ['cancelled', 'canceled'])
+                        ->where(fn($q) => $q->whereBetween('check_in_date', [$startOfMonth, $endOfMonth])
+                            ->orWhereBetween('check_out_date', [$startOfMonth, $endOfMonth])
+                            ->orWhere(fn($qq) => $qq->where('check_in_date', '<=', $startOfMonth)->where('check_out_date', '>=', $endOfMonth)))
+                        ->sum(\DB::raw('DATEDIFF(LEAST(check_out_date,"'.$endOfMonth.'"),GREATEST(check_in_date,"'.$startOfMonth.'"))'));
+                    $stats['occupancy_month_pct'] = $totalRmNights > 0 ? round(($occNights / $totalRmNights) * 100, 1) : 0.0;
+                }
+
+                $stats['arrivals_today']   = (int) \App\Models\Reservation::whereDate('check_in_date', $today)
+                    ->whereNotIn('status', ['cancelled', 'canceled', 'checked_out'])->count();
+                $stats['departures_today'] = (int) \App\Models\Reservation::whereDate('check_out_date', $today)
+                    ->whereNotIn('status', ['cancelled', 'canceled', 'checked_out'])->count();
+
+                $monthRev = (float) \App\Models\Reservation::whereNotIn('status', ['cancelled', 'canceled'])
+                    ->whereBetween('check_in_date', [$startOfMonth, $endOfMonth])->sum('total_amount');
+                $monthNts = (int) \App\Models\Reservation::whereNotIn('status', ['cancelled', 'canceled'])
+                    ->whereBetween('check_in_date', [$startOfMonth, $endOfMonth])->sum('nights');
+                $stats['monthly_revenue'] = $monthRev;
+                $stats['adr']             = $monthNts > 0 ? round($monthRev / $monthNts, 2) : 0.0;
+                $stats['revpar']          = ($stats['total_rooms'] > 0 && now()->day > 0)
+                    ? round($monthRev / ($stats['total_rooms'] * now()->day), 2) : 0.0;
+                $stats['avg_nights']      = round((float) \App\Models\Reservation::whereNotIn('status', ['cancelled', 'canceled'])->avg('nights'), 1);
+
+                $statusBreakdown = \App\Models\Reservation::select('status', \DB::raw('count(*) as count'))
+                    ->groupBy('status')->get()
+                    ->map(fn($s) => ['status' => $s->status, 'count' => (int)$s->count])->toArray();
+
+                $monthlyTrend = collect(range(5, 0))->map(function ($i) use ($stats) {
+                    $s   = now()->subMonths($i)->startOfMonth()->toDateString();
+                    $e   = now()->subMonths($i)->endOfMonth()->toDateString();
+                    $cnt = (int) \App\Models\Reservation::whereNotIn('status', ['cancelled', 'canceled'])->whereBetween('check_in_date', [$s, $e])->count();
+                    return ['month' => now()->subMonths($i)->format('M Y'), 'booked' => $cnt,
+                        'pct' => $stats['total_rooms'] > 0 ? round(($cnt / $stats['total_rooms']) * 100, 1) : 0.0];
+                })->values()->toArray();
+
+                $recentReservations = \App\Models\Reservation::with(['guest:id,first_name,last_name', 'room:id,room_number'])
+                    ->orderByDesc('created_at')->limit(10)
+                    ->get(['id', 'reservation_number', 'guest_id', 'room_id', 'check_in_date', 'check_out_date', 'nights', 'total_amount', 'status'])
+                    ->map(fn($r) => [
+                        'id'                 => $r->id,
+                        'reservation_number' => $r->reservation_number ?? '#' . $r->id,
+                        'guest_name'         => $r->guest ? trim($r->guest->first_name . ' ' . $r->guest->last_name) : 'Walk-in',
+                        'room_number'        => $r->room?->room_number ?? ($r->room_id ? 'Room ' . $r->room_id : 'N/A'),
+                        'check_in_date'      => $r->check_in_date,
+                        'check_out_date'     => $r->check_out_date,
+                        'nights'             => (int) ($r->nights ?? 0),
+                        'total_amount'       => (float) ($r->total_amount ?? 0),
+                        'status'             => $r->status ?? 'booked',
+                    ])->toArray();
+            }
+        } catch (\Throwable $e) {
+            \Log::warning('HR occupancy report error: ' . $e->getMessage());
+        }
+
         return Inertia::render('Admin/Reports/Occupancy', [
-            'user' => $user,
-            'navigation' => app(DashboardController::class)->getNavigationForRole($role)
+            'user'               => $user,
+            'navigation'         => app(DashboardController::class)->getNavigationForRole($role),
+            'stats'              => $stats,
+            'byType'             => $byType,
+            'monthlyTrend'       => $monthlyTrend,
+            'statusBreakdown'    => $statusBreakdown,
+            'recentReservations' => $recentReservations,
         ]);
     })->name('reports.occupancy');
 

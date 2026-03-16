@@ -637,6 +637,14 @@ const form = useForm({
     send_confirmation_email: false,
 })
 
+// Auto-select guest from URL query param (e.g. when navigating from guest show page)
+;(() => {
+    const urlGuestId = new URLSearchParams(window.location.search).get('guest_id')
+    if (urlGuestId) {
+        form.guest_id = parseInt(urlGuestId)
+    }
+})()
+
 // Overbooking state
 const allowOverbooking = ref(false)
 const overbookingWarning = ref('')

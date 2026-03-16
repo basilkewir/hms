@@ -209,31 +209,31 @@
             </div>
 
             <!-- Table Content -->
-            <div class="overflow-x-auto">
-                <table class="min-w-full">
+            <div class="w-full overflow-hidden">
+                <table class="w-full border-collapse">
                     <thead>
                         <tr :style="{ backgroundColor: themeColors.background }">
-                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider"
+                            <th class="px-2 py-3 text-left text-xs font-medium uppercase tracking-wider w-1/6"
                                 :style="{ color: themeColors.textSecondary }">Product</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider"
+                            <th class="px-2 py-3 text-left text-xs font-medium uppercase tracking-wider w-1/12"
                                 :style="{ color: themeColors.textSecondary }">Category</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider"
+                            <th class="px-2 py-3 text-left text-xs font-medium uppercase tracking-wider w-1/12"
                                 :style="{ color: themeColors.textSecondary }">Stock</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider"
-                                :style="{ color: themeColors.textSecondary }">Min Level</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider"
-                                :style="{ color: themeColors.textSecondary }">Cost Price</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider"
-                                :style="{ color: themeColors.textSecondary }">Sale Price</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider"
-                                :style="{ color: themeColors.textSecondary }">Markup %</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider"
+                            <th class="px-2 py-3 text-left text-xs font-medium uppercase tracking-wider w-1/12"
+                                :style="{ color: themeColors.textSecondary }">Min</th>
+                            <th class="px-2 py-3 text-left text-xs font-medium uppercase tracking-wider w-1/12"
+                                :style="{ color: themeColors.textSecondary }">Cost</th>
+                            <th class="px-2 py-3 text-left text-xs font-medium uppercase tracking-wider w-1/12"
+                                :style="{ color: themeColors.textSecondary }">Price</th>
+                            <th class="px-2 py-3 text-left text-xs font-medium uppercase tracking-wider w-1/12"
+                                :style="{ color: themeColors.textSecondary }">Markup</th>
+                            <th class="px-2 py-3 text-left text-xs font-medium uppercase tracking-wider hidden lg:table-cell w-1/12"
                                 :style="{ color: themeColors.textSecondary }">Locations</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider"
-                                :style="{ color: themeColors.textSecondary }">Total Value</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider"
+                            <th class="px-2 py-3 text-left text-xs font-medium uppercase tracking-wider hidden xl:table-cell w-1/12"
+                                :style="{ color: themeColors.textSecondary }">Value</th>
+                            <th class="px-2 py-3 text-left text-xs font-medium uppercase tracking-wider w-1/12"
                                 :style="{ color: themeColors.textSecondary }">Status</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider"
+                            <th class="px-2 py-3 text-left text-xs font-medium uppercase tracking-wider w-1/12"
                                 :style="{ color: themeColors.textSecondary }">Actions</th>
                         </tr>
                     </thead>
@@ -247,76 +247,75 @@
                             }"
                             @mouseenter="$event.target.style.backgroundColor = themeColors.hover"
                             @mouseleave="$event.target.style.backgroundColor = 'transparent'">
-                            <td class="px-6 py-4 whitespace-nowrap">
+                            <td class="px-2 py-4 whitespace-nowrap w-1/6">
                                 <div>
-                                    <div class="text-sm font-medium"
+                                    <div class="text-xs font-medium"
                                          :style="{ color: themeColors.textPrimary }">{{ product.name }}</div>
-                                    <div class="text-sm"
+                                    <div class="text-xs"
                                          :style="{ color: themeColors.textTertiary }">{{ product.code }}</div>
                                 </div>
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap">
-                                <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full"
+                            <td class="px-2 py-4 whitespace-nowrap w-1/12">
+                                <span class="inline-flex px-1 py-0.5 text-xs font-semibold rounded-full"
                                       :style="{
                                           backgroundColor: themeColors.secondary + '20',
                                           color: themeColors.secondary
                                       }">
-                                    {{ product.category?.name || 'No Category' }}
+                                    {{ product.category?.name || 'N/A' }}
                                 </span>
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap">
-                                <div class="text-sm font-medium"
+                            <td class="px-2 py-4 whitespace-nowrap w-1/12">
+                                <div class="text-xs font-medium"
                                      :style="{ color: getStockColor(product.stock_quantity, product.min_stock_level) }">
                                     {{ product.stock_quantity }}
                                 </div>
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm"
+                            <td class="px-2 py-4 whitespace-nowrap text-xs w-1/12"
                                 :style="{ color: themeColors.textPrimary }">
                                 {{ product.min_stock_level }}
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium"
+                            <td class="px-2 py-4 whitespace-nowrap text-xs font-medium w-1/12"
                                 :style="{ color: themeColors.textPrimary }">{{ formatCurrency(product.cost_price) }}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium"
+                            <td class="px-2 py-4 whitespace-nowrap text-xs font-medium w-1/12"
                                 :style="{ color: themeColors.textPrimary }">{{ formatCurrency(product.price) }}</td>
-                            <td class="px-6 py-4 whitespace-nowrap">
+                            <td class="px-2 py-4 whitespace-nowrap w-1/12">
                                 <span v-if="product.margin_percentage != null"
-                                      class="inline-flex px-2 py-1 text-xs font-semibold rounded-full"
+                                      class="inline-flex px-1 py-0.5 text-xs font-semibold rounded-full"
                                       :style="{ backgroundColor: themeColors.success + '20', color: themeColors.success }">
                                     {{ parseFloat(product.margin_percentage).toFixed(1) }}%
                                 </span>
                                 <span v-else class="text-xs" :style="{ color: themeColors.textTertiary }">—</span>
                             </td>
-                            <td class="px-6 py-4">
-                                <div v-if="product.stock_by_location && Object.keys(product.stock_by_location).length" class="space-y-1">
+                            <td class="px-2 py-4 hidden lg:table-cell w-1/12">
+                                <div v-if="product.stock_by_location && Object.keys(product.stock_by_location).length" class="space-y-0.5 text-xs">
                                     <div v-for="(qty, locName) in product.stock_by_location" :key="locName"
-                                         class="flex items-center gap-1 text-xs">
-                                        <span class="inline-block px-1.5 py-0.5 rounded"
+                                         class="flex items-center gap-1">
+                                        <span class="inline-block px-1 py-0.5 rounded text-xs"
                                               :style="{ backgroundColor: themeColors.primary + '18', color: themeColors.primary }">
-                                            {{ locName }}
+                                            {{ locName.substring(0, 3) }}
                                         </span>
                                         <span :style="{ color: themeColors.textPrimary }">{{ qty }}</span>
                                     </div>
                                 </div>
                                 <span v-else class="text-xs" :style="{ color: themeColors.textTertiary }">—</span>
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium"
+                            <td class="px-2 py-4 whitespace-nowrap text-xs font-medium hidden xl:table-cell w-1/12"
                                 :style="{ color: themeColors.textPrimary }">{{ formatCurrency(product.total_value) }}</td>
-                            <td class="px-6 py-4 whitespace-nowrap">
-                                <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full"
+                            <td class="px-2 py-4 whitespace-nowrap w-1/12">
+                                <span class="inline-flex px-1 py-0.5 text-xs font-semibold rounded-full"
                                       :class="getStockStatusClass(product.stock_quantity, product.min_stock_level)">
                                     {{ getStockStatus(product.stock_quantity, product.min_stock_level) }}
                                 </span>
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm">
-                                <div class="flex items-center gap-2">
+                            <td class="px-2 py-4 whitespace-nowrap text-xs w-1/12">
+                                <div class="flex items-center gap-1">
                                     <button @click="adjustProductStock(product.id)"
-                                            class="text-indigo-600 hover:text-indigo-900 font-medium"
+                                            class="text-xs font-medium"
                                             :style="{ color: themeColors.primary }">
                                         Adjust
                                     </button>
-                                    <span class="text-gray-300">|</span>
                                     <button @click="viewProductHistory(product.id)"
-                                            class="text-green-600 hover:text-green-900 font-medium"
+                                            class="text-xs font-medium"
                                             :style="{ color: themeColors.success }">
                                         History
                                     </button>

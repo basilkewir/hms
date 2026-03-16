@@ -426,13 +426,13 @@ const styles = StyleSheet.create({
     padding: 15,
   },
   taskCard: {
-    backgroundColor: Colors.white,
+    backgroundColor: Colors.card,
     borderRadius: 10,
     padding: 15,
     marginBottom: 15,
     shadowColor: Colors.black,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 3,
     borderLeftWidth: 4,
@@ -447,7 +447,7 @@ const styles = StyleSheet.create({
   roomNumber: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: Colors.black,
+    color: Colors.textPrimary,
   },
   statusBadge: {
     paddingHorizontal: 10,
@@ -462,7 +462,7 @@ const styles = StyleSheet.create({
   taskType: {
     fontSize: 16,
     fontWeight: '600',
-    color: Colors.black,
+    color: Colors.textPrimary,
     marginBottom: 5,
   },
   priority: {
@@ -513,9 +513,9 @@ const styles = StyleSheet.create({
   },
   tabContainer: {
     flexDirection: 'row',
-    backgroundColor: Colors.white,
+    backgroundColor: Colors.card,
     borderBottomWidth: 2,
-    borderBottomColor: Colors.skyBlue,
+    borderBottomColor: Colors.border,
   },
   tab: {
     flex: 1,
@@ -533,7 +533,7 @@ const styles = StyleSheet.create({
     color: Colors.gray,
   },
   activeTabText: {
-    color: Colors.black,
+    color: Colors.textPrimary,
   },
   completedTaskCard: {
     borderLeftColor: Colors.success,
@@ -541,7 +541,7 @@ const styles = StyleSheet.create({
   },
   unassignedTaskCard: {
     borderLeftColor: '#f59e0b',
-    backgroundColor: '#fffbeb',
+    backgroundColor: 'rgba(245, 158, 11, 0.12)',
   },
   badgeRow: {
     flexDirection: 'row',
@@ -579,15 +579,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 10,
     paddingHorizontal: 15,
-    backgroundColor: Colors.white,
-    borderBottomWidth: 2,
-    borderBottomColor: Colors.skyBlue,
+    backgroundColor: Colors.card,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
     marginBottom: 8,
   },
   dateText: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: Colors.black,
+    color: Colors.textPrimary,
   },
   dateCount: {
     fontSize: 14,
@@ -595,14 +595,14 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   compactTaskCard: {
-    backgroundColor: Colors.white,
+    backgroundColor: Colors.card,
     borderRadius: 8,
     padding: 12,
     marginBottom: 8,
     marginHorizontal: 15,
     shadowColor: Colors.black,
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.2,
     shadowRadius: 2,
     elevation: 2,
     borderLeftWidth: 3,
@@ -617,7 +617,7 @@ const styles = StyleSheet.create({
   compactRoomNumber: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: Colors.black,
+    color: Colors.textPrimary,
   },
   compactTime: {
     fontSize: 13,

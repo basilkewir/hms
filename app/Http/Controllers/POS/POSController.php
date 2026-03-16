@@ -300,11 +300,13 @@ class POSController extends Controller
                 $guestId = $validated['guest_id'];
             }
             // Priority 2: Guest identifier in customer_id (fallback)
+            // Sets the room/reservation/guest IDs for sale tracking but RESPECTS the
+            // is_charged_to_room checkbox — guest may choose to pay cash at the counter.
             elseif ($isGuestSelection && $selectedReservationId && $selectedRoomId) {
-                $isChargedToRoom = true;
                 $roomId = $selectedRoomId;
                 $reservationId = $selectedReservationId;
                 $guestId = $selectedGuestId;
+                // $isChargedToRoom remains as the user set it via the checkbox
             }
             // Priority 3: Room number lookup (legacy method)
             elseif (!empty($validated['room_number']) && $isChargedToRoom) {
@@ -403,8 +405,14 @@ class POSController extends Controller
                 if (!$folio) {
                     // Create folio if it doesn't exist
                     $reservation = Reservation::with('guest', 'room')->findOrFail($reservationId);
+                    // Generate a unique folio number to avoid unique constraint violations
+                    // if a previous folio (e.g. closed) existed for the same reservation.
+                    $folioNumber = 'FOL-' . str_pad($reservationId, 6, '0', STR_PAD_LEFT);
+                    if (GuestFolio::where('folio_number', $folioNumber)->exists()) {
+                        $folioNumber = 'FOL-' . strtoupper(\Illuminate\Support\Str::random(8));
+                    }
                     $folio = GuestFolio::create([
-                        'folio_number' => 'FOL-' . str_pad($reservationId, 6, '0', STR_PAD_LEFT),
+                        'folio_number' => $folioNumber,
                         'reservation_id' => $reservationId,
                         'guest_id' => $reservation->guest_id,
                         'room_id' => $reservation->room_id,

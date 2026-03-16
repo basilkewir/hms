@@ -320,7 +320,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: Colors.black,
+    color: Colors.textPrimary,
     marginBottom: 20,
   },
   inputContainer: {
@@ -329,28 +329,28 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 16,
     fontWeight: '600',
-    color: Colors.black,
+    color: Colors.textPrimary,
     marginBottom: 8,
   },
   input: {
     borderWidth: 1,
-    borderColor: Colors.grayLight,
+    borderColor: Colors.border,
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
-    backgroundColor: Colors.white,
-    color: Colors.black,
+    backgroundColor: Colors.cardAlt,
+    color: Colors.textPrimary,
   },
   textArea: {
     borderWidth: 1,
-    borderColor: Colors.grayLight,
+    borderColor: Colors.border,
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
     minHeight: 120,
-    backgroundColor: Colors.white,
+    backgroundColor: Colors.cardAlt,
     textAlignVertical: 'top',
-    color: Colors.black,
+    color: Colors.textPrimary,
   },
   imageButtonsContainer: {
     flexDirection: 'row',
@@ -419,8 +419,8 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 20,
     borderWidth: 2,
-    borderColor: Colors.skyBlue,
-    backgroundColor: Colors.white,
+    borderColor: Colors.border,
+    backgroundColor: Colors.card,
   },
   optionSelected: {
     backgroundColor: Colors.yellow,
@@ -428,7 +428,7 @@ const styles = StyleSheet.create({
   },
   optionText: {
     fontSize: 14,
-    color: Colors.black,
+    color: Colors.textSecondary,
     fontWeight: '500',
   },
   optionTextSelected: {

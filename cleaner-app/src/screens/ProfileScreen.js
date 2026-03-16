@@ -158,12 +158,14 @@ const styles = StyleSheet.create({
   },
   profileHeader: {
     alignItems: 'center',
-    backgroundColor: Colors.white,
+    backgroundColor: Colors.card,
     borderRadius: 10,
     padding: 20,
     marginBottom: 20,
     borderTopWidth: 4,
     borderTopColor: Colors.yellow,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   avatar: {
     width: 80,
@@ -173,6 +175,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 15,
+    borderWidth: 2,
+    borderColor: Colors.yellow,
   },
   avatarText: {
     fontSize: 32,
@@ -182,7 +186,7 @@ const styles = StyleSheet.create({
   name: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: Colors.black,
+    color: Colors.textPrimary,
     marginBottom: 5,
   },
   email: {
@@ -190,15 +194,17 @@ const styles = StyleSheet.create({
     color: Colors.gray,
   },
   section: {
-    backgroundColor: Colors.white,
+    backgroundColor: Colors.card,
     borderRadius: 10,
     padding: 15,
     marginBottom: 20,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: Colors.black,
+    color: Colors.textPrimary,
     marginBottom: 15,
   },
   infoRow: {
@@ -213,7 +219,7 @@ const styles = StyleSheet.create({
   },
   infoValue: {
     fontSize: 14,
-    color: Colors.black,
+    color: Colors.textPrimary,
     flex: 1,
   },
   linkButton: {

@@ -344,6 +344,11 @@
                                 </span>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                <button @click="viewExpense(expense)"
+                                        class="mr-3 transition-colors"
+                                        :style="{ color: themeColors.success }"
+                                        @mouseenter="$event.target.style.color = themeColors.successHover"
+                                        @mouseleave="$event.target.style.color = themeColors.success">View</button>
                                 <button @click="editExpense(expense)" 
                                         class="mr-3 transition-colors"
                                         :style="{ color: themeColors.primary }"
@@ -608,6 +613,10 @@ const goToPage = (page) => {
 const changePerPage = (perPage) => {
     selectedPerPage.value = perPage
     applyFilters()
+}
+
+const viewExpense = (expense) => {
+    router.get(route('accountant.expenses.show', expense.id))
 }
 
 const editExpense = (expense) => {

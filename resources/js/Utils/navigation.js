@@ -69,6 +69,7 @@ export const getNavigationForRole = (role, userPermissions = []) => {
                 { name: 'Maintenance Rooms',  href: `/${normalizedRole}/rooms/maintenance`,  permission: 'manage_maintenance',      roles: ['manager'] },
                 { name: 'Room Types',         href: isAdmin ? '/admin/room-types'     : `/${normalizedRole}/room-types`,         permission: 'manage_rooms', roles: ['admin', 'manager'] },
                 { name: 'Room Amenities',     href: isAdmin ? '/admin/room-amenities' : `/${normalizedRole}/room-amenities`,     permission: 'manage_rooms', roles: ['admin', 'manager'] },
+                { name: 'Floors',             href: isAdmin ? '/admin/floors'         : `/${normalizedRole}/floors`,             permission: 'manage_rooms', roles: ['admin', 'manager'] },
                 { name: 'Halls',              href: isAdmin ? '/admin/halls'          : `/${normalizedRole}/halls`,              permission: 'manage_rooms', roles: ['admin', 'manager'] },
                 { name: 'Hall Bookings',      href: isAdmin ? '/admin/hall-bookings'  : `/${normalizedRole}/hall-bookings`,      permission: 'manage_rooms', roles: ['admin', 'manager'] },
             ]
@@ -152,10 +153,10 @@ export const getNavigationForRole = (role, userPermissions = []) => {
             name: 'Expenses',
             icon: 'BanknotesIcon',
             permission: 'manage_expenses',
-            roles: ['admin', 'manager', 'accountant'],
+            roles: ['admin', 'manager', 'accountant', 'front_desk'],
             children: [
-                { name: 'All Expenses', href: isAdmin ? '/admin/expenses' : `/${normalizedRole}/expenses`, permission: 'manage_expenses', roles: ['admin', 'manager', 'accountant'] },
-                { name: 'Create Expense', href: isAdmin ? '/admin/expenses/create' : `/${normalizedRole}/expenses/create`, permission: 'manage_expenses', roles: ['admin', 'manager'] },
+                { name: 'All Expenses', href: isAdmin ? '/admin/expenses' : `/${normalizedRole}/expenses`, permission: 'manage_expenses', roles: ['admin', 'manager', 'accountant', 'front_desk'] },
+                { name: 'Create Expense', href: isAdmin ? '/admin/expenses/create' : `/${normalizedRole}/expenses/create`, permission: 'manage_expenses', roles: ['admin', 'manager', 'front_desk'] },
                 { name: 'Categories', href: isAdmin ? '/admin/expenses/categories' : `/${normalizedRole}/expenses/categories`, permission: 'manage_expenses', roles: ['admin', 'accountant'] },
                 { name: 'Reports', href: '/accountant/expenses/reports', permission: null, roles: ['accountant'] },
             ]

@@ -154,7 +154,7 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   taskInfo: {
-    backgroundColor: Colors.white,
+    backgroundColor: Colors.card,
     borderRadius: 10,
     padding: 15,
     marginBottom: 20,
@@ -164,16 +164,16 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.black,
+    color: Colors.textPrimary,
     marginTop: 10,
     marginBottom: 5,
   },
   value: {
     fontSize: 16,
-    color: Colors.black,
+    color: Colors.textPrimary,
   },
   infoBox: {
-    backgroundColor: Colors.skyBlue + '20',
+    backgroundColor: Colors.skyBlueLight,
     borderRadius: 8,
     padding: 12,
     marginTop: 10,
@@ -182,11 +182,11 @@ const styles = StyleSheet.create({
   },
   infoText: {
     fontSize: 13,
-    color: Colors.black,
+    color: Colors.textSecondary,
     fontStyle: 'italic',
   },
   notesContainer: {
-    backgroundColor: Colors.white,
+    backgroundColor: Colors.card,
     borderRadius: 10,
     padding: 15,
     marginBottom: 20,
@@ -199,13 +199,13 @@ const styles = StyleSheet.create({
   },
   textArea: {
     borderWidth: 2,
-    borderColor: Colors.skyBlue,
+    borderColor: Colors.border,
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
     minHeight: 120,
-    backgroundColor: Colors.white,
-    color: Colors.black,
+    backgroundColor: Colors.cardAlt,
+    color: Colors.textPrimary,
   },
   button: {
     backgroundColor: Colors.black,

@@ -200,7 +200,7 @@
                                 </div>
                             </td>
                             <td class="px-6 py-4"
-                                :style="{ color: themeColors.textSecondary }">{{ product.category_id || 'Uncategorized' }}</td>
+                                :style="{ color: themeColors.textSecondary }">{{ product.category?.name || 'Uncategorized' }}</td>
                             <td class="px-6 py-4 font-medium"
                                 :style="{ color: themeColors.textPrimary }">{{ formatCurrency(product.price) }}</td>
                             <td class="px-6 py-4">
