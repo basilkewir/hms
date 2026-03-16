@@ -690,14 +690,19 @@ class RoomController extends Controller
      */
     public function destroy(Room $room)
     {
-        if ($room->reservations()->whereIn('status', ['confirmed', 'checked_in', 'pending'])->exists()) {
-            return back()->with('error', "Cannot delete room {$room->room_number}: it has active or upcoming reservations.");
+        // Block if *any* reservation references this room (active or historical)
+        // — the reservation_room pivot and guest_folios FKs are restrict-on-delete
+        if ($room->reservations()->exists()) {
+            return back()->with('error', "Cannot delete room {$room->room_number}: it has reservation history. To remove it from service, set its status to 'Out of Order' instead.");
         }
 
-        $roomNumber = $room->room_number;
-        $room->delete();
-
-        return back()->with('success', "Room {$roomNumber} has been deleted.");
+        try {
+            $roomNumber = $room->room_number;
+            $room->delete();
+            return back()->with('success', "Room {$roomNumber} has been deleted.");
+        } catch (\Illuminate\Database\QueryException $e) {
+            return back()->with('error', "Cannot delete room {$room->room_number}: it is still referenced by other records (folios, maintenance logs, etc.).");
+        }
     }
 
     /**
@@ -717,12 +722,16 @@ class RoomController extends Controller
         $deleted = 0;
 
         foreach ($rooms as $room) {
-            if ($room->reservations()->whereIn('status', ['confirmed', 'checked_in', 'pending'])->exists()) {
+            if ($room->reservations()->exists()) {
                 $skipped[] = $room->room_number;
                 continue;
             }
-            $room->delete();
-            $deleted++;
+            try {
+                $room->delete();
+                $deleted++;
+            } catch (\Illuminate\Database\QueryException $e) {
+                $skipped[] = $room->room_number;
+            }
         }
 
         $message = "Deleted {$deleted} room(s) successfully.";

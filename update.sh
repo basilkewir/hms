@@ -166,6 +166,14 @@ else
     echo "LICENSE_SIGNATURE_SECRET=E0FMIZdSNTtywmB6psxK4pqWSVRs8eo1ogPsePEmzXU=" >> "$INSTALL_DIR/.env"
 fi
 
+# SANCTUM_STATEFUL_DOMAINS — allow both local IP and Cloudflare tunnel domain
+# so session-based (web) auth works from any access point
+if grep -q "^SANCTUM_STATEFUL_DOMAINS=" "$INSTALL_DIR/.env"; then
+    sed -i 's|^SANCTUM_STATEFUL_DOMAINS=.*|SANCTUM_STATEFUL_DOMAINS=localhost,localhost:8000,127.0.0.1,127.0.0.1:8000,10.0.0.10,donzebemanagement.qzz.io|' "$INSTALL_DIR/.env"
+else
+    echo "SANCTUM_STATEFUL_DOMAINS=localhost,localhost:8000,127.0.0.1,127.0.0.1:8000,10.0.0.10,donzebemanagement.qzz.io" >> "$INSTALL_DIR/.env"
+fi
+
 success ".env patched"
 
 step "Setting Permissions"

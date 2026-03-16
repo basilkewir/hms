@@ -27,6 +27,10 @@ class AppServiceProvider extends ServiceProvider
         if ($isHttps) {
             URL::forceScheme('https');
 
+            // Mark session cookie as Secure so browsers send it over HTTPS
+            // (without this, XSRF-TOKEN cookie is blocked and every request gets 419)
+            Config::set('session.secure', true);
+
             // Set APP_URL to the actual public hostname so Ziggy and
             // CSRF token validation use the correct origin
             $host = request()->server('HTTP_X_FORWARDED_HOST')
