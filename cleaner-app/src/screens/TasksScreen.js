@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { taskService } from '../services/taskService';
+import { notificationService } from '../services/notificationService';
 import { Colors } from '../constants/colors';
 
 export default function TasksScreen({ navigation }) {
@@ -20,6 +21,8 @@ export default function TasksScreen({ navigation }) {
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState('active'); // 'active' or 'completed'
   const intervalRef = useRef(null);
+  // null = not yet initialized (first load), Set after first fetch
+  const knownTaskIdsRef = useRef(null);
 
   // Auto-refresh interval: 30 seconds
   const REFRESH_INTERVAL = 30000;
@@ -31,7 +34,23 @@ export default function TasksScreen({ navigation }) {
         setLoading(true);
       }
       const response = await taskService.getMyTasks();
-      setTasks(response.data || response || []);
+      const incoming = response.data || response || [];
+
+      // Detect newly assigned tasks on silent background refreshes
+      if (!showLoading && knownTaskIdsRef.current !== null) {
+        const knownIds = knownTaskIdsRef.current;
+        const newTasks = incoming.filter(t => !knownIds.has(t.id));
+        if (newTasks.length > 0) {
+          const roomNumbers = newTasks
+            .map(t => t.room?.room_number)
+            .filter(Boolean);
+          notificationService.notifyNewTasks(newTasks.length, roomNumbers);
+        }
+      }
+
+      // Always update the known task IDs after every successful fetch
+      knownTaskIdsRef.current = new Set(incoming.map(t => t.id));
+      setTasks(incoming);
     } catch (error) {
       // Only show alert if it's a manual refresh, not auto-refresh
       if (showLoading) {

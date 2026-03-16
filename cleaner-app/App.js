@@ -15,6 +15,7 @@ import ProfileScreen from './src/screens/ProfileScreen';
 
 import { Storage } from './src/services/storage';
 import { authService } from './src/services/authService';
+import { notificationService } from './src/services/notificationService';
 import { checkServerConnection } from './src/utils/connection';
 import { Colors } from './src/constants/colors';
 
@@ -75,6 +76,8 @@ export default function App() {
 
   useEffect(() => {
     checkInitialRoute();
+    // Request notification permissions so sounds work when tasks are assigned
+    notificationService.requestPermissions();
   }, []);
 
   const checkInitialRoute = async () => {
