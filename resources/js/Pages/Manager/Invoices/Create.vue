@@ -26,10 +26,11 @@
                     </Link>
                 </div>
             </div>
+        </div>
 
-            <!-- Form -->
-            <div class="rounded-lg border p-6 shadow-sm"
-                 :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border, borderWidth: '1px', borderStyle: 'solid' }">
+        <!-- Form -->
+        <div class="rounded-lg border p-6 shadow-sm"
+             :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border, borderWidth: '1px', borderStyle: 'solid' }">
                 <form @submit.prevent="submitInvoice" class="space-y-6">
                     <!-- Invoice Type Selection -->
                     <div>
@@ -209,7 +210,6 @@
                         </button>
                     </div>
                 </form>
-            </div>
         </div>
     </DashboardLayout>
 </template>

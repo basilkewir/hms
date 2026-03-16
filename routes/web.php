@@ -6377,14 +6377,15 @@ Route::middleware(['auth', 'role:front_desk'])->prefix('front-desk')->name('fron
     })->name('services.hall-bookings.update-status');
 
     // Invoices
-    Route::get('/invoices', [\App\Http\Controllers\Accountant\InvoiceController::class, 'index'])->name('invoices.index');
-    Route::get('/invoices/create', [\App\Http\Controllers\Accountant\InvoiceController::class, 'create'])->name('invoices.create');
-    Route::post('/invoices', [\App\Http\Controllers\Accountant\InvoiceController::class, 'store'])->name('invoices.store');
-    Route::get('/invoices/{folio}', [\App\Http\Controllers\Accountant\InvoiceController::class, 'show'])->name('invoices.show');
-    Route::post('/invoices/{folio}/mark-paid', [\App\Http\Controllers\Accountant\InvoiceController::class, 'markPaid'])->name('invoices.markPaid');
-    Route::get('/invoices/overdue', [\App\Http\Controllers\Accountant\InvoiceController::class, 'overdue'])->name('invoices.overdue');
-    Route::get('/invoices/paid', [\App\Http\Controllers\Accountant\InvoiceController::class, 'paid'])->name('invoices.paid');
-    Route::post('/invoices/send-reminders', [\App\Http\Controllers\Accountant\InvoiceController::class, 'sendReminders'])->name('invoices.sendReminders');
+    // Invoices
+    Route::get('/invoices', [\App\Http\Controllers\Admin\InvoiceController::class, 'index'])->name('invoices.index');
+    Route::get('/invoices/create', [\App\Http\Controllers\Admin\InvoiceController::class, 'create'])->name('invoices.create');
+    Route::post('/invoices', [\App\Http\Controllers\Admin\InvoiceController::class, 'store'])->name('invoices.store');
+    Route::get('/invoices/overdue', [\App\Http\Controllers\Admin\InvoiceController::class, 'overdue'])->name('invoices.overdue');
+    Route::get('/invoices/paid', [\App\Http\Controllers\Admin\InvoiceController::class, 'paid'])->name('invoices.paid');
+    Route::post('/invoices/send-reminders', [\App\Http\Controllers\Admin\InvoiceController::class, 'sendReminders'])->name('invoices.sendReminders');
+    Route::get('/invoices/{folio}', [\App\Http\Controllers\Admin\InvoiceController::class, 'show'])->name('invoices.show');
+    Route::post('/invoices/{folio}/mark-paid', [\App\Http\Controllers\Admin\InvoiceController::class, 'markPaid'])->name('invoices.markPaid');
 
     // Transactions
     Route::get('/transactions', function () {

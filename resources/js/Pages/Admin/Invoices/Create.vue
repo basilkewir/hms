@@ -182,110 +182,98 @@
     </DashboardLayout>
 </template>
 
-<script>
-import { usePage } from '@inertiajs/vue3';
+<script setup>
 import { computed, ref } from 'vue';
-import { router, useForm } from '@inertiajs/vue3';
+import { useForm } from '@inertiajs/vue3';
+import { useTheme } from '@/Composables/useTheme.js';
 
-export default {
-    name: 'AdminCreateInvoice',
-    props: {
-        user: Object,
-        navigation: Array,
-        reservations: Array,
-        errors: Object
-    },
-    setup(props) {
-        const page = usePage();
-        const themeColors = computed(() => page.props.themeColors || {
-            primary: '#3b82f6',
-            success: '#10b981',
-            danger: '#ef4444',
-            warning: '#f59e0b',
-            background: '#ffffff',
-            card: '#ffffff',
-            border: '#e5e7eb',
-            textPrimary: '#111827',
-            textSecondary: '#6b7280'
-        });
+const { loadTheme } = useTheme();
+loadTheme();
 
-        const form = useForm({
-            invoice_type: 'guest',
-            reservation_id: '',
-            customer_name: '',
-            customer_email: '',
-            customer_phone: '',
-            items: [],
-            notes: ''
-        });
+const themeColors = computed(() => ({
+    primary: 'var(--kotel-primary)',
+    success: 'var(--kotel-success)',
+    danger: 'var(--kotel-danger)',
+    warning: 'var(--kotel-warning)',
+    background: 'var(--kotel-background)',
+    card: 'var(--kotel-card)',
+    border: 'var(--kotel-border)',
+    textPrimary: 'var(--kotel-text-primary)',
+    textSecondary: 'var(--kotel-text-secondary)'
+}));
 
-        const processing = ref(false);
+const props = defineProps({
+    user: Object,
+    navigation: Array,
+    reservations: Array,
+    errors: Object
+});
 
-        const switchInvoiceType = () => {
-            // Clear form fields when switching type
-            form.reservation_id = '';
-            form.customer_name = '';
-            form.customer_email = '';
-            form.customer_phone = '';
-            form.items = [];
-        };
+const form = useForm({
+    invoice_type: 'guest',
+    reservation_id: '',
+    customer_name: '',
+    customer_email: '',
+    customer_phone: '',
+    items: [],
+    notes: ''
+});
 
-        const addItem = () => {
-            form.items.push({
-                description: '',
-                amount: 0
-            });
-        };
+const processing = ref(false);
 
-        const removeItem = (index) => {
-            form.items.splice(index, 1);
-        };
+const switchInvoiceType = () => {
+    // Clear form fields when switching type
+    form.reservation_id = '';
+    form.customer_name = '';
+    form.customer_email = '';
+    form.customer_phone = '';
+    form.items = [];
+};
 
-        const submitInvoice = () => {
-            processing.value = true;
-            
-            // Validate based on invoice type
-            if (form.invoice_type === 'guest' && !form.reservation_id) {
+const addItem = () => {
+    form.items.push({
+        description: '',
+        amount: 0
+    });
+};
+
+const removeItem = (index) => {
+    form.items.splice(index, 1);
+};
+
+const submitInvoice = () => {
+    processing.value = true;
+    
+    // Validate based on invoice type
+    if (form.invoice_type === 'guest' && !form.reservation_id) {
+        processing.value = false;
+        return;
+    }
+    if (form.invoice_type === 'outsider') {
+        if (!form.customer_name) {
+            processing.value = false;
+            return;
+        }
+        if (form.items.length === 0) {
+            processing.value = false;
+            return;
+        }
+        // Validate items
+        for (let item of form.items) {
+            if (!item.description || item.amount <= 0) {
                 processing.value = false;
                 return;
             }
-            if (form.invoice_type === 'outsider') {
-                if (!form.customer_name) {
-                    processing.value = false;
-                    return;
-                }
-                if (form.items.length === 0) {
-                    processing.value = false;
-                    return;
-                }
-                // Validate items
-                for (let item of form.items) {
-                    if (!item.description || item.amount <= 0) {
-                        processing.value = false;
-                        return;
-                    }
-                }
-            }
-            
-            form.post(route('admin.invoices.store'), {
-                onSuccess: () => {
-                    processing.value = false;
-                },
-                onError: () => {
-                    processing.value = false;
-                }
-            });
-        };
-
-        return {
-            themeColors,
-            form,
-            processing,
-            switchInvoiceType,
-            addItem,
-            removeItem,
-            submitInvoice
-        };
+        }
     }
+    
+    form.post(route('admin.invoices.store'), {
+        onSuccess: () => {
+            processing.value = false;
+        },
+        onError: () => {
+            processing.value = false;
+        }
+    });
 };
 </script>

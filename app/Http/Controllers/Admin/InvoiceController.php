@@ -211,10 +211,11 @@ class InvoiceController extends Controller
             });
 
         // Determine which view to render based on the route
-        $view = request()->is('manager/*') ? 'Manager/Invoices/Create' : 'Admin/Invoices/Create';
-        $navigation = app(\App\Http\Controllers\DashboardController::class)->getNavigationForRole(
-            request()->is('manager/*') ? 'manager' : 'admin'
-        );
+        $view = 'Admin/Invoices/Create';
+        $role = 'admin';
+        if (request()->is('manager/*')) { $view = 'Manager/Invoices/Create'; $role = 'manager'; }
+        elseif (request()->is('front-desk/*')) { $view = 'FrontDesk/Invoices/Create'; $role = 'front_desk'; }
+        $navigation = app(\App\Http\Controllers\DashboardController::class)->getNavigationForRole($role);
 
         return Inertia::render($view, [
             'user' => auth()->user()->load('roles'),
@@ -260,6 +261,7 @@ class InvoiceController extends Controller
             // Check if existing invoice exists
             $existingFolio = GuestFolio::where('reservation_id', $reservation->id)->first();
             if ($existingFolio) {
+                if (request()->is('front-desk/*')) return redirect()->route('front-desk.invoices.index')->with('error', 'An invoice already exists for this reservation.');
                 $route = request()->is('manager/*') ? 'manager.invoices.index' : 'admin.invoices.index';
                 return redirect()->route($route)
                     ->with('error', 'An invoice already exists for this reservation.');
@@ -326,6 +328,7 @@ class InvoiceController extends Controller
             }
         }
 
+        if (request()->is('front-desk/*')) return redirect()->route('front-desk.invoices.index')->with('success', 'Invoice created successfully.');
         $route = request()->is('manager/*') ? 'manager.invoices.index' : 'admin.invoices.index';
         return redirect()->route($route)
             ->with('success', 'Invoice created successfully.');
@@ -363,8 +366,9 @@ class InvoiceController extends Controller
         $folio->closed_by = auth()->id();
         $folio->save();
 
-        return redirect()->route('admin.invoices.index')
-            ->with('success', 'Invoice marked as paid.');
+        if (request()->is('front-desk/*')) return redirect()->route('front-desk.invoices.index')->with('success', 'Invoice marked as paid.');
+        $route = request()->is('manager/*') ? 'manager.invoices.index' : 'admin.invoices.index';
+        return redirect()->route($route)->with('success', 'Invoice marked as paid.');
     }
 
     public function overdue()
@@ -492,8 +496,9 @@ class InvoiceController extends Controller
             }
         }
 
-        return redirect()->route('admin.invoices.index')
-            ->with('success', "Payment reminders sent to {$remindersSent} customers with overdue invoices.");
+        if (request()->is('front-desk/*')) return redirect()->route('front-desk.invoices.index')->with('success', "Payment reminders sent to {$remindersSent} customers with overdue invoices.");
+        $route = request()->is('manager/*') ? 'manager.invoices.index' : 'admin.invoices.index';
+        return redirect()->route($route)->with('success', "Payment reminders sent to {$remindersSent} customers with overdue invoices.");
     }
 
     public function edit(GuestFolio $folio)

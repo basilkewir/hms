@@ -162,144 +162,126 @@
     </DashboardLayout>
 </template>
 
-<script>
-import { usePage } from '@inertiajs/vue3';
+<script setup>
 import { computed, ref } from 'vue';
 import { router } from '@inertiajs/vue3';
 import { formatCurrency } from '@/Utils/currency.js';
+import { useTheme } from '@/Composables/useTheme.js';
 
-export default {
-    name: 'AdminQuotes',
-    props: {
-        user: Object,
-        navigation: Array,
-        quoteStats: Object,
-        quotes: Array,
-        filters: Object
+const { loadTheme } = useTheme();
+loadTheme();
+
+const themeColors = computed(() => ({
+    primary: 'var(--kotel-primary)',
+    success: 'var(--kotel-success)',
+    danger: 'var(--kotel-danger)',
+    warning: 'var(--kotel-warning)',
+    background: 'var(--kotel-background)',
+    card: 'var(--kotel-card)',
+    border: 'var(--kotel-border)',
+    textPrimary: 'var(--kotel-text-primary)',
+    textSecondary: 'var(--kotel-text-secondary)',
+    hover: 'rgba(255, 255, 255, 0.1)'
+}));
+
+const props = defineProps({
+    user: Object,
+    navigation: Array,
+    quoteStats: Object,
+    quotes: Array,
+    filters: Object
+});
+
+const filters = ref({
+    status: props.filters.status || '',
+    start_date: props.filters.start_date || '',
+    end_date: props.filters.end_date || '',
+    search: props.filters.search || ''
+});
+
+const quoteStats = computed(() => [
+    {
+        label: 'Total Quotes',
+        value: props.quoteStats.total || 0,
+        icon: '📋',
+        color: themeColors.value.primary
     },
-    setup(props) {
-        const page = usePage();
-        const themeColors = computed(() => page.props.themeColors || {
-            primary: '#3b82f6',
-            success: '#10b981',
-            danger: '#ef4444',
-            warning: '#f59e0b',
-            background: '#ffffff',
-            card: '#ffffff',
-            border: '#e5e7eb',
-            textPrimary: '#111827',
-            textSecondary: '#6b7280',
-            hover: '#2563eb'
-        });
-
-        const filters = ref({
-            status: props.filters.status || '',
-            start_date: props.filters.start_date || '',
-            end_date: props.filters.end_date || '',
-            search: props.filters.search || ''
-        });
-
-        const statData = computed(() => [
-            {
-                label: 'Total Quotes',
-                value: props.quoteStats.total || 0,
-                icon: '📋',
-                color: themeColors.value.primary
-            },
-            {
-                label: 'Total Amount',
-                value: formatCurrency(props.quoteStats.totalAmount || 0),
-                icon: '💰',
-                color: themeColors.value.success
-            },
-            {
-                label: 'Pending',
-                value: props.quoteStats.pending || 0,
-                icon: '⏳',
-                color: themeColors.value.warning
-            },
-            {
-                label: 'Accepted',
-                value: props.quoteStats.accepted || 0,
-                icon: '✅',
-                color: themeColors.value.success
-            }
-        ]);
-
-        const getStatusStyle = (status) => {
-            const styles = {
-                draft: { backgroundColor: '#f3f4f6', color: '#374151' },
-                sent: { backgroundColor: '#dbeafe', color: '#1e40af' },
-                accepted: { backgroundColor: '#dcfce7', color: '#166534' },
-                rejected: { backgroundColor: '#fee2e2', color: '#991b1b' },
-                expired: { backgroundColor: '#fef3c7', color: '#92400e' }
-            };
-            return styles[status] || { backgroundColor: '#f3f4f6', color: '#374151' };
-        };
-
-        const formatDate = (dateString) => {
-            return new Date(dateString).toLocaleDateString();
-        };
-
-        const applyFilters = () => {
-            router.get(route('admin.quotes.index'), filters.value, {
-                preserveState: true,
-                preserveScroll: true
-            });
-        };
-
-        const clearFilters = () => {
-            filters.value = {
-                status: '',
-                start_date: '',
-                end_date: '',
-                search: ''
-            };
-            applyFilters();
-        };
-
-        const viewQuote = (quote) => {
-            router.get(route('admin.quotes.show', quote.id));
-        };
-
-        const editQuote = (quote) => {
-            router.get(route('admin.quotes.edit', quote.id));
-        };
-
-        const sendQuote = (quote) => {
-            if (confirm(`Send quote ${quote.quote_number} to ${quote.customer_email}?`)) {
-                router.post(route('admin.quotes.send', quote.id));
-            }
-        };
-
-        const convertToInvoice = (quote) => {
-            if (confirm(`Convert quote ${quote.quote_number} to invoice?`)) {
-                router.post(route('admin.quotes.convert', quote.id));
-            }
-        };
-
-        const exportQuotes = () => {
-            window.location.href = route('admin.quotes.export', {
-                ...filters.value,
-                format: 'csv'
-            });
-        };
-
-        return {
-            themeColors,
-            filters,
-            quoteStats: statData,
-            getStatusStyle,
-            formatCurrency,
-            formatDate,
-            applyFilters,
-            clearFilters,
-            viewQuote,
-            editQuote,
-            sendQuote,
-            convertToInvoice,
-            exportQuotes
-        };
+    {
+        label: 'Total Amount',
+        value: formatCurrency(props.quoteStats.totalAmount || 0),
+        icon: '💰',
+        color: themeColors.value.success
+    },
+    {
+        label: 'Pending',
+        value: props.quoteStats.pending || 0,
+        icon: '⏳',
+        color: themeColors.value.warning
+    },
+    {
+        label: 'Accepted',
+        value: props.quoteStats.accepted || 0,
+        icon: '✅',
+        color: themeColors.value.success
     }
+]);
+
+const getStatusStyle = (status) => {
+    const styles = {
+        draft: { backgroundColor: '#f3f4f6', color: '#374151' },
+        sent: { backgroundColor: '#dbeafe', color: '#1e40af' },
+        accepted: { backgroundColor: '#dcfce7', color: '#166534' },
+        rejected: { backgroundColor: '#fee2e2', color: '#991b1b' },
+        expired: { backgroundColor: '#fef3c7', color: '#92400e' }
+    };
+    return styles[status] || { backgroundColor: '#f3f4f6', color: '#374151' };
+};
+
+const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleDateString();
+};
+
+const applyFilters = () => {
+    router.get(route('admin.quotes.index'), filters.value, {
+        preserveState: true,
+        preserveScroll: true
+    });
+};
+
+const clearFilters = () => {
+    filters.value = {
+        status: '',
+        start_date: '',
+        end_date: '',
+        search: ''
+    };
+    applyFilters();
+};
+
+const viewQuote = (quote) => {
+    router.get(route('admin.quotes.show', quote.id));
+};
+
+const editQuote = (quote) => {
+    router.get(route('admin.quotes.edit', quote.id));
+};
+
+const sendQuote = (quote) => {
+    if (confirm(`Send quote ${quote.quote_number} to ${quote.customer_email}?`)) {
+        router.post(route('admin.quotes.send', quote.id));
+    }
+};
+
+const convertToInvoice = (quote) => {
+    if (confirm(`Convert quote ${quote.quote_number} to invoice?`)) {
+        router.post(route('admin.quotes.convert', quote.id));
+    }
+};
+
+const exportQuotes = () => {
+    window.location.href = route('admin.quotes.export', {
+        ...filters.value,
+        format: 'csv'
+    });
 };
 </script>

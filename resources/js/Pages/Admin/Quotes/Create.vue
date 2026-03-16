@@ -201,100 +201,88 @@
     </DashboardLayout>
 </template>
 
-<script>
-import { usePage } from '@inertiajs/vue3';
+<script setup>
 import { computed, ref } from 'vue';
-import { router, useForm } from '@inertiajs/vue3';
+import { useForm } from '@inertiajs/vue3';
+import { useTheme } from '@/Composables/useTheme.js';
 
-export default {
-    name: 'AdminCreateQuote',
-    props: {
-        user: Object,
-        navigation: Array,
-        reservations: Array,
-        errors: Object
-    },
-    setup(props) {
-        const page = usePage();
-        const themeColors = computed(() => page.props.themeColors || {
-            primary: '#3b82f6',
-            success: '#10b981',
-            danger: '#ef4444',
-            warning: '#f59e0b',
-            background: '#ffffff',
-            card: '#ffffff',
-            border: '#e5e7eb',
-            textPrimary: '#111827',
-            textSecondary: '#6b7280'
-        });
+const { loadTheme } = useTheme();
+loadTheme();
 
-        const form = useForm({
-            quote_type: 'guest',
-            reservation_id: '',
-            customer_name: '',
-            customer_email: '',
-            customer_phone: '',
-            valid_until: '',
-            total_amount: '',
-            status: 'draft',
-            notes: '',
-            items: [
-                { description: '', quantity: 1, unit_price: 0 }
-            ]
-        });
+const themeColors = computed(() => ({
+    primary: 'var(--kotel-primary)',
+    success: 'var(--kotel-success)',
+    danger: 'var(--kotel-danger)',
+    warning: 'var(--kotel-warning)',
+    background: 'var(--kotel-background)',
+    card: 'var(--kotel-card)',
+    border: 'var(--kotel-border)',
+    textPrimary: 'var(--kotel-text-primary)',
+    textSecondary: 'var(--kotel-text-secondary)'
+}));
 
-        const processing = ref(false);
+const props = defineProps({
+    user: Object,
+    navigation: Array,
+    reservations: Array,
+    errors: Object
+});
 
-        const switchQuoteType = () => {
-            // Clear form fields when switching type
-            form.reservation_id = '';
-            form.customer_name = '';
-            form.customer_email = '';
-            form.customer_phone = '';
-        };
+const form = useForm({
+    quote_type: 'guest',
+    reservation_id: '',
+    customer_name: '',
+    customer_email: '',
+    customer_phone: '',
+    valid_until: '',
+    total_amount: '',
+    status: 'draft',
+    notes: '',
+    items: [
+        { description: '', quantity: 1, unit_price: 0 }
+    ]
+});
 
-        const addItem = () => {
-            form.items.push({ description: '', quantity: 1, unit_price: 0 });
-        };
+const processing = ref(false);
 
-        const removeItem = (index) => {
-            if (form.items.length > 1) {
-                form.items.splice(index, 1);
-            }
-        };
+const switchQuoteType = () => {
+    // Clear form fields when switching type
+    form.reservation_id = '';
+    form.customer_name = '';
+    form.customer_email = '';
+    form.customer_phone = '';
+};
 
-        const submitQuote = () => {
-            processing.value = true;
-            
-            // Validate based on quote type
-            if (form.quote_type === 'guest' && !form.reservation_id) {
-                processing.value = false;
-                return;
-            }
-            if (form.quote_type === 'outsider' && (!form.customer_name || !form.customer_email)) {
-                processing.value = false;
-                return;
-            }
-            
-            form.post(route('admin.quotes.store'), {
-                onSuccess: () => {
-                    processing.value = false;
-                },
-                onError: () => {
-                    processing.value = false;
-                }
-            });
-        };
+const addItem = () => {
+    form.items.push({ description: '', quantity: 1, unit_price: 0 });
+};
 
-        return {
-            themeColors,
-            form,
-            processing,
-            switchQuoteType,
-            addItem,
-            removeItem,
-            submitQuote
-        };
+const removeItem = (index) => {
+    if (form.items.length > 1) {
+        form.items.splice(index, 1);
     }
+};
+
+const submitQuote = () => {
+    processing.value = true;
+    
+    // Validate based on quote type
+    if (form.quote_type === 'guest' && !form.reservation_id) {
+        processing.value = false;
+        return;
+    }
+    if (form.quote_type === 'outsider' && (!form.customer_name || !form.customer_email)) {
+        processing.value = false;
+        return;
+    }
+    
+    form.post(route('admin.quotes.store'), {
+        onSuccess: () => {
+            processing.value = false;
+        },
+        onError: () => {
+            processing.value = false;
+        }
+    });
 };
 </script>

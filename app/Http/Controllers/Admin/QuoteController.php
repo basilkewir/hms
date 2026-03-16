@@ -149,7 +149,7 @@ class QuoteController extends Controller
             'status' => $validated['status'] ?? 'draft',
             'notes' => $validated['notes'] ?? null,
             'created_by' => auth()->id(),
-            'issue_date' => now()->date(),
+            'issue_date' => now()->toDateString(),
         ]);
 
         // Add items to quote
