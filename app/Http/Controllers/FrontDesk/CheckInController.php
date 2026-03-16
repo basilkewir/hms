@@ -290,10 +290,11 @@ class CheckInController extends Controller
 
         $folio = GuestFolio::where('reservation_id', $reservation->id)->first();
 
-        // Get the most recent payment for this check-in
-        $lastPayment = \App\Models\Payment::where('reservation_id', $reservation->id)
-            ->where('amount', '>', 0)
-            ->latest('processed_at')
+        // Get the most recent check-in payment (stored as a FolioCharge with charge_code 'PAYMENT')
+        $lastPaymentCharge = FolioCharge::where('reference_id', $reservation->id)
+            ->where('reference_type', 'reservation')
+            ->where('charge_code', 'PAYMENT')
+            ->latest('posted_at')
             ->first();
 
         $user = auth()->user();
@@ -307,19 +308,21 @@ class CheckInController extends Controller
             'receipt' => [
                 'reservation_number' => $reservation->reservation_number,
                 'guest_name' => $reservation->guest->full_name ?? 'N/A',
-                'room_number' => $reservation->room->room_number ?? 'N/A',
+                'room_number' => $reservation->room?->room_number ?? 'N/A',
                 'check_in_date' => $reservation->check_in_date?->format('Y-m-d'),
                 'check_out_date' => $reservation->check_out_date?->format('Y-m-d'),
                 'actual_check_in' => $reservation->actual_check_in?->format('Y-m-d H:i'),
                 'nights' => $reservation->check_in_date && $reservation->check_out_date
                     ? $reservation->check_in_date->diffInDays($reservation->check_out_date)
                     : 0,
-                'room_rate' => $reservation->room_rate ?? ($reservation->roomType->base_price ?? 0),
+                'room_rate' => $reservation->room_rate ?? ($reservation->roomType?->base_price ?? 0),
                 'total_amount' => $folio ? $folio->total_amount : ($reservation->total_amount ?? 0),
                 'paid_amount' => $folio ? $folio->paid_amount : ($reservation->paid_amount ?? 0),
                 'balance_amount' => $folio ? $folio->balance_amount : ($reservation->balance_amount ?? 0),
-                'payment_amount' => $lastPayment ? $lastPayment->amount : 0,
-                'payment_method' => $lastPayment ? $lastPayment->payment_method : 'cash',
+                'payment_amount' => $lastPaymentCharge ? abs($lastPaymentCharge->total_amount) : 0,
+                'payment_method' => $lastPaymentCharge
+                    ? (preg_match('/\((\w+)\)/', $lastPaymentCharge->description, $m) ? strtolower($m[1]) : 'cash')
+                    : 'cash',
                 'folio_number' => $folio->folio_number ?? null,
             ],
             'hotelName' => Setting::get('hotel_name', 'Hotel'),
