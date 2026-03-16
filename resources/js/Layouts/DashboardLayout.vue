@@ -4,6 +4,7 @@ import { Link, usePage } from '@inertiajs/vue3'
 import { useTheme } from '@/Composables/useTheme.js'
 import { navigationConfig, iconPaths } from '@/Config/navigation.js'
 import LanguageSwitcher from '@/Components/LanguageSwitcher.vue'
+import TutorialModal from '@/Components/TutorialModal.vue'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
@@ -161,6 +162,7 @@ function translateLabel(raw) {
 }
 
 const sidebarExpanded = ref(true), sidebarOpen = ref(false), sidebarHovered = ref(false), openSubmenus = ref([])
+const showTutorial = ref(false)
 const page = usePage(), currentUrl = computed(() => page.props.url)
 const user = computed(() => page.props.auth?.user || {})
 const userRoles = computed(() => user.value?.roles?.map(r => r.name) || [])
@@ -426,8 +428,23 @@ const getIconPath = (iconName) => iconPaths[iconName] || iconPaths.home
                     </template>
 
                 </nav>
+
+                <!-- Help & Tutorial button pinned to sidebar bottom -->
+                <div class="flex-shrink-0 border-t px-3 py-3" :style="{ borderColor: themeColors.border }">
+                    <button
+                        @click="showTutorial = true"
+                        class="flex items-center gap-3 w-full px-3 py-2 rounded-lg transition-colors text-sm font-medium hover:opacity-80"
+                        :style="{ color: themeColors.textSecondary }"
+                        title="Help & Tutorial"
+                    >
+                        <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke-width="2"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3m0 4h.01"/></svg>
+                        <span v-show="sidebarExpanded || sidebarHovered" class="whitespace-nowrap">Help &amp; Tutorial</span>
+                    </button>
+                </div>
             </div>
         </aside>
+
+        <TutorialModal :show="showTutorial" @close="showTutorial = false" />
         <div class="flex-1 xl:ml-[290px]" :class="{ 'xl:ml-[90px]': !sidebarExpanded && !sidebarHovered, 'ml-0': !sidebarOpen && windowWidth < 1280 }">
             <header class="sticky top-0 z-30 border-b" :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }">
                 <div class="flex items-center justify-between px-4 py-4">
