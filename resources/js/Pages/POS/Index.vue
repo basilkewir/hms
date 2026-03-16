@@ -346,6 +346,7 @@ import DashboardLayout from "@/Layouts/DashboardLayout.vue"
 import DialogModal from "@/Components/DialogModal.vue"
 import { formatCurrency as formatCurrencyUtil, initializeCurrencySettings } from "@/Utils/currency.js"
 import { useTheme } from "@/Composables/useTheme.js"
+import { printPopup } from "@/Utils/printReceipt.js"
 
 const { themeColors: originalThemeColors, currentTheme } = useTheme()
 
@@ -650,7 +651,52 @@ const closeSuccessModal = () => {
 }
 
 const printReceipt = () => {
-  window.print()
+  if (!lastSale.value) return
+  const s = lastSale.value
+  const fmt = (v) => formatCurrency(v ?? 0)
+  const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-US', { year:'numeric', month:'short', day:'numeric' }) : ''
+  const fmtTime = (d) => d ? new Date(d).toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit', hour12:true }) : ''
+  const items = (s.items || []).map(i => `
+    <div class="receipt-item">
+      <div class="receipt-item-name"><span class="item-emoji">${i.product?.emoji || '\uD83C\uDF7D\uFE0F'}</span><span>${i.product?.name || 'Item'}</span></div>
+      <div class="receipt-item-details"><span class="receipt-item-quantity">${i.quantity} × ${fmt(i.unit_price)}</span><span class="receipt-item-total">${fmt(i.total_price)}</span></div>
+    </div>`).join('')
+  const html = `
+    <div class="receipt-header">
+      <div class="receipt-hotel-name">${props.hotelName || 'Hotel'}</div>
+      ${props.hotelAddress ? `<div class="receipt-address">${props.hotelAddress}</div>` : ''}
+      ${props.hotelPhone ? `<div class="receipt-phone">Tel: ${props.hotelPhone}</div>` : ''}
+      ${props.hotelEmail ? `<div class="receipt-email">${props.hotelEmail}</div>` : ''}
+      <div class="receipt-divider"></div>
+    </div>
+    <div class="receipt-info">
+      <div class="receipt-row"><span>Receipt #:</span><span class="receipt-number">${s.sale_number || ''}</span></div>
+      <div class="receipt-row"><span>Date:</span><span>${fmtDate(s.sale_date || s.created_at)}</span></div>
+      <div class="receipt-row"><span>Time:</span><span>${fmtTime(s.sale_date || s.created_at)}</span></div>
+      ${s.user ? `<div class="receipt-row"><span>Staff:</span><span>${s.user.first_name || ''} ${s.user.last_name || ''}</span></div>` : ''}
+      <div class="receipt-row"><span>Payment:</span><span>${s.payment_method || 'Cash'}</span></div>
+      <div class="receipt-divider"></div>
+    </div>
+    <div class="receipt-items">
+      <div class="receipt-items-header"><span>Item</span><span>Total</span></div>
+      ${items}
+      <div class="receipt-divider"></div>
+    </div>
+    <div class="receipt-totals">
+      <div class="receipt-total-row"><span>Subtotal:</span><span>${fmt(s.subtotal)}</span></div>
+      ${(s.tax_amount > 0) ? `<div class="receipt-total-row"><span>Tax:</span><span>${fmt(s.tax_amount)}</span></div>` : ''}
+      ${(s.discount_amount > 0) ? `<div class="receipt-total-row discount"><span>Discount:</span><span>-${fmt(s.discount_amount)}</span></div>` : ''}
+      <div class="receipt-total-row grand-total"><span>TOTAL:</span><span>${fmt(s.total_amount)}</span></div>
+    </div>
+    <div class="receipt-footer">
+      <div class="receipt-divider"></div>
+      <div class="receipt-thank-you">Thank you!</div>
+    </div>`
+  // inject into hidden div then print
+  let el = document.getElementById('pos-receipt-popup')
+  if (!el) { el = document.createElement('div'); el.id = 'pos-receipt-popup'; el.style.display = 'none'; document.body.appendChild(el) }
+  el.innerHTML = html
+  printPopup('pos-receipt-popup', `Receipt – ${s.sale_number || ''}`, '80mm')
 }
 </script>
 

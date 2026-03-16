@@ -273,6 +273,7 @@ import DashboardLayout from '@/Layouts/DashboardLayout.vue'
 import { useTheme } from '@/Composables/useTheme.js'
 import { formatCurrency, initializeCurrencySettings } from '@/Utils/currency.js'
 import Receipt from '@/Components/Receipt.vue'
+import { printPopup } from '@/Utils/printReceipt.js'
 
 const { loadTheme } = useTheme()
 const themeColors = computed(() => ({
@@ -323,66 +324,17 @@ const getItemProfit = (item) => {
     return revenue - cost
 }
 
-const printSale = () => window.print()
+const printSale = () => printPopup('thermal-receipt', `Receipt – ${props.sale?.sale_number || ''}`, '80mm')
 
 onMounted(() => {
     initializeCurrencySettings()
     if (new URLSearchParams(window.location.search).get('print') === '1') {
-        setTimeout(() => window.print(), 500)
+        setTimeout(() => printSale(), 500)
     }
 })
 </script>
 
 <style>
-/* Screen: hide thermal receipt */
-#thermal-receipt {
-    display: none;
-}
-
-/* Print: single receipt, paper fits content */
-@media print {
-    @page {
-        size: 80mm auto;
-        margin: 0;
-    }
-
-    /* Constrain page to receipt width */
-    html, body {
-        width: 80mm !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        background: #fff !important;
-    }
-
-    /* Hide everything via visibility (lets descendants override) */
-    body * {
-        visibility: hidden !important;
-    }
-
-    /* Show only the receipt — position:absolute does NOT repeat across pages */
-    #thermal-receipt {
-        display: block !important;
-        position: absolute !important;
-        top: 0 !important;
-        left: 0 !important;
-        width: 80mm !important;
-        margin: 0 !important;
-        padding: 0 !important;
-    }
-
-    #thermal-receipt,
-    #thermal-receipt * {
-        visibility: visible !important;
-    }
-
-    /* Override Receipt component screen styles for print */
-    #thermal-receipt .receipt-container {
-        width: 80mm !important;
-        max-width: 80mm !important;
-        padding: 4mm !important;
-        margin: 0 !important;
-        box-shadow: none !important;
-        border-radius: 0 !important;
-    }
-}
+/* Hide thermal receipt on screen — it's only used by printPopup() */
+#thermal-receipt { display: none; }
 </style>

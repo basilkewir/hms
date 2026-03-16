@@ -6334,10 +6334,12 @@ Route::middleware(['auth', 'role:front_desk'])->prefix('front-desk')->name('fron
         $validated = $request->validate([
             'hall_id'        => 'required|exists:halls,id',
             'guest_id'       => 'nullable|exists:guests,id',
+            'contact_name'   => 'required|string|max:255',
+            'contact_email'  => 'nullable|email|max:255',
+            'contact_phone'  => 'nullable|string|max:50',
             'event_date'     => 'required|date',
             'start_time'     => 'required',
             'end_time'       => 'required',
-            'event_type'     => 'nullable|string|max:100',
             'attendees'      => 'nullable|integer|min:1',
             'notes'          => 'nullable|string',
         ]);
@@ -6352,15 +6354,17 @@ Route::middleware(['auth', 'role:front_desk'])->prefix('front-desk')->name('fron
             'booking_number' => 'HB-' . now()->format('Ymd-His') . '-' . random_int(1000, 9999),
             'hall_id'        => $validated['hall_id'],
             'guest_id'       => $validated['guest_id'] ?? null,
+            'contact_name'   => $validated['contact_name'],
+            'contact_email'  => $validated['contact_email'] ?? null,
+            'contact_phone'  => $validated['contact_phone'] ?? null,
             'event_date'     => $validated['event_date'],
             'start_time'     => $validated['start_time'],
             'end_time'       => $validated['end_time'],
-            'event_type'     => $validated['event_type'] ?? null,
-            'attendees'      => $validated['attendees'] ?? null,
+            'attendees'      => $validated['attendees'] ?? 1,
             'notes'          => $validated['notes'] ?? null,
             'total_amount'   => $total,
             'status'         => 'pending',
-            'booked_by'      => auth()->id(),
+            'created_by'     => auth()->id(),
         ]);
 
         return back()->with('success', 'Hall booking created successfully.');

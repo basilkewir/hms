@@ -311,31 +311,7 @@ const formatPaymentMethod = (method) => {
   margin-top: 6px;
 }
 
-/* Print Styles */
-@media print {
-  .receipt-container {
-    max-width: 100%;
-    padding: 4mm;
-    box-shadow: none;
-    border-radius: 0;
-  }
-  
-  .receipt-logo {
-    max-height: 40px;
-  }
-  
-  @page {
-    size: 80mm auto;
-    margin: 0;
-  }
-  
-  body {
-    margin: 0;
-    padding: 0;
-  }
-}
-
-/* Screen display styles */
+/* Screen display only — printing is handled by printPopup() in the parent */
 @media screen {
   .receipt-container {
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);

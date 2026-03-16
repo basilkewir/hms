@@ -378,7 +378,20 @@ const getIconPath = (iconName) => iconPaths[iconName] || iconPaths.home
                             <!-- Flat direct-link items -->
                             <ul v-if="section.flat" class="space-y-1">
                                 <li v-for="item in section.items" :key="item.label">
-                                    <Link :href="resolveHref(item)"
+                                    <!-- Tutorial trigger item -->
+                                    <button v-if="item.tutorial"
+                                        @click="showTutorial = true"
+                                        class="sidebar-menu-item sidebar-menu-item-inactive w-full text-left"
+                                    >
+                                        <span class="sidebar-menu-icon">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="getIconPath(item.icon || 'help')"/>
+                                            </svg>
+                                        </span>
+                                        <span class="sidebar-menu-text">{{ translateLabel(item.label) }}</span>
+                                    </button>
+                                    <!-- Normal nav link -->
+                                    <Link v-else :href="resolveHref(item)"
                                           class="sidebar-menu-item"
                                           :class="isActive(resolveHref(item)) ? 'sidebar-menu-item-active' : 'sidebar-menu-item-inactive'">
                                         <span class="sidebar-menu-icon">
@@ -453,6 +466,18 @@ const getIconPath = (iconName) => iconPaths[iconName] || iconPaths.home
                         <div class="relative"><input type="text" placeholder="Search..." class="w-full pl-10 pr-4 py-2 border rounded-lg" :style="{ backgroundColor: themeColors.background, borderColor: themeColors.border, color: themeColors.textPrimary }" /><svg class="absolute left-3 top-2.5 w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" :style="{ color: themeColors.textTertiary }"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg></div>
                     </div>
                     <div class="flex items-center gap-4">
+                        <!-- Help & Tutorial button – always visible in header -->
+                        <button
+                            @click="showTutorial = true"
+                            class="p-2 rounded-lg transition-colors hover:opacity-80"
+                            :style="{ color: themeColors.textTertiary }"
+                            title="Help & Tutorial"
+                        >
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <circle cx="12" cy="12" r="10" stroke-width="2"/>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3m0 4h.01"/>
+                            </svg>
+                        </button>
                         <Link href="/pos" class="p-2 rounded-lg" :style="{ color: themeColors.textTertiary }" title="POS Terminal">
                         <!-- New POS Terminal Icon - Cash Register -->
                         <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

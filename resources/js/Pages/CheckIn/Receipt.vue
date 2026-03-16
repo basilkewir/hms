@@ -139,6 +139,7 @@ import DashboardLayout from '@/Layouts/DashboardLayout.vue'
 import { getNavigationForRole } from '@/Utils/navigation.js'
 import { formatCurrency } from '@/Utils/currency.js'
 import { useTheme } from '@/Composables/useTheme.js'
+import { printPopup } from '@/Utils/printReceipt.js'
 
 const { loadTheme } = useTheme()
 const themeColors = computed(() => ({
@@ -191,58 +192,12 @@ const formatPaymentMethod = (method) => {
 }
 
 function printReceipt() {
-    const el = document.getElementById('checkin-receipt-print')
-    if (!el) return
-    const printWin = window.open('', '_blank', 'width=700,height=900')
-    if (!printWin) { window.print(); return }
-    printWin.document.write(`<!DOCTYPE html><html><head>
-<meta charset="utf-8"><title>Check-In Receipt</title>
-<style>
-*{box-sizing:border-box;}
-body{font-family:'Segoe UI',Arial,sans-serif;font-size:13px;color:#000;background:#fff;padding:16px;margin:0;}
-.flex{display:flex;} .justify-between{justify-content:space-between;} .items-center{align-items:center;}
-.grid{display:grid;} .grid-cols-2{grid-template-columns:repeat(2,1fr);}
-.gap-4{gap:1rem;} .space-y-1>*+*{margin-top:0.25rem;} .space-y-2>*+*{margin-top:0.5rem;}
-.text-center{text-align:center;} .text-sm{font-size:0.875rem;} .text-xs{font-size:0.75rem;}
-.font-semibold{font-weight:600;} .font-bold{font-weight:700;} .font-medium{font-weight:500;} .font-mono{font-family:monospace;}
-.text-gray-500{color:#6b7280;} .text-gray-600{color:#4b5563;} .text-gray-700{color:#374151;}
-.text-blue-700{color:#1e40af;} .text-green-600{color:#16a34a;} .text-green-700{color:#15803d;} .text-red-600{color:#dc2626;}
-.border-t{border-top:1px solid #e5e7eb;} .border-b{border-bottom:1px solid #e5e7eb;}
-.border-t-2{border-top:2px solid #d1d5db;} .border-b-2{border-bottom:2px solid #d1d5db;}
-.border-gray-300{border-color:#d1d5db;} .rounded-lg{border-radius:0.5rem;}
-.pb-4{padding-bottom:1rem;} .mb-6{margin-bottom:1.5rem;} .mb-3{margin-bottom:0.75rem;} .mb-1{margin-bottom:0.25rem;} .mb-2{margin-bottom:0.5rem;}
-.mt-1{margin-top:0.25rem;} .mt-2{margin-top:0.5rem;} .mt-3{margin-top:0.75rem;} .mt-6{margin-top:1.5rem;}
-.p-4{padding:1rem;} .pt-4{padding-top:1rem;} .py-1{padding-top:0.25rem;padding-bottom:0.25rem;}
-.py-2{padding-top:0.5rem;padding-bottom:0.5rem;}
-.h-16{height:4rem;} .max-w-xs{max-width:20rem;} .object-contain{object-fit:contain;} .mx-auto{margin-left:auto;margin-right:auto;}
-.capitalize{text-transform:capitalize;}
-@page{size:A4;margin:10mm;}
-</style></head><body>
-${el.outerHTML}
-</body></html>`)
-    printWin.document.close()
-    printWin.onload = () => { printWin.print(); printWin.onafterprint = () => printWin.close() }
+    printPopup('checkin-receipt-print', 'Check-In Receipt', '80mm')
 }
 </script>
 
 <style scoped>
-@media print {
-    .no-print { display: none !important; }
-}
-#checkin-receipt-print {
-    background: #ffffff !important;
-    color: #000000 !important;
-}
-@media print {
-    #checkin-receipt-print * {
-        color: #000000 !important;
-        background-color: #ffffff !important;
-        background-image: none !important;
-        box-shadow: none !important;
-    }
-    #checkin-receipt-print .text-green-600,
-    #checkin-receipt-print .text-green-700 { color: #059669 !important; }
-    #checkin-receipt-print .text-red-600 { color: #dc2626 !important; }
-    #checkin-receipt-print .text-blue-700 { color: #1e40af !important; }
-}
+.no-print { display: none; }
+@media screen { .no-print { display: flex; } }
+#checkin-receipt-print { background: #ffffff; color: #000000; }
 </style>
