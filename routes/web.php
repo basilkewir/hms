@@ -3366,37 +3366,98 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
     })->name('work-shifts.unassign');
 
     // Schedules
-    Route::get('/schedules', function () {
+    Route::get('/schedules', function (\Illuminate\Http\Request $request) {
         $user = auth()->user()->load('roles');
-        $role = $user->roles->first()?->name ?? 'staff';
+        $role = $user->roles->first()?->name ?? 'admin';
 
-        // Get work shifts
-        $workShifts = \App\Models\WorkShift::with(['employeeShifts.user'])
-            ->orderBy('start_time', 'asc')
-            ->get();
+        $weekStart = $request->get('week_start')
+            ? \Carbon\Carbon::parse($request->get('week_start'))->startOfWeek()
+            : \Carbon\Carbon::now()->startOfWeek();
+        $weekEnd = $weekStart->copy()->endOfWeek();
 
-        // Get all users for assignment
-        $staffUsers = \App\Models\User::with('roles')
+        $workShifts = \App\Models\WorkShift::where('is_active', true)
+            ->orderBy('start_time')
+            ->get(['id', 'name', 'start_time', 'end_time', 'hours', 'is_overnight']);
+
+        $staffUsers = \App\Models\User::where('is_active', true)
             ->orderBy('first_name')
             ->orderBy('last_name')
-            ->get(['id', 'first_name', 'last_name', 'email', 'employee_id']);
-
-        // Get current week's employee shifts
-        $currentWeekStart = \Carbon\Carbon::now()->startOfWeek();
-        $currentWeekEnd = \Carbon\Carbon::now()->endOfWeek();
+            ->get(['id', 'first_name', 'last_name', 'department', 'employee_id']);
 
         $employeeShifts = \App\Models\EmployeeShift::with(['user', 'workShift'])
-            ->whereBetween('effective_date', [$currentWeekStart, $currentWeekEnd])
+            ->whereBetween('effective_date', [$weekStart, $weekEnd])
             ->get();
 
+        // Build employee-based schedule view (7 days)
+        $users = \App\Models\User::with(['employeeShifts' => function($q) use ($weekStart, $weekEnd) {
+            $q->whereBetween('effective_date', [$weekStart, $weekEnd])
+              ->where('is_active', true)
+              ->with('workShift');
+        }])->where('is_active', true)->get();
+
+        $scheduleData = $users->map(function($u) use ($weekStart) {
+            $shifts = [];
+            $cur = $weekStart->copy();
+            for ($i = 0; $i < 7; $i++) {
+                $shift = $u->employeeShifts->first(fn($s) =>
+                    $s->effective_date == $cur->toDateString() ||
+                    ($s->days_of_week && in_array($cur->dayOfWeek, $s->days_of_week))
+                );
+                $shifts[] = $shift && $shift->workShift ? [
+                    'id'           => $shift->id,
+                    'work_shift_id'=> $shift->work_shift_id,
+                    'start'        => \Carbon\Carbon::parse($shift->workShift->start_time)->format('H:i'),
+                    'end'          => \Carbon\Carbon::parse($shift->workShift->end_time)->format('H:i'),
+                    'type'         => $shift->workShift->is_overnight ? 'night' : 'regular',
+                ] : null;
+                $cur->addDay();
+            }
+            return [
+                'id'         => $u->id,
+                'name'       => trim(($u->first_name ?? '') . ' ' . ($u->last_name ?? '')),
+                'department' => $u->department ?? 'general',
+                'shifts'     => $shifts,
+            ];
+        })->values();
+
+        $thisWeekShifts  = $employeeShifts->count();
+        $scheduledStaff  = $employeeShifts->pluck('user_id')->unique()->count();
+        $totalHours      = $employeeShifts->sum(fn($s) => optional($s->workShift)->hours ?? 0);
+        $scheduleStats   = [
+            'thisWeek'       => $thisWeekShifts,
+            'scheduledStaff' => $scheduledStaff,
+            'conflicts'      => 0,
+            'totalHours'     => $totalHours,
+        ];
+
+        $scheduleRequests = \App\Models\LeaveRequest::with('user')
+            ->where('status', 'pending')
+            ->orderBy('created_at', 'desc')
+            ->get()
+            ->map(fn($r) => [
+                'id'            => $r->id,
+                'employee_name' => trim(($r->user->first_name ?? '') . ' ' . ($r->user->last_name ?? '')),
+                'employee_id'   => $r->user->employee_id ?? 'EMP' . $r->user->id,
+                'type'          => $r->leave_type,
+                'date_time'     => \Carbon\Carbon::parse($r->start_date)->format('M d, Y') . ' - ' . \Carbon\Carbon::parse($r->end_date)->format('M d, Y'),
+                'reason'        => $r->reason,
+                'status'        => $r->status,
+            ]);
+
         return Inertia::render('Admin/Schedules/Index', [
-            'user' => $user,
-            'navigation' => app(DashboardController::class)->getNavigationForRole($role),
-            'workShifts' => $workShifts,
-            'staffUsers' => $staffUsers,
-            'employeeShifts' => $employeeShifts,
-            'currentWeekStart' => $currentWeekStart->format('Y-m-d'),
-            'currentWeekEnd' => $currentWeekEnd->format('Y-m-d')
+            'user'             => $user,
+            'navigation'       => app(DashboardController::class)->getNavigationForRole($role),
+            'workShifts'       => $workShifts,
+            'staffUsers'       => $staffUsers,
+            'employeeShifts'   => $employeeShifts,
+            'currentWeekStart' => $weekStart->format('Y-m-d'),
+            'currentWeekEnd'   => $weekEnd->format('Y-m-d'),
+            'scheduleStats'    => $scheduleStats,
+            'scheduleData'     => $scheduleData,
+            'scheduleRequests' => $scheduleRequests,
+            'currentWeek'      => $weekStart->format('M d') . ' - ' . $weekEnd->format('M d, Y'),
+            'weekStart'        => $weekStart->toDateString(),
+            'weekDays'         => ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
         ]);
     })->name('schedules.index');
 

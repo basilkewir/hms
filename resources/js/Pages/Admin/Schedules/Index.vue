@@ -1,254 +1,177 @@
 <template>
     <DashboardLayout title="Employee Schedules" :user="user" :navigation="navigation">
-        <!-- Header Section -->
-        <div class="shadow rounded-lg p-6 mb-8"
-             :style="{ 
-                 backgroundColor: themeColors.card,
-                 borderColor: themeColors.border 
-             }">
+        <!-- Header -->
+        <div class="shadow rounded-lg p-6 mb-8 border" :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }">
             <div class="flex items-center justify-between">
                 <div>
-                    <h1 class="text-2xl font-bold mb-2"
-                        :style="{ color: themeColors.textPrimary }">Employee Schedules</h1>
-                    <p class="text-sm"
-                       :style="{ color: themeColors.textSecondary }">Manage employee work schedules and assignments.</p>
+                    <h1 class="text-2xl font-bold" :style="{ color: themeColors.textPrimary }">Employee Schedules</h1>
+                    <p class="mt-2" :style="{ color: themeColors.textSecondary }">Manage employee work schedules and assignments.</p>
                 </div>
-                <div class="flex items-center gap-3">
-                    <button @click="exportSchedule" 
-                            class="px-4 py-2 rounded-md transition-colors font-medium text-white flex items-center"
-                            :style="{ 
-                                backgroundColor: '#8b5cf6',
-                            }"
-                            @mouseenter="$event.target.style.backgroundColor = '#7c3aed'"
-                            @mouseleave="$event.target.style.backgroundColor = '#8b5cf6'">
-                        <DocumentArrowDownIcon class="h-4 w-4 mr-2" />
+                <div class="flex space-x-3">
+                    <button @click="printSchedule"
+                            class="px-4 py-2 rounded-md hover:opacity-90 transition-opacity"
+                            :style="{ backgroundColor: themeColors.border, color: themeColors.textPrimary }">
+                        Print
+                    </button>
+                    <button @click="exportSchedule"
+                            class="px-4 py-2 rounded-md hover:opacity-90 transition-opacity"
+                            :style="{ backgroundColor: themeColors.success, color: '#000' }">
                         Export CSV
                     </button>
+                    <button @click="generateSchedule"
+                            class="px-4 py-2 rounded-md hover:opacity-90 transition-opacity"
+                            :style="{ backgroundColor: themeColors.warning, color: '#000' }">
+                        <CalendarIcon class="h-4 w-4 mr-2 inline" />
+                        Auto Generate
+                    </button>
                     <button @click="addSchedule"
-                            class="px-4 py-2 rounded-md transition-colors font-medium text-white flex items-center"
-                            :style="{ 
-                                backgroundColor: themeColors.primary,
-                            }"
-                            @mouseenter="$event.target.style.backgroundColor = themeColors.hover"
-                            @mouseleave="$event.target.style.backgroundColor = themeColors.primary">
-                        <PlusIcon class="h-4 w-4 mr-2" />
+                            class="px-4 py-2 rounded-md hover:opacity-90 transition-opacity"
+                            :style="{ backgroundColor: themeColors.primary, color: '#000' }">
+                        <PlusIcon class="h-4 w-4 mr-2 inline" />
                         Add Schedule
                     </button>
                 </div>
             </div>
         </div>
 
-        <!-- Schedule Overview Stats -->
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-8">
-            <div class="rounded-lg p-6 border shadow-sm"
-                 :style="{ 
-                     backgroundColor: themeColors.card,
-                     borderColor: themeColors.border,
-                     borderStyle: 'solid',
-                     borderWidth: '1px'
-                 }">
+        <div v-if="errorMessage" class="rounded-lg p-4 mb-6 border" :style="{ backgroundColor: themeColors.danger, borderColor: themeColors.border, color: '#000' }">
+            {{ errorMessage }}
+        </div>
+
+        <!-- Schedule Overview -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <div class="rounded-lg shadow p-6 border" :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }">
                 <div class="flex items-center">
-                    <div class="w-12 h-12 rounded-lg flex items-center justify-center mr-4"
-                         :style="{ backgroundColor: 'rgba(59, 130, 246, 0.1)' }">
-                        <CalendarDaysIcon class="h-6 w-6" :style="{ color: themeColors.primary }" />
-                    </div>
+                    <CalendarDaysIcon class="h-8 w-8 mr-4" :style="{ color: themeColors.primary }" />
                     <div>
-                        <p class="text-sm font-medium mb-1"
-                           :style="{ color: themeColors.textSecondary }">This Week</p>
-                        <p class="text-2xl font-bold"
-                           :style="{ color: themeColors.textPrimary }">{{ scheduleStats?.thisWeek || 0 }}</p>
+                        <p class="text-sm font-medium" :style="{ color: themeColors.textSecondary }">This Week</p>
+                        <p class="text-2xl font-bold" :style="{ color: themeColors.textPrimary }">{{ scheduleStats.thisWeek }}</p>
                     </div>
                 </div>
             </div>
-            <div class="rounded-lg p-6 border shadow-sm"
-                 :style="{ 
-                     backgroundColor: themeColors.card,
-                     borderColor: themeColors.border,
-                     borderStyle: 'solid',
-                     borderWidth: '1px'
-                 }">
+            <div class="rounded-lg shadow p-6 border" :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }">
                 <div class="flex items-center">
-                    <div class="w-12 h-12 rounded-lg flex items-center justify-center mr-4"
-                         :style="{ backgroundColor: 'rgba(34, 197, 94, 0.1)' }">
-                        <UsersIcon class="h-6 w-6" :style="{ color: themeColors.success }" />
-                    </div>
+                    <UsersIcon class="h-8 w-8 mr-4" :style="{ color: themeColors.success }" />
                     <div>
-                        <p class="text-sm font-medium mb-1"
-                           :style="{ color: themeColors.textSecondary }">Scheduled Staff</p>
-                        <p class="text-2xl font-bold"
-                           :style="{ color: themeColors.textPrimary }">{{ scheduleStats?.scheduledStaff || 0 }}</p>
+                        <p class="text-sm font-medium" :style="{ color: themeColors.textSecondary }">Scheduled Staff</p>
+                        <p class="text-2xl font-bold" :style="{ color: themeColors.textPrimary }">{{ scheduleStats.scheduledStaff }}</p>
                     </div>
                 </div>
             </div>
-            <div class="rounded-lg p-6 border shadow-sm"
-                 :style="{ 
-                     backgroundColor: themeColors.card,
-                     borderColor: themeColors.border,
-                     borderStyle: 'solid',
-                     borderWidth: '1px'
-                 }">
+            <div class="rounded-lg shadow p-6 border" :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }">
                 <div class="flex items-center">
-                    <div class="w-12 h-12 rounded-lg flex items-center justify-center mr-4"
-                         :style="{ backgroundColor: 'rgba(250, 204, 21, 0.1)' }">
-                        <ExclamationTriangleIcon class="h-6 w-6" :style="{ color: themeColors.warning }" />
-                    </div>
+                    <ExclamationTriangleIcon class="h-8 w-8 mr-4" :style="{ color: themeColors.warning }" />
                     <div>
-                        <p class="text-sm font-medium mb-1"
-                           :style="{ color: themeColors.textSecondary }">Conflicts</p>
-                        <p class="text-2xl font-bold"
-                           :style="{ color: themeColors.textPrimary }">{{ scheduleStats?.conflicts || 0 }}</p>
+                        <p class="text-sm font-medium" :style="{ color: themeColors.textSecondary }">Conflicts</p>
+                        <p class="text-2xl font-bold" :style="{ color: themeColors.textPrimary }">{{ scheduleStats.conflicts }}</p>
                     </div>
                 </div>
             </div>
-            <div class="rounded-lg p-6 border shadow-sm"
-                 :style="{ 
-                     backgroundColor: themeColors.card,
-                     borderColor: themeColors.border,
-                     borderStyle: 'solid',
-                     borderWidth: '1px'
-                 }">
+            <div class="rounded-lg shadow p-6 border" :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }">
                 <div class="flex items-center">
-                    <div class="w-12 h-12 rounded-lg flex items-center justify-center mr-4"
-                         :style="{ backgroundColor: 'rgba(139, 92, 246, 0.1)' }">
-                        <ClockIcon class="h-6 w-6" :style="{ color: '#8b5cf6' }" />
-                    </div>
+                    <ClockIcon class="h-8 w-8 mr-4" :style="{ color: themeColors.secondary }" />
                     <div>
-                        <p class="text-sm font-medium mb-1"
-                           :style="{ color: themeColors.textSecondary }">Total Hours</p>
-                        <p class="text-2xl font-bold"
-                           :style="{ color: themeColors.textPrimary }">{{ scheduleStats?.totalHours || 0 }}</p>
+                        <p class="text-sm font-medium" :style="{ color: themeColors.textSecondary }">Total Hours</p>
+                        <p class="text-2xl font-bold" :style="{ color: themeColors.textPrimary }">{{ scheduleStats.totalHours }}</p>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Hourly Schedule Grid -->
-        <div class="shadow-lg rounded-xl p-4 mb-8"
-             :style="{ 
-                 backgroundColor: themeColors.card,
-                 borderColor: themeColors.border,
-                 borderStyle: 'solid',
-                 borderWidth: '1px'
-             }">
+        <!-- Weekly Calendar View -->
+        <div class="shadow-lg rounded-xl p-4 mb-8 border max-h-[70vh] flex flex-col" :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }">
             <div class="flex items-center justify-between mb-4">
                 <div>
-                    <h3 class="text-xl font-bold mb-1"
-                        :style="{ color: themeColors.textPrimary }">Weekly Hourly Schedule</h3>
-                    <p class="text-sm"
-                       :style="{ color: themeColors.textSecondary }">Click on any time slot to assign a worker</p>
+                    <h3 class="text-xl font-bold" :style="{ color: themeColors.textPrimary }">Weekly Schedule</h3>
+                    <p class="text-sm mt-1" :style="{ color: themeColors.textSecondary }">View and manage employee shifts for the week</p>
                 </div>
-                <div class="flex items-center space-x-3 px-3 py-2 rounded-lg"
-                     :style="{ 
-                         backgroundColor: themeColors.background,
-                         borderColor: themeColors.border,
-                         borderStyle: 'solid',
-                         borderWidth: '1px'
-                     }">
-                    <button @click="previousWeek" 
-                            class="p-1.5 rounded-md transition-colors"
-                            :style="{ color: themeColors.textSecondary }"
-                            @mouseenter="$event.target.style.backgroundColor = themeColors.hover"
-                            @mouseleave="$event.target.style.backgroundColor = 'transparent'">
+                <div class="flex items-center space-x-3 rounded-lg px-3 py-2 border" :style="{ backgroundColor: themeColors.background, borderColor: themeColors.border }">
+                    <button @click="previousWeek"
+                            class="p-1.5 rounded-md transition-opacity hover:opacity-80" :style="{ color: themeColors.textPrimary }">
                         <ChevronLeftIcon class="h-5 w-5" />
                     </button>
-                    <span class="text-sm font-semibold px-3"
-                          :style="{ color: themeColors.textPrimary }">{{ currentWeekRange }}</span>
-                    <button @click="nextWeek" 
-                            class="p-1.5 rounded-md transition-colors"
-                            :style="{ color: themeColors.textSecondary }"
-                            @mouseenter="$event.target.style.backgroundColor = themeColors.hover"
-                            @mouseleave="$event.target.style.backgroundColor = 'transparent'">
+                    <span class="text-sm font-semibold px-3" :style="{ color: themeColors.textPrimary }">{{ currentWeek }}</span>
+                    <button @click="nextWeek"
+                            class="p-1.5 rounded-md transition-opacity hover:opacity-80" :style="{ color: themeColors.textPrimary }">
                         <ChevronRightIcon class="h-5 w-5" />
                     </button>
                 </div>
             </div>
 
-            <div class="overflow-auto max-h-[70vh] rounded-lg border relative"
-                 :style="{ 
-                     borderColor: themeColors.border,
-                     borderStyle: 'solid',
-                     borderWidth: '1px'
-                 }">
+            <div class="overflow-x-auto rounded-lg border flex-1" :style="{ borderColor: themeColors.border }">
                 <table class="min-w-full text-xs">
                     <thead>
                         <tr :style="{ backgroundColor: themeColors.background }">
-                            <th class="sticky left-0 z-20 text-left py-3 px-4 font-semibold"
-                                :style="{ 
-                                    color: themeColors.textSecondary,
-                                    borderColor: themeColors.border,
-                                    borderStyle: 'solid',
-                                    borderWidth: '1px',
-                                    backgroundColor: themeColors.card
-                                }">
-                                Time
+                            <th class="text-left py-3 px-4 font-semibold sticky left-0 z-10 border-r" :style="{ backgroundColor: themeColors.background, borderColor: themeColors.border, color: themeColors.textPrimary }">
+                                <div class="flex items-center space-x-2">
+                                    <UsersIcon class="h-5 w-5" :style="{ color: themeColors.textSecondary }" />
+                                    <span>Team Member</span>
+                                </div>
                             </th>
-                            <th v-for="day in weekDays" :key="day"
-                                class="sticky top-0 z-10 text-center py-3 px-3 font-semibold min-w-[120px]"
-                                :style="{ 
-                                    color: themeColors.textSecondary,
-                                    borderColor: themeColors.border,
-                                    borderStyle: 'solid',
-                                    borderWidth: '1px',
-                                    backgroundColor: themeColors.card
-                                }">
+                            <th v-for="(day, dayIndex) in weekDays" :key="day"
+                                class="text-center py-3 px-3 font-semibold min-w-[110px] border-r last:border-r-0" :style="{ borderColor: themeColors.border, color: themeColors.textPrimary }">
                                 <div class="flex flex-col items-center space-y-1">
-                                    <span class="text-xs font-medium uppercase tracking-wider" :style="{ color: themeColors.textTertiary }">{{ day }}</span>
-                                    <span class="text-xs" :style="{ color: themeColors.textTertiary }">{{ getDayDate(day) }}</span>
+                                    <span class="text-xs font-medium uppercase tracking-wider" :style="{ color: themeColors.textSecondary }">{{ day }}</span>
+                                    <span class="text-xs" :style="{ color: themeColors.textTertiary }">{{ getDayDate(dayIndex) }}</span>
                                 </div>
                             </th>
                         </tr>
                     </thead>
-                    <tbody :style="{ backgroundColor: themeColors.card }">
-                        <tr v-for="hour in hours" :key="hour" 
-                            class="transition-colors">
-                            <td class="sticky left-0 z-10 py-2 px-4 font-medium text-xs"
-                                :style="{ 
-                                    backgroundColor: themeColors.card,
-                                    borderColor: themeColors.border,
-                                    borderStyle: 'solid',
-                                    borderWidth: '1px',
-                                    color: themeColors.textSecondary
-                                }">
-                                {{ hour }}
-                            </td>
-                            <td v-for="day in weekDays" :key="`${hour}-${day}`"
-                                class="py-1 px-1 text-center align-top min-h-[60px] relative"
-                                :style="{ 
-                                    borderColor: themeColors.border,
-                                    borderStyle: 'solid',
-                                    borderWidth: '1px'
-                                }">
-                                <div class="h-full min-h-[50px]">
-                                    <div v-for="assignment in getAssignmentsForSlot(day, hour)" 
-                                         :key="assignment.id"
-                                         class="absolute inset-x-0 top-0 p-1 cursor-pointer hover:shadow-md transition-all rounded"
-                                         :class="getAssignmentColorClass(assignment.type)"
-                                         @click="editAssignment(assignment)">
-                                        <div class="text-xs font-medium truncate">
-                                            {{ assignment.user_name }}
-                                        </div>
-                                        <div class="text-xs opacity-75">
-                                            {{ assignment.shift_name }}
+                    <tbody class="divide-y" :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }">
+                        <tr v-for="employee in scheduleData" :key="employee.id"
+                            class="transition-colors group" :style="hoveredRow === employee.id ? { backgroundColor: themeColors.hover } : {}" @mouseenter="hoveredRow = employee.id" @mouseleave="hoveredRow = null">
+                            <td class="py-2.5 px-4 sticky left-0 z-10 border-r" :style="{ backgroundColor: hoveredRow === employee.id ? themeColors.hover : themeColors.card, borderColor: themeColors.border }">
+                                <div class="flex items-center space-x-3">
+                                    <div class="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center shadow-sm">
+                                        <span class="text-[11px] font-bold text-white">
+                                            {{ getInitials(employee.name) }}
+                                        </span>
+                                    </div>
+                                    <div class="min-w-0">
+                                        <div class="text-xs font-semibold truncate" :style="{ color: themeColors.textPrimary }">{{ employee.name }}</div>
+                                        <div class="text-xs flex items-center mt-0.5" :style="{ color: themeColors.textSecondary }">
+                                            <span class="w-1.5 h-1.5 rounded-full mr-1.5" :style="{ backgroundColor: themeColors.textTertiary }"></span>
+                                            {{ formatDepartment(employee.department) }}
                                         </div>
                                     </div>
-                                    <div v-if="getAssignmentsForSlot(day, hour).length === 0"
-                                         class="h-full flex items-center justify-center cursor-pointer hover:bg-opacity-20 rounded group/slot transition-all min-h-[50px] border-2"
-                                         :style="{ 
-                                             borderColor: themeColors.border, 
-                                             borderStyle: 'dashed', 
-                                             borderWidth: '1px',
-                                             backgroundColor: 'transparent'
-                                         }"
-                                         @click="openAssignmentModal(day, hour)"
-                                         @mouseenter="$event.target.style.backgroundColor = 'rgba(59, 130, 246, 0.1)'"
-                                         @mouseleave="$event.target.style.backgroundColor = 'transparent'">
-                                        <div class="opacity-0 group-hover/slot:opacity-100 transition-all">
-                                            <PlusIcon class="h-4 w-4 mx-auto mb-1" :style="{ color: themeColors.primary }" />
-                                            <div class="text-xs font-medium" :style="{ color: themeColors.primary }">Add</div>
+                                </div>
+                            </td>
+                            <td v-for="(shift, dayIndex) in employee.shifts" :key="dayIndex"
+                                class="py-2 px-2 text-center align-top border-r last:border-r-0" :style="{ borderColor: themeColors.border }">
+                                <div v-if="shift"
+                                     class="group/shift relative">
+                                    <div class="cursor-pointer hover:shadow-lg transition-all rounded-lg p-1.5 border-2 min-h-[44px] flex items-center justify-center"
+                                         :class="getShiftColorClass(shift.type)"
+                                         @click="editSchedule(employee, dayIndex)">
+                                        <div class="flex flex-col items-center space-y-1">
+                                            <div class="text-xs font-bold">{{ formatTime(shift.start) }}</div>
+                                            <div class="w-8 h-0.5 bg-current opacity-50"></div>
+                                            <div class="text-xs font-bold">{{ formatTime(shift.end) }}</div>
                                         </div>
-                                        <div class="opacity-100 group-hover/slot:opacity-0 transition-opacity">
-                                            <span class="text-xs" :style="{ color: themeColors.textTertiary }">—</span>
-                                        </div>
+                                    </div>
+                                    <div class="absolute top-1 right-1 opacity-0 group-hover/shift:opacity-100 transition-opacity flex space-x-1">
+                                        <button @click.stop="editSchedule(employee, dayIndex)"
+                                                class="p-1 rounded shadow-sm transition-opacity hover:opacity-80"
+                                                :style="{ backgroundColor: themeColors.card, color: themeColors.primary, border: `1px solid ${themeColors.border}` }">
+                                            <PencilIcon class="h-3 w-3" />
+                                        </button>
+                                        <button @click.stop="deleteSchedule(employee, dayIndex)"
+                                                class="p-1 rounded shadow-sm transition-opacity hover:opacity-80"
+                                                :style="{ backgroundColor: themeColors.card, color: themeColors.danger, border: `1px solid ${themeColors.border}` }">
+                                            <TrashIcon class="h-3 w-3" />
+                                        </button>
+                                    </div>
+                                </div>
+                                <div v-else
+                                     class="empty-cell h-12 flex items-center justify-center border-2 border-dashed rounded-lg transition-all cursor-pointer group/empty"
+                                     :style="hoveredRow === employee.id ? { borderColor: themeColors.primary, backgroundColor: themeColors.hover } : { borderColor: themeColors.border }"
+                                     @click="addScheduleForEmployee(employee, dayIndex)">
+                                    <div class="text-center opacity-0 group-hover/empty:opacity-100 transition-opacity">
+                                        <PlusIcon class="h-5 w-5 mx-auto mb-1" :style="{ color: themeColors.primary }" />
+                                        <span class="text-xs font-medium" :style="{ color: themeColors.primary }">Add Shift</span>
+                                    </div>
+                                    <div class="text-center group-hover/empty:hidden">
+                                        <span class="text-xs" :style="{ color: themeColors.textTertiary }">—</span>
                                     </div>
                                 </div>
                             </td>
@@ -259,54 +182,55 @@
         </div>
 
         <!-- Schedule Requests -->
-        <div :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }" 
-             class="shadow rounded-lg overflow-hidden border">
-            <div :style="{ borderColor: themeColors.border }" class="px-6 py-4 border-b">
-                <h3 :style="{ color: themeColors.textPrimary }" class="text-lg font-medium">Schedule Requests</h3>
+        <div class="shadow rounded-lg overflow-hidden border" :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }">
+            <div class="px-6 py-4 border-b" :style="{ borderColor: themeColors.border }">
+                <h3 class="text-lg font-medium" :style="{ color: themeColors.textPrimary }">Schedule Requests</h3>
             </div>
             <div class="overflow-x-auto">
                 <table class="min-w-full">
                     <thead :style="{ backgroundColor: themeColors.background }">
                         <tr>
-                            <th :style="{ color: themeColors.textSecondary }" 
-                                class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Employee</th>
-                            <th :style="{ color: themeColors.textSecondary }" 
-                                class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Request Type</th>
-                            <th :style="{ color: themeColors.textSecondary }" 
-                                class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Date/Time</th>
-                            <th :style="{ color: themeColors.textSecondary }" 
-                                class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Reason</th>
-                            <th :style="{ color: themeColors.textSecondary }" 
-                                class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Status</th>
-                            <th :style="{ color: themeColors.textSecondary }" 
-                                class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Actions</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" :style="{ color: themeColors.textSecondary }">
+                                Employee
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" :style="{ color: themeColors.textSecondary }">
+                                Request Type
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" :style="{ color: themeColors.textSecondary }">
+                                Date/Time
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" :style="{ color: themeColors.textSecondary }">
+                                Reason
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" :style="{ color: themeColors.textSecondary }">
+                                Status
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" :style="{ color: themeColors.textSecondary }">
+                                Actions
+                            </th>
                         </tr>
                     </thead>
                     <tbody>
-                        <tr v-for="request in scheduleRequests" :key="request.id"
-                            :style="hoveredRow === request.id ? { backgroundColor: themeColors.hover } : {}"
-                            @mouseenter="hoveredRow = request.id"
-                            @mouseleave="hoveredRow = null"
-                            class="transition-colors">
+                        <tr v-for="request in scheduleRequests" :key="request.id" class="transition-colors" :style="hoveredRow === request.id ? { backgroundColor: themeColors.hover } : {}" @mouseenter="hoveredRow = request.id" @mouseleave="hoveredRow = null">
                             <td class="px-6 py-4 whitespace-nowrap">
-                                <div :style="{ color: themeColors.textPrimary }" class="text-sm font-medium">{{ request.employee_name }}</div>
-                                <div :style="{ color: themeColors.textTertiary }" class="text-sm">{{ request.employee_id }}</div>
+                                <div class="text-sm font-medium" :style="{ color: themeColors.textPrimary }">{{ request.employee_name }}</div>
+                                <div class="text-sm" :style="{ color: themeColors.textSecondary }">{{ request.employee_id }}</div>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
-                                      :class="getRequestTypeColor(request.type)">
+                                      :style="getRequestTypePillStyle(request.type)">
                                     {{ formatRequestType(request.type) }}
                                 </span>
                             </td>
-                            <td :style="{ color: themeColors.textPrimary }" class="px-6 py-4 whitespace-nowrap text-sm">
+                            <td class="px-6 py-4 whitespace-nowrap text-sm" :style="{ color: themeColors.textPrimary }">
                                 {{ request.date_time }}
                             </td>
-                            <td :style="{ color: themeColors.textPrimary }" class="px-6 py-4 whitespace-nowrap text-sm">
+                            <td class="px-6 py-4 whitespace-nowrap text-sm" :style="{ color: themeColors.textPrimary }">
                                 {{ request.reason }}
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
-                                      :class="getStatusColor(request.status)">
+                                      :style="getStatusPillStyle(request.status)">
                                     {{ formatStatus(request.status) }}
                                 </span>
                             </td>
@@ -314,15 +238,11 @@
                                 <div class="flex space-x-2">
                                     <button v-if="request.status === 'pending'"
                                             @click="approveRequest(request)"
-                                            :style="{ color: themeColors.success }" 
-                                            class="hover:opacity-80">Approve</button>
+                                            class="hover:opacity-80 transition-opacity" :style="{ color: themeColors.success }">Approve</button>
                                     <button v-if="request.status === 'pending'"
                                             @click="rejectRequest(request)"
-                                            :style="{ color: themeColors.danger }" 
-                                            class="hover:opacity-80">Reject</button>
-                                    <button @click="viewRequest(request)" 
-                                            :style="{ color: themeColors.primary }" 
-                                            class="hover:opacity-80">View</button>
+                                            class="hover:opacity-80 transition-opacity" :style="{ color: themeColors.danger }">Reject</button>
+                                    <button @click="viewRequest(request)" class="hover:opacity-80 transition-opacity" :style="{ color: themeColors.primary }">View</button>
                                 </div>
                             </td>
                         </tr>
@@ -332,32 +252,29 @@
         </div>
 
         <!-- Add Schedule Modal -->
-        <div v-if="showAddScheduleModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div class="rounded-lg shadow-xl w-full max-w-md p-6" :style="{ backgroundColor: themeColors.card }">
-                <div class="flex items-center justify-between mb-4">
-                    <h3 class="text-lg font-medium" :style="{ color: themeColors.textPrimary }">Add New Schedule</h3>
-                    <button @click="closeAddScheduleModal" class="transition-colors" :style="{ color: themeColors.textSecondary }">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                        </svg>
-                    </button>
+        <div v-if="showAddScheduleModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div class="rounded-xl shadow-2xl w-full max-w-md border" :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }">
+                <div class="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4 rounded-t-xl">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-lg font-bold text-white flex items-center space-x-2">
+                            <PlusIcon class="h-5 w-5" />
+                            <span>Add New Schedule</span>
+                        </h3>
+                        <button @click="closeAddScheduleModal" class="text-white/80 hover:text-white transition-colors">
+                            <XMarkIcon class="h-6 w-6" />
+                        </button>
+                    </div>
                 </div>
 
-                <form @submit.prevent="submitAddSchedule" class="space-y-4">
+                <form @submit.prevent="submitAddSchedule" class="p-6 space-y-5">
                     <div>
-                        <label for="user_id" class="block text-sm font-medium mb-2" :style="{ color: themeColors.textSecondary }">
-                            <UsersIcon class="h-4 w-4 inline mr-1" :style="{ color: themeColors.textSecondary }" />
+                        <label for="user_id" class="block text-sm font-semibold mb-2" :style="{ color: themeColors.textSecondary }">
+                            <UsersIcon class="h-4 w-4 inline mr-1" :style="{ color: themeColors.textTertiary }" />
                             Team Member
                         </label>
                         <select id="user_id" v-model="newSchedule.user_id" required
-                                class="w-full rounded-md px-3 py-2 focus:outline-none transition-colors"
-                                :style="{ 
-                                    backgroundColor: themeColors.background,
-                                    borderColor: themeColors.border,
-                                    color: themeColors.textPrimary,
-                                    borderWidth: '1px',
-                                    borderStyle: 'solid'
-                                }">
+                                class="w-full rounded-lg border shadow-sm py-2.5 px-3 text-sm focus:outline-none"
+                                :style="selectStyle">
                             <option value="" disabled>Choose a team member...</option>
                             <option v-for="user in staffUsers" :key="user.id" :value="user.id">
                                 {{ `${user.first_name} ${user.last_name}`.trim() || user.employee_id || `EMP${user.id}` }}
@@ -366,19 +283,13 @@
                     </div>
 
                     <div>
-                        <label for="work_shift_id" class="block text-sm font-medium mb-2" :style="{ color: themeColors.textSecondary }">
-                            <ClockIcon class="h-4 w-4 inline mr-1" :style="{ color: themeColors.textSecondary }" />
+                        <label for="work_shift_id" class="block text-sm font-semibold mb-2" :style="{ color: themeColors.textSecondary }">
+                            <ClockIcon class="h-4 w-4 inline mr-1" :style="{ color: themeColors.textTertiary }" />
                             Work Shift
                         </label>
                         <select id="work_shift_id" v-model="newSchedule.work_shift_id" required
-                                class="w-full rounded-md px-3 py-2 focus:outline-none transition-colors"
-                                :style="{ 
-                                    backgroundColor: themeColors.background,
-                                    borderColor: themeColors.border,
-                                    color: themeColors.textPrimary,
-                                    borderWidth: '1px',
-                                    borderStyle: 'solid'
-                                }">
+                                class="w-full rounded-lg border shadow-sm py-2.5 px-3 text-sm focus:outline-none"
+                                :style="selectStyle">
                             <option value="" disabled>Select a shift...</option>
                             <option v-for="shift in availableShifts" :key="shift.id" :value="shift.id">
                                 {{ shift.name }}
@@ -387,140 +298,70 @@
                     </div>
 
                     <div>
-                        <label for="date" class="block text-sm font-medium mb-2" :style="{ color: themeColors.textSecondary }">
-                            <CalendarIcon class="h-4 w-4 inline mr-1" :style="{ color: themeColors.textSecondary }" />
+                        <label for="date" class="block text-sm font-semibold mb-2" :style="{ color: themeColors.textSecondary }">
+                            <CalendarIcon class="h-4 w-4 inline mr-1" :style="{ color: themeColors.textTertiary }" />
                             Schedule Date
                         </label>
-                        <div class="relative">
-                            <input
-                                type="date"
-                                id="date"
-                                v-model="newSchedule.date"
-                                required
-                                @keydown.prevent
-                                @click="$event.target.showPicker && $event.target.showPicker()"
-                                class="w-full rounded-md pl-10 pr-3 py-2 focus:outline-none transition-colors cursor-pointer"
-                                :style="{ 
-                                    backgroundColor: themeColors.background,
-                                    borderColor: themeColors.border,
-                                    color: themeColors.textPrimary,
-                                    borderWidth: '1px',
-                                    borderStyle: 'solid'
-                                }"
-                            >
-                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none z-10">
-                                <CalendarIcon class="h-5 w-5" :style="{ color: themeColors.textSecondary }" />
-                            </div>
-                        </div>
+                        <input
+                            type="date"
+                            id="date"
+                            v-model="newSchedule.date"
+                            required
+                            @keydown.prevent
+                            @click="$event.target.showPicker && $event.target.showPicker()"
+                            class="w-full rounded-lg border shadow-sm cursor-pointer py-2.5 px-3 text-sm focus:outline-none"
+                            :style="selectStyle"
+                        >
                     </div>
 
-                    <div class="rounded-lg p-4"
-                         :style="{ 
-                             backgroundColor: themeColors.background,
-                             borderColor: themeColors.border,
-                             borderStyle: 'solid',
-                             borderWidth: '1px'
-                         }">
+                    <div class="rounded-lg p-4 border" :style="{ backgroundColor: themeColors.background, borderColor: themeColors.border }">
                         <div class="flex items-center">
                             <input id="is_recurring" type="checkbox" v-model="newSchedule.is_recurring"
-                                   class="h-4 w-4 rounded focus:outline-none transition-colors"
-                                   :style="{ 
-                                       backgroundColor: themeColors.background,
-                                       borderColor: themeColors.border,
-                                       borderWidth: '1px',
-                                       borderStyle: 'solid'
-                                   }">
+                                   class="h-4 w-4 rounded" :style="{ accentColor: themeColors.primary }">
                             <label for="is_recurring" class="ml-2 block text-sm font-medium" :style="{ color: themeColors.textPrimary }">
                                 Repeat this schedule weekly
                             </label>
                         </div>
                     </div>
 
-                    <div v-if="newSchedule.is_recurring" class="space-y-4 rounded-lg p-4"
-                         :style="{ 
-                             backgroundColor: themeColors.background,
-                             borderColor: themeColors.border,
-                             borderStyle: 'solid',
-                             borderWidth: '1px'
-                         }">
+                    <div v-if="newSchedule.is_recurring" class="space-y-4 rounded-lg p-4 border" :style="{ backgroundColor: themeColors.background, borderColor: themeColors.border }">
                         <div>
-                            <label class="block text-sm font-medium mb-2" :style="{ color: themeColors.textSecondary }">Repeat on Days</label>
+                            <label class="block text-sm font-semibold mb-2" :style="{ color: themeColors.textSecondary }">Repeat on Days</label>
                             <div class="flex flex-wrap gap-2">
                                 <label v-for="day in ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']"
-                                       :key="day" 
-                                       class="flex items-center px-3 py-2 rounded-lg cursor-pointer transition-colors"
-                                       :class="newSchedule.recurring_days.includes(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].indexOf(day) + 1) ? 'border-blue-500' : ''"
-                                       :style="{ 
-                                           backgroundColor: newSchedule.recurring_days.includes(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].indexOf(day) + 1) ? 'rgba(59, 130, 246, 0.1)' : themeColors.card,
-                                           borderColor: newSchedule.recurring_days.includes(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].indexOf(day) + 1) ? themeColors.primary : themeColors.border,
-                                           borderStyle: 'solid',
-                                           borderWidth: '1px'
-                                       }">
+                                       :key="day"
+                                       class="flex items-center px-3 py-2 border rounded-lg cursor-pointer transition-colors"
+                                       :style="newSchedule.recurring_days.includes(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].indexOf(day) + 1) ? { backgroundColor: themeColors.hover, borderColor: themeColors.primary } : { backgroundColor: themeColors.card, borderColor: themeColors.border }">
                                     <input type="checkbox" :value="['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].indexOf(day) + 1"
                                            v-model="newSchedule.recurring_days"
-                                           class="h-4 w-4 rounded focus:outline-none transition-colors"
-                                           :style="{ 
-                                               backgroundColor: themeColors.background,
-                                               borderColor: themeColors.border,
-                                               borderWidth: '1px',
-                                               borderStyle: 'solid'
-                                           }">
-                                    <span class="ml-2 text-sm font-medium" :style="{ color: themeColors.textPrimary }">{{ day }}</span>
+                                           class="h-4 w-4 rounded" :style="{ accentColor: themeColors.primary }">
+                                    <span class="ml-2 text-sm font-medium" :style="{ color: themeColors.textSecondary }">{{ day }}</span>
                                 </label>
                             </div>
                         </div>
 
                         <div>
-                            <label for="end_date" class="block text-sm font-medium mb-2" :style="{ color: themeColors.textSecondary }">End Date (Optional)</label>
-                            <div class="relative">
-                                <input
-                                    type="date"
-                                    id="end_date"
-                                    v-model="newSchedule.end_date"
-                                    @keydown.prevent
-                                    @click="$event.target.showPicker && $event.target.showPicker()"
-                                    class="w-full rounded-md pl-10 pr-3 py-2 focus:outline-none transition-colors cursor-pointer"
-                                    :style="{ 
-                                        backgroundColor: themeColors.background,
-                                        borderColor: themeColors.border,
-                                        color: themeColors.textPrimary,
-                                        borderWidth: '1px',
-                                        borderStyle: 'solid'
-                                    }"
-                                >
-                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none z-10">
-                                    <CalendarIcon class="h-5 w-5" :style="{ color: themeColors.textSecondary }" />
-                                </div>
-                            </div>
+                            <label for="end_date" class="block text-sm font-semibold mb-2" :style="{ color: themeColors.textSecondary }">End Date (Optional)</label>
+                            <input
+                                type="date"
+                                id="end_date"
+                                v-model="newSchedule.end_date"
+                                @keydown.prevent
+                                @click="$event.target.showPicker && $event.target.showPicker()"
+                                class="w-full rounded-lg border shadow-sm cursor-pointer py-2.5 px-3 text-sm focus:outline-none"
+                                :style="selectStyle"
+                            >
                         </div>
                     </div>
 
-                    <div class="flex justify-end space-x-3 pt-4"
-                         :style="{ 
-                             borderColor: themeColors.border,
-                             borderStyle: 'solid',
-                             borderWidth: '1px 0 0 0'
-                         }">
+                    <div class="flex justify-end space-x-3 pt-4 border-t" :style="{ borderColor: themeColors.border }">
                         <button type="button" @click="closeAddScheduleModal"
-                                class="px-4 py-2 text-sm font-medium rounded-md transition-colors"
-                                :style="{ 
-                                    backgroundColor: themeColors.background,
-                                    borderColor: themeColors.border,
-                                    color: themeColors.textPrimary,
-                                    borderWidth: '1px',
-                                    borderStyle: 'solid'
-                                }"
-                                @mouseenter="$event.target.style.backgroundColor = themeColors.hover"
-                                @mouseleave="$event.target.style.backgroundColor = themeColors.background">
+                                class="px-5 py-2.5 text-sm font-medium rounded-lg hover:opacity-90 transition-opacity border"
+                                :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border, color: themeColors.textPrimary }">
                             Cancel
                         </button>
                         <button type="submit"
-                                class="px-4 py-2 text-sm font-medium text-white rounded-md transition-colors flex items-center"
-                                :style="{ 
-                                    backgroundColor: themeColors.primary,
-                                }"
-                                @mouseenter="$event.target.style.backgroundColor = themeColors.hover"
-                                @mouseleave="$event.target.style.backgroundColor = themeColors.primary">
+                                class="px-5 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-blue-600 to-blue-700 border border-transparent rounded-lg hover:from-blue-700 hover:to-blue-800 shadow-md transition-all">
                             Create Schedule
                         </button>
                     </div>
@@ -529,47 +370,44 @@
         </div>
 
         <!-- Edit Schedule Modal -->
-        <div v-if="showEditScheduleModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div class="rounded-lg shadow-xl w-full max-w-md p-6" :style="{ backgroundColor: themeColors.card }">
-                <div class="flex items-center justify-between mb-4">
-                    <h3 class="text-lg font-medium" :style="{ color: themeColors.textPrimary }">Edit Shift Schedule</h3>
-                    <button @click="closeEditScheduleModal" class="transition-colors" :style="{ color: themeColors.textSecondary }">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                        </svg>
-                    </button>
+        <div v-if="showEditScheduleModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div class="rounded-xl shadow-2xl w-full max-w-md border" :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }">
+                <div class="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4 rounded-t-xl">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-lg font-bold text-white flex items-center space-x-2">
+                            <PencilIcon class="h-5 w-5" />
+                            <span>Edit Shift Schedule</span>
+                        </h3>
+                        <button @click="closeEditScheduleModal" class="text-white/80 hover:text-white transition-colors">
+                            <XMarkIcon class="h-6 w-6" />
+                        </button>
+                    </div>
                 </div>
 
-                <form @submit.prevent="submitEditSchedule" class="space-y-4">
-                    <div class="rounded-lg p-4 space-y-3"
-                         :style="{ 
-                             backgroundColor: themeColors.background,
-                             borderColor: themeColors.border,
-                             borderStyle: 'solid',
-                             borderWidth: '1px'
-                         }">
+                <form @submit.prevent="submitEditSchedule" class="p-6 space-y-5">
+                    <div class="rounded-lg p-4 space-y-3 border" :style="{ backgroundColor: themeColors.background, borderColor: themeColors.border }">
                         <div>
-                            <label class="block text-xs font-medium mb-1" :style="{ color: themeColors.textSecondary }">Team Member</label>
-                            <div class="flex items-center space-x-2" :style="{ color: themeColors.textPrimary }">
-                                <UsersIcon class="h-4 w-4" :style="{ color: themeColors.textSecondary }" />
-                                <span class="font-medium">{{ currentSchedule?.employee_name }}</span>
+                            <label class="block text-xs font-semibold uppercase tracking-wide mb-1" :style="{ color: themeColors.textTertiary }">Team Member</label>
+                            <div class="flex items-center space-x-2">
+                                <UsersIcon class="h-4 w-4" :style="{ color: themeColors.textTertiary }" />
+                                <span class="font-medium" :style="{ color: themeColors.textPrimary }">{{ currentSchedule?.employee_name }}</span>
                             </div>
                         </div>
 
                         <div class="grid grid-cols-2 gap-3">
                             <div>
-                                <label class="block text-xs font-medium mb-1" :style="{ color: themeColors.textSecondary }">Day</label>
-                                <div class="flex items-center space-x-2" :style="{ color: themeColors.textPrimary }">
-                                    <CalendarDaysIcon class="h-4 w-4" :style="{ color: themeColors.textSecondary }" />
-                                    <span class="font-medium">{{ props.weekDays[currentSchedule?.day_index] }}</span>
+                                <label class="block text-xs font-semibold uppercase tracking-wide mb-1" :style="{ color: themeColors.textTertiary }">Day</label>
+                                <div class="flex items-center space-x-2">
+                                    <CalendarDaysIcon class="h-4 w-4" :style="{ color: themeColors.textTertiary }" />
+                                    <span class="font-medium" :style="{ color: themeColors.textPrimary }">{{ props.weekDays[currentSchedule?.day_index] }}</span>
                                 </div>
                             </div>
 
                             <div>
-                                <label class="block text-xs font-medium mb-1" :style="{ color: themeColors.textSecondary }">Current Time</label>
-                                <div class="flex items-center space-x-2" :style="{ color: themeColors.textPrimary }">
-                                    <ClockIcon class="h-4 w-4" :style="{ color: themeColors.textSecondary }" />
-                                    <span class="font-medium">
+                                <label class="block text-xs font-semibold uppercase tracking-wide mb-1" :style="{ color: themeColors.textTertiary }">Current Time</label>
+                                <div class="flex items-center space-x-2">
+                                    <ClockIcon class="h-4 w-4" :style="{ color: themeColors.textTertiary }" />
+                                    <span class="font-medium" :style="{ color: themeColors.textPrimary }">
                                         {{ currentSchedule?.shift_details ? `${formatTime(currentSchedule.shift_details.start)} - ${formatTime(currentSchedule.shift_details.end)}` : 'N/A' }}
                                     </span>
                                 </div>
@@ -578,18 +416,12 @@
                     </div>
 
                     <div>
-                        <label for="edit_work_shift_id" class="block text-sm font-medium mb-2" :style="{ color: themeColors.textSecondary }">
+                        <label for="edit_work_shift_id" class="block text-sm font-semibold mb-2" :style="{ color: themeColors.textSecondary }">
                             Select New Shift
                         </label>
                         <select id="edit_work_shift_id" v-model="editScheduleData.work_shift_id" required
-                                class="w-full rounded-md px-3 py-2 focus:outline-none transition-colors"
-                                :style="{ 
-                                    backgroundColor: themeColors.background,
-                                    borderColor: themeColors.border,
-                                    color: themeColors.textPrimary,
-                                    borderWidth: '1px',
-                                    borderStyle: 'solid'
-                                }">
+                                class="w-full rounded-lg border shadow-sm py-2.5 px-3 text-sm focus:outline-none"
+                                :style="selectStyle">
                             <option value="" disabled>Choose a shift...</option>
                             <option v-for="shift in availableShifts" :key="shift.id" :value="shift.id">
                                 {{ shift.name }}
@@ -598,169 +430,69 @@
                     </div>
 
                     <div>
-                        <label for="edit_date" class="block text-sm font-medium mb-2" :style="{ color: themeColors.textSecondary }">
+                        <label for="edit_date" class="block text-sm font-semibold mb-2" :style="{ color: themeColors.textSecondary }">
                             Schedule Date
                         </label>
-                        <div class="relative">
-                            <input
-                                type="date"
-                                id="edit_date"
-                                v-model="editScheduleData.date"
-                                required
-                                @keydown.prevent
-                                @click="$event.target.showPicker && $event.target.showPicker()"
-                                class="w-full rounded-md pl-10 pr-3 py-2 focus:outline-none transition-colors cursor-pointer"
-                                :style="{ 
-                                    backgroundColor: themeColors.background,
-                                    borderColor: themeColors.border,
-                                    color: themeColors.textPrimary,
-                                    borderWidth: '1px',
-                                    borderStyle: 'solid'
-                                }"
-                            >
-                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none z-10">
-                                <CalendarIcon class="h-5 w-5" :style="{ color: themeColors.textSecondary }" />
-                            </div>
-                        </div>
+                        <input
+                            type="date"
+                            id="edit_date"
+                            v-model="editScheduleData.date"
+                            required
+                            @keydown.prevent
+                            @click="$event.target.showPicker && $event.target.showPicker()"
+                            class="w-full rounded-lg border shadow-sm cursor-pointer py-2.5 px-3 text-sm focus:outline-none"
+                            :style="selectStyle"
+                        >
                     </div>
 
-                    <div class="flex justify-end space-x-3 pt-4"
-                         :style="{ 
-                             borderColor: themeColors.border,
-                             borderStyle: 'solid',
-                             borderWidth: '1px 0 0 0'
-                         }">
+                    <div class="flex justify-end space-x-3 pt-4 border-t" :style="{ borderColor: themeColors.border }">
                         <button type="button" @click="closeEditScheduleModal"
-                                class="px-4 py-2 text-sm font-medium rounded-md transition-colors"
-                                :style="{ 
-                                    backgroundColor: themeColors.background,
-                                    borderColor: themeColors.border,
-                                    color: themeColors.textPrimary,
-                                    borderWidth: '1px',
-                                    borderStyle: 'solid'
-                                }"
-                                @mouseenter="$event.target.style.backgroundColor = themeColors.hover"
-                                @mouseleave="$event.target.style.backgroundColor = themeColors.background">
+                                class="px-5 py-2.5 text-sm font-medium rounded-lg hover:opacity-90 transition-opacity border"
+                                :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border, color: themeColors.textPrimary }">
                             Cancel
                         </button>
                         <button type="submit"
-                                class="px-4 py-2 text-sm font-medium text-white rounded-md transition-colors flex items-center"
-                                :style="{ 
-                                    backgroundColor: themeColors.primary,
-                                }"
-                                @mouseenter="$event.target.style.backgroundColor = themeColors.hover"
-                                @mouseleave="$event.target.style.backgroundColor = themeColors.primary">
+                                class="px-5 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-blue-600 to-blue-700 border border-transparent rounded-lg hover:from-blue-700 hover:to-blue-800 shadow-md transition-all">
                             Save Changes
                         </button>
                     </div>
                 </form>
             </div>
         </div>
-
-        <!-- Assignment Modal -->
-        <div v-if="showAssignmentModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div class="rounded-lg shadow-xl w-full max-w-md p-6" :style="{ backgroundColor: themeColors.card }">
-                <div class="flex items-center justify-between mb-4">
-                    <h3 class="text-lg font-medium" :style="{ color: themeColors.textPrimary }">
-                        Assign Worker - {{ selectedSlot.day }} {{ selectedSlot.hour }}
-                    </h3>
-                    <button @click="closeAssignmentModal" class="transition-colors" :style="{ color: themeColors.textSecondary }">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                        </svg>
-                    </button>
+        <!-- Auto Generate Schedule Modal -->
+        <div v-if="showGenerateScheduleModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div class="rounded-xl shadow-2xl w-full max-w-md border" :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }">
+                <div class="bg-gradient-to-r from-yellow-500 to-yellow-600 px-6 py-4 rounded-t-xl">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-lg font-bold text-white flex items-center space-x-2">
+                            <CalendarIcon class="h-5 w-5" />
+                            <span>Auto Generate Schedule</span>
+                        </h3>
+                        <button @click="closeGenerateScheduleModal" class="text-white/80 hover:text-white transition-colors">
+                            <XMarkIcon class="h-6 w-6" />
+                        </button>
+                    </div>
                 </div>
-
-                <form @submit.prevent="submitAssignment" class="space-y-4">
-                    <div>
-                        <label for="user_id" class="block text-sm font-medium mb-2" :style="{ color: themeColors.textSecondary }">
-                            <UsersIcon class="h-4 w-4 inline mr-1" :style="{ color: themeColors.textSecondary }" />
-                            Select Worker
-                        </label>
-                        <select id="user_id" v-model="assignmentForm.user_id" required
-                                class="w-full rounded-md px-3 py-2 focus:outline-none transition-colors"
-                                :style="{ 
-                                    backgroundColor: themeColors.background,
-                                    borderColor: themeColors.border,
-                                    color: themeColors.textPrimary,
-                                    borderWidth: '1px',
-                                    borderStyle: 'solid'
-                                }">
-                            <option value="" disabled>Choose a worker...</option>
-                            <option v-for="user in staffUsers" :key="user.id" :value="user.id">
-                                {{ getEmployeeDisplayName(user) }}
-                            </option>
-                        </select>
+                <div class="p-6 space-y-4">
+                    <p class="text-sm" :style="{ color: themeColors.textSecondary }">
+                        This will automatically assign the default work shift to all active staff members for the current week who do not already have a schedule.
+                    </p>
+                    <div class="rounded-lg p-4 border" :style="{ backgroundColor: themeColors.background, borderColor: themeColors.border }">
+                        <p class="text-xs font-semibold uppercase tracking-wide mb-1" :style="{ color: themeColors.textTertiary }">Week</p>
+                        <p class="text-sm font-medium" :style="{ color: themeColors.textPrimary }">{{ currentWeek }}</p>
                     </div>
-
-                    <div>
-                        <label for="work_shift_id" class="block text-sm font-medium mb-2" :style="{ color: themeColors.textSecondary }">
-                            <ClockIcon class="h-4 w-4 inline mr-1" :style="{ color: themeColors.textSecondary }" />
-                            Work Shift
-                        </label>
-                        <select id="work_shift_id" v-model="assignmentForm.work_shift_id" required
-                                class="w-full rounded-md px-3 py-2 focus:outline-none transition-colors"
-                                :style="{ 
-                                    backgroundColor: themeColors.background,
-                                    borderColor: themeColors.border,
-                                    color: themeColors.textPrimary,
-                                    borderWidth: '1px',
-                                    borderStyle: 'solid'
-                                }">
-                            <option value="" disabled>Select a shift...</option>
-                            <option v-for="shift in workShifts" :key="shift.id" :value="shift.id">
-                                {{ shift.shift_name }} ({{ formatTime(shift.start_time) }} - {{ formatTime(shift.end_time) }})
-                            </option>
-                        </select>
-                    </div>
-
-                    <div class="rounded-lg p-3"
-                         :style="{ 
-                             backgroundColor: themeColors.background,
-                             borderColor: themeColors.border,
-                             borderStyle: 'solid',
-                             borderWidth: '1px'
-                         }">
-                        <div class="text-sm">
-                            <div class="flex items-center mb-1">
-                                <CalendarDaysIcon class="h-4 w-4 mr-2" :style="{ color: themeColors.textSecondary }" />
-                                <span :style="{ color: themeColors.textPrimary }">Day: <strong>{{ selectedSlot.day }}</strong></span>
-                            </div>
-                            <div class="flex items-center">
-                                <ClockIcon class="h-4 w-4 mr-2" :style="{ color: themeColors.textSecondary }" />
-                                <span :style="{ color: themeColors.textPrimary }">Time: <strong>{{ selectedSlot.hour }}</strong></span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="flex justify-end space-x-3 pt-4"
-                         :style="{ 
-                             borderColor: themeColors.border,
-                             borderStyle: 'solid',
-                             borderWidth: '1px 0 0 0'
-                         }">
-                        <button type="button" @click="closeAssignmentModal"
-                                class="px-4 py-2 text-sm font-medium rounded-md transition-colors"
-                                :style="{ 
-                                    backgroundColor: themeColors.background,
-                                    borderColor: themeColors.border,
-                                    color: themeColors.textPrimary,
-                                    borderWidth: '1px',
-                                    borderStyle: 'solid'
-                                }"
-                                @mouseenter="$event.target.style.backgroundColor = themeColors.hover"
-                                @mouseleave="$event.target.style.backgroundColor = themeColors.background">
+                    <div class="flex justify-end space-x-3 pt-2 border-t" :style="{ borderColor: themeColors.border }">
+                        <button type="button" @click="closeGenerateScheduleModal"
+                                class="px-5 py-2.5 text-sm font-medium rounded-lg hover:opacity-90 transition-opacity border"
+                                :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border, color: themeColors.textPrimary }">
                             Cancel
                         </button>
-                        <button type="submit"
-                                class="px-4 py-2 text-sm font-medium rounded-md transition-colors text-white"
-                                :style="{ backgroundColor: themeColors.primary }"
-                                @mouseenter="$event.target.style.backgroundColor = themeColors.hover"
-                                @mouseleave="$event.target.style.backgroundColor = themeColors.primary">
-                            Assign Worker
+                        <button @click="submitGenerateSchedule"
+                                class="px-5 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-yellow-500 to-yellow-600 border border-transparent rounded-lg hover:from-yellow-600 hover:to-yellow-700 shadow-md transition-all">
+                            Generate
                         </button>
                     </div>
-                </form>
+                </div>
             </div>
         </div>
     </DashboardLayout>
@@ -770,7 +502,6 @@
 import { ref, computed } from 'vue'
 import { router } from '@inertiajs/vue3'
 import DashboardLayout from '@/Layouts/DashboardLayout.vue'
-import { getNavigationForRole } from '@/Utils/navigation.js'
 import { useTheme } from '@/Composables/useTheme'
 import {
     PlusIcon,
@@ -783,33 +514,33 @@ import {
     ChevronRightIcon,
     PencilIcon,
     TrashIcon,
-    XMarkIcon,
-    DocumentArrowDownIcon
+    XMarkIcon
 } from '@heroicons/vue/24/outline'
 
 const props = defineProps({
     user: Object,
-    navigation: { type: Array, default: null },
-    workShifts: {
-        type: Array,
-        default: () => [],
-    },
+    navigation: Array,
+    scheduleStats: Object,
+    scheduleData: Array,
+    scheduleRequests: Array,
+    currentWeek: String,
+    weekStart: String,
+    weekDays: Array,
     staffUsers: {
         type: Array,
         default: () => [],
     },
-    employeeShifts: {
+    workShifts: {
         type: Array,
         default: () => [],
     },
-    currentWeekStart: String,
-    currentWeekEnd: String,
-    routePrefix: { type: String, default: 'admin' },
 })
 
-const { currentTheme } = useTheme()
-const navigation = computed(() => props.navigation || getNavigationForRole(props.routePrefix === 'admin' ? 'admin' : 'manager'))
+const errorMessage = ref('')
+
 const hoveredRow = ref(null)
+
+const { currentTheme } = useTheme()
 
 const themeColors = computed(() => ({
     background: `var(--kotel-background)`,
@@ -819,11 +550,29 @@ const themeColors = computed(() => ({
     textSecondary: `var(--kotel-text-secondary)`,
     textTertiary: `var(--kotel-text-tertiary)`,
     primary: `var(--kotel-primary)`,
+    secondary: `var(--kotel-secondary)`,
     success: `var(--kotel-success)`,
     warning: `var(--kotel-warning)`,
     danger: `var(--kotel-danger)`,
     hover: currentTheme.value.theme_mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.02)'
 }))
+
+const selectStyle = computed(() => ({
+    backgroundColor: themeColors.value.background,
+    borderColor: themeColors.value.border,
+    color: themeColors.value.textPrimary,
+}))
+
+const workShiftOptions = computed(() => {
+    return (props.workShifts || []).map(shift => ({
+        id: shift.id,
+        name: shift.name,
+        start_time: shift.start_time,
+        end_time: shift.end_time,
+        hours: shift.hours,
+        is_overnight: shift.is_overnight,
+    }))
+})
 
 // Modal State
 const showAddScheduleModal = ref(false)
@@ -847,31 +596,6 @@ const editScheduleData = ref({
     work_shift_id: null,
     date: new Date().toISOString().split('T')[0],
 })
-
-// Hourly Grid State
-const showAssignmentModal = ref(false)
-const selectedSlot = ref({
-    day: '',
-    hour: '',
-    date: ''
-})
-const assignmentForm = ref({
-    user_id: null,
-    work_shift_id: null,
-    date: '',
-    day_of_week: null,
-    start_time: '',
-    end_time: ''
-})
-
-// Week days and hours for the grid
-const weekDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-const hours = [
-    '00:00', '01:00', '02:00', '03:00', '04:00', '05:00',
-    '06:00', '07:00', '08:00', '09:00', '10:00', '11:00',
-    '12:00', '13:00', '14:00', '15:00', '16:00', '17:00',
-    '18:00', '19:00', '20:00', '21:00', '22:00', '23:00'
-]
 
 const getInitials = (name) => {
     if (!name) return '';
@@ -912,24 +636,28 @@ const formatTime = (time) => {
     return `${displayHour}:${minutes} ${ampm}`
 }
 
-
-const getRequestTypeColor = (type) => {
-    const colors = {
-        time_off: 'bg-yellow-100 text-yellow-800',
-        shift_swap: 'bg-blue-100 text-blue-800',
-        overtime: 'bg-orange-100 text-orange-800',
-        schedule_change: 'bg-purple-100 text-purple-800'
-    }
-    return colors[type] || 'bg-gray-100 text-gray-800'
+const getDayDate = (dayIndex) => {
+    if (!props.weekStart) return ''
+    const baseDate = new Date(props.weekStart)
+    baseDate.setDate(baseDate.getDate() + dayIndex)
+    return baseDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
-const getStatusColor = (status) => {
-    const colors = {
-        pending: 'bg-yellow-100 text-yellow-800',
-        approved: 'bg-green-100 text-green-800',
-        rejected: 'bg-red-100 text-red-800'
-    }
-    return colors[status] || 'bg-gray-100 text-gray-800'
+const getRequestTypePillStyle = (type) => {
+    const key = (type || '').toLowerCase()
+    if (key === 'time_off') return { backgroundColor: themeColors.value.warning, color: '#000' }
+    if (key === 'shift_swap') return { backgroundColor: themeColors.value.primary, color: '#000' }
+    if (key === 'overtime') return { backgroundColor: themeColors.value.warning, color: '#000' }
+    if (key === 'schedule_change') return { backgroundColor: themeColors.value.secondary, color: '#000' }
+    return { backgroundColor: themeColors.value.border, color: themeColors.value.textPrimary }
+}
+
+const getStatusPillStyle = (status) => {
+    const key = (status || '').toLowerCase()
+    if (key === 'pending') return { backgroundColor: themeColors.value.warning, color: '#000' }
+    if (key === 'approved') return { backgroundColor: themeColors.value.success, color: '#000' }
+    if (key === 'rejected') return { backgroundColor: themeColors.value.danger, color: '#000' }
+    return { backgroundColor: themeColors.value.border, color: themeColors.value.textPrimary }
 }
 
 const formatRequestType = (type) => {
@@ -949,143 +677,16 @@ const printSchedule = () => {
     window.open(route('admin.schedules.print', params), '_blank')
 }
 
-// Hourly Grid Functions
-const currentWeekRange = computed(() => {
-    if (!props.currentWeekStart) return ''
-    const start = new Date(props.currentWeekStart)
-    const end = new Date(props.currentWeekEnd)
-    return `${start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
-})
-
-const getDayDate = (day) => {
-    if (!props.currentWeekStart) return ''
-    const dayIndex = weekDays.indexOf(day)
-    const baseDate = new Date(props.currentWeekStart)
-    baseDate.setDate(baseDate.getDate() + dayIndex)
-    return baseDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-}
-
-const getAssignmentsForSlot = (day, hour) => {
-    const dayIndex = weekDays.indexOf(day)
-    const slotDate = new Date(props.currentWeekStart)
-    slotDate.setDate(slotDate.getDate() + dayIndex)
-    const dateStr = slotDate.toISOString().split('T')[0]
-    
-    return props.employeeShifts.filter(shift => {
-        if (shift.effective_date !== dateStr) return false
-        
-        const shiftStart = new Date(`${dateStr}T${shift.workShift?.start_time || '00:00:00'}`)
-        const shiftEnd = new Date(`${dateStr}T${shift.workShift?.end_time || '23:59:59'}`)
-        const slotTime = new Date(`${dateStr}T${hour}:00:00`)
-        
-        return slotTime >= shiftStart && slotTime < shiftEnd
-    }).map(shift => ({
-        id: shift.id,
-        user_id: shift.user_id,
-        user_name: shift.user ? `${shift.user.first_name} ${shift.user.last_name}`.trim() : 'Unknown',
-        shift_name: shift.workShift?.name || 'Unknown Shift',
-        type: shift.workShift?.is_overnight ? 'night' : 'regular',
-        start_time: shift.workShift?.start_time,
-        end_time: shift.workShift?.end_time
-    }))
-}
-
-const getAssignmentColorClass = (type) => {
-    const classes = {
-        regular: 'bg-blue-100 text-blue-800 border-blue-200',
-        night: 'bg-purple-100 text-purple-800 border-purple-200',
-        overtime: 'bg-orange-100 text-orange-800 border-orange-200'
-    }
-    return classes[type] || 'bg-gray-100 text-gray-800 border-gray-200'
-}
-
-const getEmployeeDisplayName = (user) => {
-    if (!user) return 'Unknown User'
-    
-    const fullName = `${user.first_name || ''} ${user.last_name || ''}`.trim()
-    if (fullName) {
-        return fullName
-    }
-    
-    if (user.employee_id) {
-        return user.employee_id
-    }
-    
-    if (user.email) {
-        return user.email
-    }
-    
-    return `User ${user.id}`
-}
-
-const openAssignmentModal = (day, hour) => {
-    const dayIndex = weekDays.indexOf(day)
-    const slotDate = new Date(props.currentWeekStart)
-    slotDate.setDate(slotDate.getDate() + dayIndex)
-    
-    selectedSlot.value = {
-        day,
-        hour,
-        date: slotDate.toISOString().split('T')[0]
-    }
-    
-    assignmentForm.value = {
-        user_id: null,
-        work_shift_id: null,
-        date: slotDate.toISOString().split('T')[0],
-        day_of_week: dayIndex + 1,
-        start_time: hour,
-        end_time: hour
-    }
-    
-    showAssignmentModal.value = true
-}
-
-const closeAssignmentModal = () => {
-    showAssignmentModal.value = false
-    selectedSlot.value = { day: '', hour: '', date: '' }
-    assignmentForm.value = {
-        user_id: null,
-        work_shift_id: null,
-        date: '',
-        day_of_week: null,
-        start_time: '',
-        end_time: ''
-    }
-}
-
-const submitAssignment = () => {
-    // This would create an EmployeeShift record
-    router.post(route('admin.employee-shifts.store'), assignmentForm.value, {
-        onSuccess: () => {
-            closeAssignmentModal()
-        },
-        onError: (errors) => {
-            console.error('Error creating assignment:', errors)
-            alert('Error creating assignment. Please try again.')
-        }
-    })
-}
-
-const editAssignment = (assignment) => {
-    // This would open an edit modal for the assignment
-    console.log('Edit assignment:', assignment)
-}
-
-
 const exportSchedule = () => {
     const params = props.weekStart ? { week_start: props.weekStart } : {}
     window.location.href = route('admin.schedules.export', params)
 }
 
 const addSchedule = () => {
-    // This would come from workShifts data in a real implementation
-    availableShifts.value = [
-        { id: 1, name: 'Morning Shift (6:00 AM - 2:00 PM)' },
-        { id: 2, name: 'Day Shift (8:00 AM - 4:00 PM)' },
-        { id: 3, name: 'Evening Shift (2:00 PM - 10:00 PM)' },
-        { id: 4, name: 'Night Shift (10:00 PM - 6:00 AM)' },
-    ]
+    availableShifts.value = workShiftOptions.value.map(shift => ({
+        id: shift.id,
+        name: `${shift.name} (${shift.start_time} - ${shift.end_time})`,
+    }))
 
     showAddScheduleModal.value = true
 }
@@ -1097,8 +698,7 @@ const changeWeek = (direction) => {
     base.setDate(base.getDate() + direction * 7)
     const newStart = base.toISOString().split('T')[0]
 
-    const indexRoute = props.routePrefix === 'admin' ? 'admin.schedules.index' : 'manager.staff.schedules'
-    router.get(route(indexRoute, { week_start: newStart }), {}, {
+    router.get(route('admin.schedules.index', { week_start: newStart }), {}, {
         preserveScroll: true,
         preserveState: true,
     })
@@ -1108,31 +708,29 @@ const previousWeek = () => changeWeek(-1)
 const nextWeek = () => changeWeek(1)
 
 const approveRequest = (request) => {
-    if (confirm(`Approve ${request.type} request for ${request.employee_name}?`)) {
-        router.post(route('admin.schedules.requests.approve', {request: request.id}), {}, {
-            onSuccess: () => {
-                request.status = 'approved'
-            },
-            onError: (errors) => {
-                console.error('Error approving request:', errors)
-                alert('Error approving request. Please try again.')
-            }
-        })
-    }
+    router.post(route('admin.schedules.requests.approve', {request: request.id}), {}, {
+        onSuccess: () => {
+            request.status = 'approved'
+            errorMessage.value = ''
+        },
+        onError: (errors) => {
+            console.error('Error approving request:', errors)
+            errorMessage.value = 'Error approving request. Please try again.'
+        }
+    })
 }
 
 const rejectRequest = (request) => {
-    if (confirm(`Reject ${request.type} request for ${request.employee_name}?`)) {
-        router.post(route('admin.schedules.requests.reject', {request: request.id}), {}, {
-            onSuccess: () => {
-                request.status = 'rejected'
-            },
-            onError: (errors) => {
-                console.error('Error rejecting request:', errors)
-                alert('Error rejecting request. Please try again.')
-            }
-        })
-    }
+    router.post(route('admin.schedules.requests.reject', {request: request.id}), {}, {
+        onSuccess: () => {
+            request.status = 'rejected'
+            errorMessage.value = ''
+        },
+        onError: (errors) => {
+            console.error('Error rejecting request:', errors)
+            errorMessage.value = 'Error rejecting request. Please try again.'
+        }
+    })
 }
 
 const viewRequest = (request) => {
@@ -1171,10 +769,11 @@ const submitAddSchedule = () => {
         onSuccess: () => {
             closeAddScheduleModal()
             window.location.reload()
+            errorMessage.value = ''
         },
         onError: (errors) => {
             console.error('Error creating schedule:', errors)
-            alert('Error creating schedule. Please check the form and try again.')
+            errorMessage.value = 'Error creating schedule. Please check the form and try again.'
         }
     })
 }
@@ -1183,13 +782,10 @@ const editSchedule = (employee, dayIndex) => {
     const shift = employee.shifts[dayIndex]
     if (!shift) return
 
-    // Load available shifts for edit
-    availableShifts.value = [
-        { id: 1, name: 'Morning Shift (6:00 AM - 2:00 PM)' },
-        { id: 2, name: 'Day Shift (8:00 AM - 4:00 PM)' },
-        { id: 3, name: 'Evening Shift (2:00 PM - 10:00 PM)' },
-        { id: 4, name: 'Night Shift (10:00 PM - 6:00 AM)' },
-    ]
+    availableShifts.value = workShiftOptions.value.map(shift => ({
+        id: shift.id,
+        name: `${shift.name} (${shift.start_time} - ${shift.end_time})`,
+    }))
 
     // Set up edit data
     currentSchedule.value = {
@@ -1213,33 +809,31 @@ const deleteSchedule = (employee, dayIndex) => {
     const shift = employee.shifts[dayIndex]
     if (!shift) return
 
-    if (confirm(`Delete schedule for ${employee.name} on ${props.weekDays[dayIndex]}? This cannot be undone.`)) {
-        // Use the employee_shift id from the schedule data and call the backend destroy route
-        router.delete(route('admin.schedules.destroy', { schedule: shift.id }), {
-            onSuccess: () => {
-                window.location.reload()
-            },
-            onError: (errors) => {
-                console.error('Error deleting schedule:', errors)
-                alert('Error deleting schedule. Please try again.')
-            }
-        })
-    }
+    // Use the employee_shift id from the schedule data and call the backend destroy route
+    router.delete(route('admin.schedules.destroy', { schedule: shift.id }), {
+        onSuccess: () => {
+            window.location.reload()
+            errorMessage.value = ''
+        },
+        onError: (errors) => {
+            console.error('Error deleting schedule:', errors)
+            errorMessage.value = 'Error deleting schedule. Please try again.'
+        }
+    })
 }
 
 const submitGenerateSchedule = () => {
-    if (confirm('This will auto-generate schedules for all employees. Continue?')) {
-        router.post(route('admin.schedules.generate'), {}, {
-            onSuccess: () => {
-                closeGenerateScheduleModal()
-                window.location.reload()
-            },
-            onError: (errors) => {
-                console.error('Error generating schedules:', errors)
-                alert('Error generating schedules. Please try again.')
-            }
-        })
-    }
+    router.post(route('admin.schedules.generate'), {}, {
+        onSuccess: () => {
+            closeGenerateScheduleModal()
+            window.location.reload()
+            errorMessage.value = ''
+        },
+        onError: (errors) => {
+            console.error('Error generating schedules:', errors)
+            errorMessage.value = 'Error generating schedules. Please try again.'
+        }
+    })
 }
 
 const addScheduleForEmployee = (employee, dayIndex) => {
@@ -1253,21 +847,18 @@ const addScheduleForEmployee = (employee, dayIndex) => {
         end_date: null,
     }
 
-    availableShifts.value = [
-        { id: 1, name: 'Morning Shift (6:00 AM - 2:00 PM)' },
-        { id: 2, name: 'Day Shift (8:00 AM - 4:00 PM)' },
-        { id: 3, name: 'Evening Shift (2:00 PM - 10:00 PM)' },
-        { id: 4, name: 'Night Shift (10:00 PM - 6:00 AM)' },
-    ]
+    availableShifts.value = workShiftOptions.value.map(shift => ({
+        id: shift.id,
+        name: `${shift.name} (${shift.start_time} - ${shift.end_time})`,
+    }))
 
     showAddScheduleModal.value = true
 }
 
 const getDateForDayIndex = (dayIndex) => {
-    const startOfWeek = new Date()
-    startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay() + 1) // Start on Monday
-    const targetDate = new Date(startOfWeek)
-    targetDate.setDate(startOfWeek.getDate() + dayIndex)
+    const base = props.weekStart ? new Date(props.weekStart) : new Date()
+    const targetDate = new Date(base)
+    targetDate.setDate(base.getDate() + dayIndex)
     return targetDate.toISOString().split('T')[0]
 }
 
@@ -1278,11 +869,13 @@ const submitEditSchedule = () => {
         onSuccess: () => {
             closeEditScheduleModal()
             window.location.reload()
+            errorMessage.value = ''
         },
         onError: (errors) => {
             console.error('Error updating schedule:', errors)
-            alert('Error updating schedule. Please try again.')
+            errorMessage.value = 'Error updating schedule. Please try again.'
         }
     })
 }
 </script>
+
