@@ -214,10 +214,29 @@ fi
 step "Clearing Caches"
 
 cd "$INSTALL_DIR"
+php artisan optimize:clear
 php artisan cache:clear
 php artisan config:clear
 php artisan view:clear
 php artisan route:clear
+
+# Reload PHP OPcache if available
+php -r "if (function_exists('opcache_reset')) { opcache_reset(); echo 'OPcache cleared\n'; }" 2>/dev/null || true
+
+success "Caches cleared"
+
+step "Rebuilding Frontend Assets"
+
+cd "$INSTALL_DIR"
+info "Running npm install..."
+npm install --prefer-offline 2>&1 | tail -5
+
+info "Running npm run build..."
+if npm run build 2>&1 | tail -5; then
+    success "Frontend assets rebuilt"
+else
+    warning "npm build failed — pages may show old assets. Check logs."
+fi
 
 success "Caches cleared"
 
