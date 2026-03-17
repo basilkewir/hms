@@ -2411,7 +2411,10 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
             'transactionStats' => $transactionStats,
             'transactions' => $recentTransactions->toArray(),
             'recentTransactions' => $recentTransactions->toArray(),
-            'settings' => ['currency' => 'USD'],
+            'settings' => [
+                'currency'          => \App\Models\Setting::get('currency', 'USD'),
+                'currency_position' => \App\Models\Setting::get('currency_position', 'prefix'),
+            ],
             'filters' => request()->only(['status', 'type', 'start_date', 'end_date']),
         ]);
     })->name('transactions.index');
@@ -3223,6 +3226,12 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
     Route::get('/room-types/{roomType}/edit', [RoomTypeController::class, 'edit'])->name('room-types.edit');
     Route::put('/room-types/{roomType}', [RoomTypeController::class, 'update'])->name('room-types.update');
     Route::delete('/room-types/{roomType}', [RoomTypeController::class, 'destroy'])->name('room-types.destroy');
+
+    // Room Amenities
+    Route::get('/room-amenities', [\App\Http\Controllers\Admin\RoomAmenityController::class, 'index'])->name('room-amenities.index');
+    Route::post('/room-amenities', [\App\Http\Controllers\Admin\RoomAmenityController::class, 'store'])->name('room-amenities.store');
+    Route::put('/room-amenities/{amenity}', [\App\Http\Controllers\Admin\RoomAmenityController::class, 'update'])->name('room-amenities.update');
+    Route::delete('/room-amenities/{amenity}', [\App\Http\Controllers\Admin\RoomAmenityController::class, 'destroy'])->name('room-amenities.destroy');
 
     // Floors
     Route::get('/floors', [FloorController::class, 'index'])->name('floors.index');
@@ -4169,41 +4178,231 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
         ]);
     })->name('settings');
 
-    // Reports
+    // Reports Dashboard - Comprehensive Analytics
     Route::get('/reports', function () {
         $user = auth()->user()->load('roles');
         $role = $user->roles->first()?->name ?? 'staff';
 
-        $stats = ['total_customers' => 0, 'total_sales' => 0, 'revenue_today' => 0, 'revenue_month' => 0];
-        $recentSales     = [];
-        $recentCustomers = [];
+        // Initialize comprehensive KPIs
+        $kpis = [
+            'total_revenue' => 0, 'total_expenses' => 0, 'net_profit' => 0, 'profit_margin' => 0,
+            'outstanding_invoices' => 0, 'unpaid_count' => 0,
+            'total_customers' => 0, 'new_customers' => 0, 'total_suppliers' => 0, 'total_payables' => 0,
+            'monthly_revenue' => 0, 'revenue_growth' => 0, 'monthly_expenses' => 0, 'monthly_expense_count' => 0,
+            'occupancy_rate' => 0, 'rooms_occupied' => 0, 'total_rooms' => 0, 'average_daily_rate' => 0,
+            'avg_transaction_value' => 0, 'total_transactions' => 0, 'return_rate' => 0, 'retention_rate' => 90,
+        ];
+
+        $recentSales = $recentExpenses = $outstandingInvoices = $topSuppliers = $topProducts = $topCustomers = [];
 
         try {
-            if (class_exists(\App\Models\Customer::class)) {
-                $stats['total_customers'] = \App\Models\Customer::count();
-                $recentCustomers = \App\Models\Customer::orderByDesc('created_at')->limit(5)
-                    ->get(['id','first_name','last_name','customer_code','created_at'])
-                    ->map(fn($c) => ['id' => $c->id, 'first_name' => $c->first_name, 'last_name' => $c->last_name, 'customer_code' => $c->customer_code, 'created_at' => $c->created_at]);
-            }
+            $today = now()->toDateString();
+            $startOfMonth = now()->startOfMonth()->toDateString();
+            $endOfMonth = now()->endOfMonth()->toDateString();
+            $lastMonthStart = now()->subMonth()->startOfMonth()->toDateString();
+            $lastMonthEnd = now()->subMonth()->endOfMonth()->toDateString();
+
+            // Revenue & Sales
             if (class_exists(\App\Models\Sale::class)) {
-                $stats['total_sales']   = \App\Models\Sale::count();
-                $today        = now()->toDateString();
-                $startOfMonth = now()->startOfMonth()->toDateString();
-                $endOfMonth   = now()->endOfMonth()->toDateString();
-                $stats['revenue_today'] = (float) \App\Models\Sale::whereDate('created_at', $today)->sum('total_amount');
-                $stats['revenue_month'] = (float) \App\Models\Sale::whereBetween('created_at', [$startOfMonth.' 00:00:00', $endOfMonth.' 23:59:59'])->sum('total_amount');
-                $recentSales = \App\Models\Sale::orderByDesc('created_at')->limit(5)
-                    ->get(['id','sale_number','sale_date','created_at','total_amount'])
-                    ->map(fn($s) => ['id' => $s->id, 'sale_number' => $s->sale_number, 'sale_date' => $s->sale_date ?? $s->created_at, 'total_amount' => (float)$s->total_amount]);
+                $kpis['total_revenue'] = (float) \App\Models\Sale::sum('total_amount');
+                $kpis['total_transactions'] = \App\Models\Sale::count();
+                $kpis['avg_transaction_value'] = $kpis['total_transactions'] > 0 ? $kpis['total_revenue'] / $kpis['total_transactions'] : 0;
+                $kpis['monthly_revenue'] = (float) \App\Models\Sale::whereBetween('created_at', [$startOfMonth.' 00:00:00', $endOfMonth.' 23:59:59'])->sum('total_amount');
+                $lastMonthRev = (float) \App\Models\Sale::whereBetween('created_at', [$lastMonthStart.' 00:00:00', $lastMonthEnd.' 23:59:59'])->sum('total_amount');
+                $kpis['revenue_growth'] = $lastMonthRev > 0 ? round((($kpis['monthly_revenue'] - $lastMonthRev) / $lastMonthRev) * 100, 1) : 0;
+
+                // Also add reservation revenue to total revenue
+                if (\Schema::hasTable('reservations')) {
+                    $reservationRevenue = (float) \DB::table('reservations')
+                        ->whereNotIn('status', ['cancelled', 'canceled'])
+                        ->sum('total_amount');
+                    $kpis['total_revenue'] += $reservationRevenue;
+                    $kpis['monthly_revenue'] += (float) \DB::table('reservations')
+                        ->whereNotIn('status', ['cancelled', 'canceled'])
+                        ->whereBetween('check_in_date', [$startOfMonth, $endOfMonth])
+                        ->sum('total_amount');
+                }
+
+                // Recent sales with guest/customer name
+                $recentSales = \DB::table('sales')
+                    ->leftJoin('guests', 'sales.guest_id', '=', 'guests.id')
+                    ->select('sales.id', 'sales.sale_number', 'sales.sale_date', 'sales.created_at', 'sales.total_amount', 'sales.payment_status',
+                        \DB::raw("COALESCE(NULLIF(sales.customer_name,''), CONCAT(guests.first_name,' ',guests.last_name)) as customer_name"))
+                    ->orderByDesc('sales.created_at')->limit(5)->get()
+                    ->map(fn($s) => ['id' => $s->id, 'sale_number' => $s->sale_number, 'sale_date' => $s->sale_date ?? $s->created_at, 'total_amount' => (float)$s->total_amount, 'status' => $s->payment_status ?? 'pending', 'customer_name' => $s->customer_name])
+                    ->toArray();
+
+                // Top products by revenue
+                if (\Schema::hasTable('sale_items') && \Schema::hasTable('products')) {
+                    $topProducts = \DB::table('sale_items')
+                        ->join('products', 'sale_items.product_id', '=', 'products.id')
+                        ->select('products.id', 'products.name', \DB::raw('SUM(sale_items.quantity) as quantity_sold'), \DB::raw('SUM(sale_items.total_price) as revenue'))
+                        ->groupBy('products.id', 'products.name')
+                        ->orderByDesc('revenue')
+                        ->limit(5)
+                        ->get()
+                        ->map(fn($p) => ['id' => $p->id, 'name' => $p->name, 'quantity_sold' => (int)$p->quantity_sold, 'revenue' => (float)$p->revenue])
+                        ->toArray();
+                }
             }
-        } catch (\Throwable $e) {}
+
+            // Expenses
+            if (class_exists(\App\Models\Expense::class)) {
+                $kpis['total_expenses'] = (float) \App\Models\Expense::sum('amount');
+                $kpis['monthly_expenses'] = (float) \App\Models\Expense::whereBetween('created_at', [$startOfMonth.' 00:00:00', $endOfMonth.' 23:59:59'])->sum('amount');
+                $kpis['monthly_expense_count'] = \App\Models\Expense::whereBetween('created_at', [$startOfMonth.' 00:00:00', $endOfMonth.' 23:59:59'])->count();
+
+                // Recent expenses
+                $recentExpenses = \DB::table('expenses')
+                    ->leftJoin('expense_categories', 'expenses.expense_category_id', '=', 'expense_categories.id')
+                    ->select('expenses.id', 'expense_categories.name as category', 'expenses.description', 'expenses.vendor_name', 'expenses.amount', 'expenses.expense_date', 'expenses.created_at')
+                    ->orderByDesc('expenses.created_at')->limit(5)->get()
+                    ->map(fn($e) => ['id' => $e->id, 'category' => $e->category ?? 'Uncategorized', 'description' => $e->description ?: $e->vendor_name, 'amount' => (float)$e->amount, 'date' => $e->expense_date ?? $e->created_at])
+                    ->toArray();
+            }
+
+            $kpis['net_profit'] = $kpis['total_revenue'] - $kpis['total_expenses'];
+            $kpis['profit_margin'] = $kpis['total_revenue'] > 0 ? round(($kpis['net_profit'] / $kpis['total_revenue']) * 100, 1) : 0;
+
+            // Guests / Customers
+            if (class_exists(\App\Models\Guest::class) && \Schema::hasTable('guests')) {
+                $kpis['total_customers'] = \App\Models\Guest::count();
+                $kpis['new_customers'] = \App\Models\Guest::where('created_at', '>=', $startOfMonth)->count();
+
+                // Top guests by reservation spend
+                if (\Schema::hasTable('reservations')) {
+                    $topCustomers = \DB::table('guests')
+                        ->select('guests.id', \DB::raw("CONCAT(guests.first_name, ' ', guests.last_name) as name"),
+                            \DB::raw('COUNT(reservations.id) as order_count'),
+                            \DB::raw('SUM(reservations.total_amount) as total_spent'))
+                        ->leftJoin('reservations', 'guests.id', '=', 'reservations.guest_id')
+                        ->whereNotIn('reservations.status', ['cancelled', 'canceled'])
+                        ->groupBy('guests.id', 'guests.first_name', 'guests.last_name')
+                        ->orderByDesc('total_spent')
+                        ->limit(5)
+                        ->get()
+                        ->map(fn($c) => ['id' => $c->id, 'name' => $c->name, 'order_count' => (int)$c->order_count, 'total_spent' => (float)($c->total_spent ?? 0)])
+                        ->toArray();
+                }
+            } elseif (class_exists(\App\Models\Customer::class)) {
+                $kpis['total_customers'] = \App\Models\Customer::count();
+                $kpis['new_customers'] = \App\Models\Customer::where('created_at', '>=', $startOfMonth)->count();
+
+                if (\Schema::hasTable('sales')) {
+                    $topCustomers = \DB::table('customers')
+                        ->select('customers.id', 'customers.first_name', 'customers.last_name',
+                            \DB::raw("CONCAT(customers.first_name, ' ', customers.last_name) as name"),
+                            \DB::raw('COUNT(sales.id) as order_count'),
+                            \DB::raw('SUM(sales.total_amount) as total_spent'))
+                        ->leftJoin('sales', 'customers.id', '=', 'sales.customer_id')
+                        ->groupBy('customers.id', 'customers.first_name', 'customers.last_name')
+                        ->orderByDesc('total_spent')
+                        ->limit(5)
+                        ->get()
+                        ->map(fn($c) => ['id' => $c->id, 'name' => $c->name, 'order_count' => (int)$c->order_count, 'total_spent' => (float)($c->total_spent ?? 0)])
+                        ->toArray();
+                }
+            }
+
+            // Outstanding balances from reservations
+            if (\Schema::hasTable('reservations')) {
+                $kpis['outstanding_invoices'] = (float) \DB::table('reservations')
+                    ->whereIn('payment_status', ['unpaid', 'partial'])
+                    ->whereNotIn('status', ['cancelled', 'canceled'])
+                    ->sum('balance_amount');
+                $kpis['unpaid_count'] = \DB::table('reservations')
+                    ->whereIn('payment_status', ['unpaid', 'partial'])
+                    ->whereNotIn('status', ['cancelled', 'canceled'])
+                    ->count();
+
+                $outstandingInvoices = \DB::table('reservations')
+                    ->leftJoin('guests', 'reservations.guest_id', '=', 'guests.id')
+                    ->select('reservations.id', 'reservations.reservation_number as invoice_number',
+                        'reservations.balance_amount as outstanding_amount',
+                        'reservations.check_out_date as due_date',
+                        'reservations.payment_status',
+                        \DB::raw("CONCAT(guests.first_name,' ',guests.last_name) as customer_name"))
+                    ->whereIn('reservations.payment_status', ['unpaid', 'partial'])
+                    ->whereNotIn('reservations.status', ['cancelled', 'canceled'])
+                    ->orderByDesc('reservations.check_out_date')->limit(5)->get()
+                    ->map(fn($r) => [
+                        'id' => $r->id,
+                        'invoice_number' => $r->invoice_number,
+                        'customer_name' => $r->customer_name,
+                        'outstanding_amount' => (float)$r->outstanding_amount,
+                        'due_date' => $r->due_date,
+                        'days_overdue' => max(0, now()->diffInDays($r->due_date, false) * -1),
+                    ])
+                    ->toArray();
+            }
+
+            // Suppliers & Payables
+            if (class_exists(\App\Models\Supplier::class)) {
+                $kpis['total_suppliers'] = \App\Models\Supplier::where('is_active', true)->count();
+                $kpis['total_payables'] = \Schema::hasTable('purchase_orders')
+                    ? (float) \DB::table('purchase_orders')->sum('remaining_amount') : 0;
+
+                if (\Schema::hasTable('purchase_orders')) {
+                    $supplierPayables = \DB::table('suppliers')
+                        ->join('purchase_orders', 'suppliers.id', '=', 'purchase_orders.supplier_id')
+                        ->select('suppliers.id', 'suppliers.name',
+                            \DB::raw('SUM(purchase_orders.remaining_amount) as balance_due'),
+                            \DB::raw('SUM(purchase_orders.total_amount) as total_ordered'),
+                            \DB::raw('SUM(purchase_orders.paid_amount) as total_paid'))
+                        ->where('suppliers.is_active', true)
+                        ->groupBy('suppliers.id', 'suppliers.name')
+                        ->having('balance_due', '>', 0)
+                        ->orderByDesc('balance_due')
+                        ->limit(5)
+                        ->get();
+
+                    $topSuppliers = $supplierPayables->map(fn($s) => [
+                        'id' => $s->id,
+                        'name' => $s->name,
+                        'balance_due' => (float)$s->balance_due,
+                        'payment_percentage' => $s->total_ordered > 0 ? round(($s->total_paid / $s->total_ordered) * 100, 1) : 0,
+                    ])->toArray();
+                }
+            }
+
+            // Occupancy metrics
+            if (class_exists(\App\Models\Room::class)) {
+                $kpis['total_rooms'] = \App\Models\Room::count();
+
+                if (\Schema::hasTable('reservations')) {
+                    $occupiedToday = \App\Models\Reservation::where('check_in_date', '<=', $today)
+                        ->where('check_out_date', '>', $today)
+                        ->whereNotIn('status', ['cancelled', 'canceled'])
+                        ->count();
+                    $kpis['rooms_occupied'] = $occupiedToday;
+                    $kpis['occupancy_rate'] = $kpis['total_rooms'] > 0 ? round(($occupiedToday / $kpis['total_rooms']) * 100, 1) : 0;
+
+                    // Average Daily Rate
+                    $adrData = \DB::table('reservations')
+                        ->whereDate('check_in_date', '>=', $startOfMonth)
+                        ->whereDate('check_in_date', '<=', $endOfMonth)
+                        ->whereNotIn('status', ['cancelled', 'canceled'])
+                        ->selectRaw('SUM(total_amount) as rev, SUM(nights) as nights')
+                        ->first();
+                    $totalNights = max(1, (int)($adrData->nights ?? 0));
+                    $kpis['average_daily_rate'] = $adrData->rev > 0 ? round($adrData->rev / $totalNights, 2) : 0;
+                }
+            }
+
+        } catch (\Throwable $e) {
+            \Log::warning('Admin reports dashboard KPI error: ' . $e->getMessage());
+        }
 
         return Inertia::render('Admin/Reports/Index', [
-            'user'            => $user,
-            'navigation'      => app(DashboardController::class)->getNavigationForRole($role),
-            'stats'           => $stats,
-            'recentSales'     => $recentSales,
-            'recentCustomers' => $recentCustomers,
+            'user'                => $user,
+            'navigation'          => app(DashboardController::class)->getNavigationForRole($role),
+            'kpis'                => $kpis,
+            'recentSales'         => $recentSales,
+            'recentExpenses'      => $recentExpenses,
+            'outstandingInvoices' => $outstandingInvoices,
+            'topSuppliers'        => $topSuppliers,
+            'topProducts'         => $topProducts,
+            'topCustomers'        => $topCustomers,
         ]);
     })->name('reports.index');
 
@@ -6584,18 +6783,63 @@ Route::middleware(['auth', 'role:front_desk'])->prefix('front-desk')->name('fron
 
         $recentTransactions = $recentTransactions->sortByDesc('date')->take(50)->values();
 
-        return Inertia::render('Manager/Transactions/Index', [
-            'user' => $user,
-            'navigation' => app(DashboardController::class)->getNavigationForRole($role),
-            'transactionStats' => $transactionStats,
+        // ── Revenue Center Breakdown (today) ───────────────────────────────────
+        $todayRoomRevenue = (float) \App\Models\Payment::where('status', 'completed')
+            ->whereDate('processed_at', $today)->sum('amount');
+        $todayFnBRevenue  = class_exists(\App\Models\Sale::class)
+            ? (float) \App\Models\Sale::whereDate('created_at', $today)->sum('total_amount') : 0.0;
+        $todayHallRevenue = class_exists(\App\Models\HallBooking::class)
+            ? (float) \App\Models\HallBooking::whereDate('created_at', $today)
+                ->whereIn('status', ['confirmed','completed'])->sum('total_amount') : 0.0;
+
+        $allRoomRevenue = (float) \App\Models\Payment::where('status', 'completed')->sum('amount');
+        $allFnBRevenue  = class_exists(\App\Models\Sale::class)
+            ? (float) \App\Models\Sale::sum('total_amount') : 0.0;
+        $allHallRevenue = class_exists(\App\Models\HallBooking::class)
+            ? (float) \App\Models\HallBooking::whereIn('status', ['confirmed','completed'])->sum('total_amount') : 0.0;
+
+        $todayByRevenueCenter = [
+            'room' => ['label' => 'Room Revenue', 'amount' => $todayRoomRevenue,
+                'count' => \App\Models\Payment::where('status','completed')->whereDate('processed_at', $today)->count()],
+        ];
+        if ($todayFnBRevenue > 0) {
+            $todayByRevenueCenter['food_beverage'] = ['label' => 'F&B / POS', 'amount' => $todayFnBRevenue,
+                'count' => class_exists(\App\Models\Sale::class) ? \App\Models\Sale::whereDate('created_at', $today)->count() : 0];
+        }
+        if ($todayHallRevenue > 0) {
+            $todayByRevenueCenter['other'] = ['label' => 'Hall Bookings', 'amount' => $todayHallRevenue,
+                'count' => class_exists(\App\Models\HallBooking::class)
+                    ? \App\Models\HallBooking::whereDate('created_at', $today)->whereIn('status', ['confirmed','completed'])->count() : 0];
+        }
+
+        $allTimeByRevenueCenter = [
+            'room' => ['label' => 'Room Revenue', 'amount' => $allRoomRevenue,
+                'count' => \App\Models\Payment::where('status','completed')->count()],
+        ];
+        if ($allFnBRevenue > 0) {
+            $allTimeByRevenueCenter['food_beverage'] = ['label' => 'F&B / POS', 'amount' => $allFnBRevenue,
+                'count' => class_exists(\App\Models\Sale::class) ? \App\Models\Sale::count() : 0];
+        }
+        if ($allHallRevenue > 0) {
+            $allTimeByRevenueCenter['other'] = ['label' => 'Hall Bookings', 'amount' => $allHallRevenue,
+                'count' => class_exists(\App\Models\HallBooking::class)
+                    ? \App\Models\HallBooking::whereIn('status', ['confirmed','completed'])->count() : 0];
+        }
+
+        $transactionStats['todayByRevenueCenter']  = $todayByRevenueCenter;
+        $transactionStats['allTimeByRevenueCenter'] = $allTimeByRevenueCenter;
+
+        return Inertia::render('Admin/Transactions/Index', [
+            'user'               => $user,
+            'navigation'         => app(DashboardController::class)->getNavigationForRole($role),
+            'transactionStats'   => $transactionStats,
+            'transactions'       => $recentTransactions->toArray(),
             'recentTransactions' => $recentTransactions->toArray(),
-            'filters' => [
-                'search'     => request('search', ''),
-                'type'       => request('type', ''),
-                'status'     => request('status', ''),
-                'start_date' => request('start_date', ''),
-                'end_date'   => request('end_date', ''),
+            'settings'           => [
+                'currency'          => \App\Models\Setting::get('currency', 'USD'),
+                'currency_position' => \App\Models\Setting::get('currency_position', 'prefix'),
             ],
+            'filters' => request()->only(['status', 'type', 'start_date', 'end_date']),
         ]);
     })->name('transactions.index');
 
@@ -6737,6 +6981,112 @@ Route::middleware(['auth', 'role:front_desk'])->prefix('front-desk')->name('fron
     Route::put('/quotes/{id}', [\App\Http\Controllers\Admin\QuoteController::class, 'update'])->name('quotes.update');
     Route::post('/quotes/{id}/convert', [\App\Http\Controllers\Admin\QuoteController::class, 'convert'])->name('quotes.convert');
 
+    // Expenses (scoped to current user — front-desk staff see only their own)
+    Route::get('/expenses', function () {
+        $user = auth()->user()->load('roles');
+        $role = $user->roles->first()?->name ?? 'front_desk';
+        $userId = $user->id;
+        $categories = \App\Models\ExpenseCategory::orderBy('name')->get();
+
+        $query = \App\Models\Expense::with(['category', 'submittedBy'])
+            ->where('submitted_by', $userId)
+            ->latest();
+        if (request('status'))     { $query->where('status', request('status')); }
+        if (request('category'))   { $query->where('expense_category_id', request('category')); }
+        if (request('start_date')) { $query->whereDate('expense_date', '>=', request('start_date')); }
+        if (request('end_date'))   { $query->whereDate('expense_date', '<=', request('end_date')); }
+
+        $expenses = $query->paginate(20)->through(fn($e) => [
+            'id'             => $e->id,
+            'description'    => $e->description,
+            'vendor'         => $e->vendor_name,
+            'category'       => $e->category?->name ?? 'Uncategorized',
+            'category_id'    => $e->expense_category_id,
+            'category_color' => $e->category?->color,
+            'amount'         => (float) $e->amount,
+            'date'           => $e->expense_date?->toDateString(),
+            'status'         => $e->status,
+            'payment_method' => $e->payment_method,
+            'receipt_number' => $e->receipt_number,
+            'notes'          => $e->notes,
+        ]);
+
+        $expenseStats = [
+            'thisMonth'  => (float) \App\Models\Expense::where('submitted_by', $userId)
+                                        ->whereMonth('expense_date', now()->month)
+                                        ->whereYear('expense_date', now()->year)->sum('amount'),
+            'pending'    => \App\Models\Expense::where('submitted_by', $userId)->where('status', 'pending')->count(),
+            'total'      => \App\Models\Expense::where('submitted_by', $userId)->count(),
+            'categories' => \App\Models\ExpenseCategory::where('is_active', true)->count(),
+        ];
+
+        return Inertia::render('Admin/Expenses/Index', [
+            'user'         => $user,
+            'navigation'   => app(DashboardController::class)->getNavigationForRole($role),
+            'expenses'     => $expenses,
+            'categories'   => $categories,
+            'expenseStats' => $expenseStats,
+            'filters'      => request()->only(['status', 'category', 'start_date', 'end_date']),
+        ]);
+    })->name('expenses.index');
+
+    Route::get('/expenses/create', function () {
+        $user = auth()->user()->load('roles');
+        $role = $user->roles->first()?->name ?? 'front_desk';
+        $categories = \App\Models\ExpenseCategory::where('is_active', true)->orderBy('name')->get();
+        return Inertia::render('Admin/Expenses/Create', [
+            'user'       => $user,
+            'navigation' => app(DashboardController::class)->getNavigationForRole($role),
+            'categories' => $categories,
+            'budgets'    => \App\Models\Budget::whereIn('status', ['active', 'approved'])->orderBy('name')->get(['id', 'name', 'amount']),
+            'guests'     => \App\Models\Guest::orderBy('first_name')->get(['id', 'first_name', 'last_name', 'email']),
+        ]);
+    })->name('expenses.create');
+
+    Route::post('/expenses', function (\Illuminate\Http\Request $request) {
+        $validated = $request->validate([
+            'expense_category_id' => 'nullable|exists:expense_categories,id',
+            'vendor_name'         => 'nullable|string|max:255',
+            'description'         => 'required|string',
+            'expense_date'        => 'required|date',
+            'amount'              => 'required|numeric|min:0.01',
+            'payment_method'      => 'nullable|string|max:50',
+            'receipt_number'      => 'nullable|string|max:100',
+            'receipt_file'        => 'nullable|file|mimes:pdf,jpg,jpeg,png,webp|max:5120',
+            'budget_id'           => 'nullable|exists:budgets,id',
+            'guest_id'            => 'nullable|exists:guests,id',
+            'notes'               => 'nullable|string',
+        ]);
+        if ($request->hasFile('receipt_file')) {
+            $validated['receipt_file_path'] = $request->file('receipt_file')
+                ->store('expenses/receipts', 'public');
+        }
+        unset($validated['receipt_file']);
+        $validated['submitted_by']   = $request->user()->id;
+        $validated['status']         = 'pending';
+        $validated['expense_number'] = 'EXP-' . strtoupper(uniqid());
+        $validated['currency']       = \App\Models\Setting::get('currency', 'USD');
+        \App\Models\Expense::create($validated);
+        return redirect()->route('front-desk.expenses.index')->with('success', 'Expense recorded successfully.');
+    })->name('expenses.store');
+
+    Route::get('/expenses/{expense}', function (\App\Models\Expense $expense) {
+        $user = auth()->user()->load('roles');
+        // Only allow the user who submitted the expense to view it
+        abort_if($expense->submitted_by !== $user->id, 403);
+        $role = $user->roles->first()?->name ?? 'front_desk';
+        $exp  = $expense->load(['category', 'submittedBy', 'approvedBy']);
+        $receiptUrl = $exp->receipt_file_path ? '/storage/' . $exp->receipt_file_path : null;
+        return Inertia::render('Admin/Expenses/Show', [
+            'user'           => $user,
+            'navigation'     => app(DashboardController::class)->getNavigationForRole($role),
+            'expense'        => $exp,
+            'receipt_url'    => $receiptUrl,
+            'submitter_name' => $exp->submittedBy ? trim($exp->submittedBy->first_name . ' ' . $exp->submittedBy->last_name) : null,
+            'approver_name'  => $exp->approvedBy  ? trim($exp->approvedBy->first_name  . ' ' . $exp->approvedBy->last_name)  : null,
+        ]);
+    })->name('expenses.show');
+
     // Reports sub-routes (aliases kept for Ziggy/nav compatibility)
 });
 
@@ -6852,8 +7202,7 @@ Route::middleware(['auth', 'role:accountant'])->prefix('accountant')->name('acco
             ->get()
             ->map(fn($r) => [
                 'id'          => $r->id,
-                'guest_name'  => $r->guest ? trim($r->guest->first_name . ' ' . $r->guest->last_name) : 'Guest',
-                'room_number' => $r->room?->room_number ?? 'N/A',
+                'description' => 'Rm ' . ($r->room?->room_number ?? 'N/A') . ' – ' . ($r->guest ? trim($r->guest->first_name . ' ' . $r->guest->last_name) : 'Guest'),
                 'amount'      => max(0, (float)($r->total_amount ?? 0) - (float)($r->paid_amount ?? 0)),
                 'due_date'    => $r->check_out_date,
             ]);
@@ -8400,6 +8749,96 @@ Route::middleware(['auth', 'role:manager'])->prefix('manager')->name('manager.')
         ]);
     })->name('dashboard');
 
+    // Transactions
+    Route::get('/transactions', function () {
+        $user = auth()->user()->load('roles');
+        $role = $user->roles->first()?->name ?? 'manager';
+        $today = now()->toDateString();
+
+        // ── Transaction Statistics ─────────────────────────────────────────────
+        $totalTx = \App\Models\Payment::count() + \App\Models\Sale::count() + \App\Models\Expense::count();
+        $transactionStats = [
+            'total'        => $totalTx,
+            'todayRevenue' => (float) \App\Models\Payment::where('status', 'completed')
+                                ->whereDate('processed_at', $today)->sum('amount')
+                             + (float) \App\Models\Sale::whereDate('created_at', $today)->sum('total_amount'),
+            'totalRevenue' => (float) \App\Models\Payment::where('status', 'completed')->sum('amount')
+                             + (float) \App\Models\Sale::sum('total_amount'),
+            'completed'    => \App\Models\Payment::where('status', 'completed')->count()
+                             + \App\Models\Sale::where('payment_status', 'completed')->count(),
+            'pending'      => \App\Models\Payment::where('status', 'pending')->count()
+                             + \App\Models\Expense::where('status', 'pending')->count(),
+            'failed'       => \App\Models\Payment::where('status', 'failed')->count(),
+        ];
+
+        // ── Recent Transactions ─────────────────────────────────────────────────
+        $recentTransactions = collect();
+
+        $payments = \App\Models\Payment::with('reservation.guest')
+            ->orderBy('created_at', 'desc')->limit(10)->get()
+            ->map(fn($p) => [
+                'transaction_id' => $p->payment_number ?? 'PAY-' . $p->id,
+                'guest_name'     => $p->reservation?->guest
+                    ? trim($p->reservation->guest->first_name . ' ' . $p->reservation->guest->last_name) : 'Guest',
+                'reference'      => $p->reservation?->id ? 'Reservation #' . $p->reservation->id : 'Direct Payment',
+                'type'           => 'payment',
+                'amount'         => (float) $p->amount,
+                'status'         => $p->status ?? 'completed',
+                'payment_method' => $p->payment_method,
+                'date'           => $p->processed_at?->format('Y-m-d H:i:s') ?? $p->created_at->format('Y-m-d H:i:s'),
+                'created_at'     => $p->created_at->format('Y-m-d H:i:s'),
+            ]);
+        $recentTransactions = $recentTransactions->merge($payments);
+
+        if (class_exists(\App\Models\Sale::class)) {
+            $sales = \App\Models\Sale::with(['guest'])->orderBy('created_at', 'desc')->limit(10)->get()
+                ->map(fn($s) => [
+                    'transaction_id' => $s->sale_number ?? 'SALE-' . $s->id,
+                    'guest_name'     => $s->guest ? trim($s->guest->first_name . ' ' . $s->guest->last_name) : 'Customer',
+                    'reference'      => 'Sale #' . $s->id,
+                    'type'           => 'sale',
+                    'amount'         => (float) $s->total_amount,
+                    'status'         => $s->payment_status ?? 'completed',
+                    'payment_method' => $s->payment_method ?? 'cash',
+                    'date'           => $s->created_at->format('Y-m-d H:i:s'),
+                    'created_at'     => $s->created_at->format('Y-m-d H:i:s'),
+                ]);
+            $recentTransactions = $recentTransactions->merge($sales);
+        }
+
+        if (class_exists(\App\Models\Expense::class)) {
+            $expenses = \App\Models\Expense::orderBy('expense_date', 'desc')->limit(10)->get()
+                ->map(fn($e) => [
+                    'transaction_id' => $e->expense_number ?? 'EXP-' . $e->id,
+                    'guest_name'     => $e->vendor_name ?? 'Vendor',
+                    'reference'      => 'Expense #' . $e->id,
+                    'type'           => 'expense',
+                    'amount'         => (float) $e->amount,
+                    'status'         => $e->status ?? 'pending',
+                    'payment_method' => $e->payment_method ?? 'cash',
+                    'date'           => $e->expense_date->format('Y-m-d H:i:s'),
+                    'created_at'     => $e->created_at->format('Y-m-d H:i:s'),
+                ]);
+            $recentTransactions = $recentTransactions->merge($expenses);
+        }
+
+        $recentTransactions = $recentTransactions->sortByDesc('date')->take(50)->values();
+
+        return Inertia::render('Manager/Transactions/Index', [
+            'user'               => $user,
+            'navigation'         => app(DashboardController::class)->getNavigationForRole($role),
+            'transactionStats'   => $transactionStats,
+            'recentTransactions' => $recentTransactions->toArray(),
+            'filters'            => [
+                'search'     => request('search', ''),
+                'type'       => request('type', ''),
+                'status'     => request('status', ''),
+                'start_date' => request('start_date', ''),
+                'end_date'   => request('end_date', ''),
+            ],
+        ]);
+    })->name('transactions.index');
+
     // Customers
     Route::get('/customers', function (\Illuminate\Http\Request $request) {
         $user = auth()->user()->load('roles');
@@ -8759,7 +9198,16 @@ Route::middleware(['auth', 'role:manager'])->prefix('manager')->name('manager.')
     Route::get('/room-types/{roomType}/edit', [RoomTypeController::class, 'edit'])->name('room-types.edit');
 
     // Room Amenities
-    Route::get('/room-amenities', [\App\Http\Controllers\Admin\RoomAmenityController::class, 'index'])->name('room-amenities.index');
+    Route::get('/room-amenities', function () {
+        $amenities = \App\Models\RoomAmenity::withCount('roomTypes')->get();
+        return inertia('Manager/RoomAmenities/Index', [
+            'user'      => auth()->user()->load('roles'),
+            'amenities' => $amenities,
+        ]);
+    })->name('room-amenities.index');
+    Route::post('/room-amenities', [\App\Http\Controllers\Admin\RoomAmenityController::class, 'store'])->name('room-amenities.store');
+    Route::put('/room-amenities/{amenity}', [\App\Http\Controllers\Admin\RoomAmenityController::class, 'update'])->name('room-amenities.update');
+    Route::delete('/room-amenities/{amenity}', [\App\Http\Controllers\Admin\RoomAmenityController::class, 'destroy'])->name('room-amenities.destroy');
 
     // Halls — delegates to HallController
     Route::get('/halls', [HallController::class, 'index'])->name('halls.index');

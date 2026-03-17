@@ -28,7 +28,6 @@ export const navigationConfig = {
       flat: true,
       items: [
         { label: 'Admin Dashboard', routeName: 'admin.dashboard', icon: 'home' },
-        { label: '❓ Help & Tutorial', icon: 'help', tutorial: true },
       ],
     },
     {
@@ -64,6 +63,7 @@ export const navigationConfig = {
             { label: '🛏️ Rooms',              routeName: 'admin.rooms.index' },
             { label: '🏠 Room Status',         routeName: 'admin.rooms.status' },
             { label: '🏷️ Room Types',          routeName: 'admin.room-types.index' },
+            { label: '🏷️ Room Amenities',      routeName: 'admin.room-amenities.index' },
             { label: '🏢 Floors',              href: '/admin/floors' },
             { label: '🏗️ Building Wings',      href: '/admin/building-wings' },
             { label: '🛏️ Bed Types',           href: '/admin/bed-types' },
@@ -284,7 +284,7 @@ export const navigationConfig = {
           label: 'Financial',
           icon: 'dollar',
           items: [
-            { label: 'Transactions', routeName: 'admin.transactions', permission: 'view_transactions' },
+            { label: 'Transactions', routeName: 'admin.transactions.index', permission: 'view_transactions' },
             { label: 'Invoices',      routeName: 'admin.invoices.index' },
             { label: 'Quotes',        routeName: 'admin.quotes.index' },
             { label: 'Expenses',     routeName: 'admin.expenses.index', permission: 'view_expenses' },
@@ -318,7 +318,6 @@ export const navigationConfig = {
       flat: true,
       items: [
         { label: 'Manager Dashboard', routeName: 'manager.dashboard', icon: 'home' },
-        { label: '❓ Help & Tutorial', icon: 'help', tutorial: true },
       ],
     },
     {
@@ -355,6 +354,7 @@ export const navigationConfig = {
             { label: '🛏️ Rooms',              routeName: 'manager.rooms.index' },
             { label: '🏠 Room Status',         routeName: 'manager.rooms.status' },
             { label: '🏷️ Room Types',          routeName: 'manager.room-types.index' },
+            { label: '🏷️ Room Amenities',      routeName: 'manager.room-amenities.index' },
             { label: '🏢 Floors',              routeName: 'manager.floors.index' },
             { label: '🏗️ Building Wings',      routeName: 'manager.building-wings.index' },
             { label: '🛏️ Bed Types',           routeName: 'manager.bed-types.index' },
@@ -597,7 +597,6 @@ export const navigationConfig = {
       flat: true,
       items: [
         { label: 'Accountant Dashboard', routeName: 'accountant.dashboard', icon: 'home' },
-        { label: '❓ Help & Tutorial', icon: 'help', tutorial: true },
       ],
     },
     {
@@ -676,7 +675,6 @@ export const navigationConfig = {
       flat: true,
       items: [
         { label: 'Front Desk Dashboard', routeName: 'front-desk.dashboard', icon: 'home' },
-        { label: '❓ Help & Tutorial', icon: 'help', tutorial: true },
       ],
     },
     // ...existing code...
@@ -711,7 +709,8 @@ export const navigationConfig = {
           label: 'Payments',
           icon: 'dollar',
           items: [
-            { label: 'Payments', routeName: 'front-desk.payments.process' },
+            { label: 'Payments',      routeName: 'front-desk.payments.process' },
+            { label: 'My Transactions', routeName: 'front-desk.transactions.index' },
           ],
         },
         {
@@ -748,6 +747,15 @@ export const navigationConfig = {
             { label: 'Quotes',       routeName: 'front-desk.quotes.index' },
           ],
         },
+        {
+          id: 'frontdesk-expenses',
+          label: 'Expenses',
+          icon: 'dollar',
+          items: [
+            { label: 'All Expenses',    routeName: 'front-desk.expenses.index' },
+            { label: 'Record Expense',  routeName: 'front-desk.expenses.create' },
+          ],
+        },
       ],
     },
   ],
@@ -760,7 +768,6 @@ export const navigationConfig = {
       flat: true,
       items: [
         { label: 'Housekeeping Dashboard', routeName: 'housekeeping.dashboard', icon: 'home' },
-        { label: '❓ Help & Tutorial', icon: 'help', tutorial: true },
       ],
     },
     {
@@ -796,7 +803,6 @@ export const navigationConfig = {
       flat: true,
       items: [
         { label: 'Maintenance Dashboard', routeName: 'maintenance.dashboard', icon: 'home' },
-        { label: '❓ Help & Tutorial', icon: 'help', tutorial: true },
       ],
     },
     {
@@ -826,7 +832,6 @@ export const navigationConfig = {
       flat: true,
       items: [
         { label: '🍹 Dashboard', href: '/bartender/dashboard', icon: 'home' },
-        { label: '❓ Help & Tutorial', icon: 'help', tutorial: true },
       ],
     },
     {
@@ -855,7 +860,6 @@ export const navigationConfig = {
       flat: true,
       items: [
         { label: '🍽️ Dashboard', href: '/server/dashboard', icon: 'home' },
-        { label: '❓ Help & Tutorial', icon: 'help', tutorial: true },
       ],
     },
     {
@@ -882,7 +886,6 @@ export const navigationConfig = {
       flat: true,
       items: [
         { label: '📊 HR Dashboard', href: '/hr/dashboard', icon: 'home' },
-        { label: '❓ Help & Tutorial', icon: 'help', tutorial: true },
       ],
     },
     {

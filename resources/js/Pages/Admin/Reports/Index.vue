@@ -148,7 +148,7 @@
             <div class="shadow rounded-lg p-6 border" :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }">
                 <div class="flex items-center justify-between mb-4">
                     <h3 class="text-lg font-semibold" :style="{ color: themeColors.textPrimary }">Outstanding Invoices</h3>
-                    <a href="#" class="text-sm" :style="{ color: themeColors.primary }">View All →</a>
+                    <Link :href="route('admin.invoices.index')" class="text-sm" :style="{ color: themeColors.primary }">View All →</Link>
                 </div>
                 <div v-if="outstandingInvoices && outstandingInvoices.length" class="space-y-4">
                     <div v-for="invoice in outstandingInvoices" :key="invoice.id" class="flex items-center justify-between pb-4 border-b"
@@ -170,7 +170,7 @@
             <div class="shadow rounded-lg p-6 border" :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }">
                 <div class="flex items-center justify-between mb-4">
                     <h3 class="text-lg font-semibold" :style="{ color: themeColors.textPrimary }">Top Suppliers (Amount Due)</h3>
-                    <a href="#" class="text-sm" :style="{ color: themeColors.primary }">View All →</a>
+                    <Link :href="route('admin.reports.financial')" class="text-sm" :style="{ color: themeColors.primary }">View All →</Link>
                 </div>
                 <div v-if="topSuppliers && topSuppliers.length" class="space-y-4">
                     <div v-for="supplier in topSuppliers" :key="supplier.id" class="flex items-center justify-between pb-4 border-b"
@@ -204,7 +204,7 @@
             <div class="shadow rounded-lg p-6 border" :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }">
                 <div class="flex items-center justify-between mb-4">
                     <h3 class="text-lg font-semibold" :style="{ color: themeColors.textPrimary }">Top Selling Products</h3>
-                    <a href="#" class="text-sm" :style="{ color: themeColors.primary }">View All →</a>
+                    <Link :href="route('admin.products.index')" class="text-sm" :style="{ color: themeColors.primary }">View All →</Link>
                 </div>
                 <div v-if="topProducts && topProducts.length" class="space-y-4">
                     <div v-for="(product, idx) in topProducts" :key="product.id" class="flex items-center justify-between pb-4 border-b"
@@ -226,7 +226,7 @@
             <div class="shadow rounded-lg p-6 border" :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }">
                 <div class="flex items-center justify-between mb-4">
                     <h3 class="text-lg font-semibold" :style="{ color: themeColors.textPrimary }">Top Customers by Spending</h3>
-                    <a href="#" class="text-sm" :style="{ color: themeColors.primary }">View All →</a>
+                    <Link :href="route('admin.customers.index')" class="text-sm" :style="{ color: themeColors.primary }">View All →</Link>
                 </div>
                 <div v-if="topCustomers && topCustomers.length" class="space-y-4">
                     <div v-for="(customer, idx) in topCustomers" :key="customer.id" class="flex items-center justify-between pb-4 border-b"

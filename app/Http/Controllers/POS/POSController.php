@@ -123,6 +123,7 @@ class POSController extends Controller
             'hotelPhone' => Setting::get('hotel_phone', ''),
             'hotelEmail' => Setting::get('hotel_email', ''),
             'receiptSizeRestaurant' => Setting::get('receipt_size_restaurant', '80mm'),
+            'exitUrl' => $this->getDashboardUrlForCurrentUser(),
         ]);
     }
 
@@ -1928,6 +1929,27 @@ class POSController extends Controller
             ->values(),
             'filters' => $request->only(['start_date', 'end_date', 'payment_method', 'customer_id', 'user_id', 'status', 'min_amount', 'max_amount'])
         ]);
+    }
+
+    /**
+     * Get the dashboard URL for the currently authenticated user based on their role.
+     */
+    private function getDashboardUrlForCurrentUser(): string
+    {
+        $user = auth()->user()->load('roles');
+        $roleName = $user->roles->first()?->name;
+
+        return match ($roleName) {
+            'front_desk'   => '/front-desk/dashboard',
+            'bartender'    => '/bartender/dashboard',
+            'server'       => '/server/dashboard',
+            'housekeeping' => '/housekeeping/dashboard',
+            'maintenance'  => '/maintenance/dashboard',
+            'accountant'   => '/accountant/dashboard',
+            'manager'      => '/manager/dashboard',
+            'hr'           => '/hr/dashboard',
+            default        => '/admin/dashboard',
+        };
     }
 
     /**

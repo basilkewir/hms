@@ -19,7 +19,7 @@
       <div class="header-right">
         <button @click="showCalculator = true" class="btn-header btn-calculator">Calculator</button>
         <button @click="toggleDrawer" class="btn-header btn-drawer">{{ activeSession ? 'Close Drawer' : 'Open Drawer' }}</button>
-        <Link href="/admin/dashboard" class="btn-header btn-back">Exit</Link>
+        <Link :href="exitUrl || '/admin/dashboard'" class="btn-header btn-back">Exit</Link>
       </div>
     </header>
     <div class="stats-bar">
@@ -426,7 +426,8 @@ const props = defineProps({
     default: () => [],
   },
   hotelName: String,
-  printSettings: Object
+  printSettings: Object,
+  exitUrl: { type: String, default: '/admin/dashboard' },
 })
 
 // Get print settings with defaults

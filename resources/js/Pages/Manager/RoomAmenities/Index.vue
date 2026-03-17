@@ -1,40 +1,100 @@
 <template>
     <DashboardLayout title="Room Amenities" :user="user" :navigation="navigation">
-        <div class="bg-white shadow rounded-lg p-6 mb-6">
-            <div class="flex justify-between items-center mb-6">
+
+        <!-- Header -->
+        <div class="shadow rounded-lg p-6 mb-8 border" :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }">
+            <div class="flex items-center justify-between">
                 <div>
-                    <h1 class="text-2xl font-bold text-gray-900">Room Amenities</h1>
-                    <p class="text-gray-600 mt-1">Manage amenities and features for room types</p>
+                    <h1 class="text-2xl font-bold" :style="{ color: themeColors.textPrimary }">Room Amenities</h1>
+                    <p class="mt-2" :style="{ color: themeColors.textSecondary }">Manage amenities and features for room types.</p>
                 </div>
-                <button @click="showModal = true" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+                <button @click="showModal = true"
+                        class="px-4 py-2 rounded-md hover:opacity-90 transition-opacity flex items-center"
+                        :style="{ backgroundColor: themeColors.primary, color: '#000' }">
+                    <PlusIcon class="h-4 w-4 mr-2 inline" />
                     Add Amenity
                 </button>
             </div>
+        </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div v-for="amenity in amenities" :key="amenity.id" 
-                     class="border rounded-lg p-4 hover:shadow-lg transition">
+        <!-- Stats -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div class="rounded-lg shadow p-6 border" :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }">
+                <div class="flex items-center">
+                    <SparklesIcon class="h-8 w-8 mr-4" :style="{ color: themeColors.primary }" />
+                    <div>
+                        <p class="text-sm font-medium" :style="{ color: themeColors.textSecondary }">Total Amenities</p>
+                        <p class="text-2xl font-bold" :style="{ color: themeColors.textPrimary }">{{ amenities.length }}</p>
+                    </div>
+                </div>
+            </div>
+            <div class="rounded-lg shadow p-6 border" :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }">
+                <div class="flex items-center">
+                    <CheckCircleIcon class="h-8 w-8 mr-4" :style="{ color: themeColors.success }" />
+                    <div>
+                        <p class="text-sm font-medium" :style="{ color: themeColors.textSecondary }">Active</p>
+                        <p class="text-2xl font-bold" :style="{ color: themeColors.textPrimary }">{{ activeCount }}</p>
+                    </div>
+                </div>
+            </div>
+            <div class="rounded-lg shadow p-6 border" :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }">
+                <div class="flex items-center">
+                    <XCircleIcon class="h-8 w-8 mr-4" :style="{ color: themeColors.textSecondary }" />
+                    <div>
+                        <p class="text-sm font-medium" :style="{ color: themeColors.textSecondary }">Inactive</p>
+                        <p class="text-2xl font-bold" :style="{ color: themeColors.textPrimary }">{{ amenities.length - activeCount }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Amenities Grid -->
+        <div class="shadow rounded-lg overflow-hidden border" :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }">
+            <div class="px-6 py-4 border-b" :style="{ borderColor: themeColors.border }">
+                <h3 class="text-lg font-medium" :style="{ color: themeColors.textPrimary }">All Amenities</h3>
+            </div>
+
+            <!-- Empty State -->
+            <div v-if="amenities.length === 0" class="px-6 py-16 text-center">
+                <SparklesIcon class="mx-auto h-12 w-12 mb-4" :style="{ color: themeColors.border }" />
+                <p class="text-lg font-medium" :style="{ color: themeColors.textPrimary }">No amenities yet</p>
+                <p class="text-sm mt-1" :style="{ color: themeColors.textSecondary }">Click "Add Amenity" to create your first amenity.</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 p-6">
+                <div v-for="amenity in amenities" :key="amenity.id"
+                     class="rounded-lg p-4 border transition-colors"
+                     :style="hoveredCard === amenity.id
+                         ? { backgroundColor: themeColors.hover, borderColor: themeColors.border }
+                         : { backgroundColor: themeColors.background, borderColor: themeColors.border }"
+                     @mouseenter="hoveredCard = amenity.id"
+                     @mouseleave="hoveredCard = null">
                     <div class="flex justify-between items-start">
                         <div class="flex-1">
-                            <h3 class="font-semibold text-lg">{{ amenity.name }}</h3>
-                            <p v-if="amenity.description" class="text-sm text-gray-600 mt-1">{{ amenity.description }}</p>
-                            <div class="mt-2 flex items-center gap-2">
-                                <span class="text-xs px-2 py-1 rounded" :class="amenity.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'">
+                            <h3 class="font-semibold text-base" :style="{ color: themeColors.textPrimary }">{{ amenity.name }}</h3>
+                            <p v-if="amenity.description" class="text-sm mt-1" :style="{ color: themeColors.textSecondary }">{{ amenity.description }}</p>
+                            <div class="mt-3 flex items-center gap-2">
+                                <span class="text-xs px-2 py-0.5 rounded-full font-medium"
+                                      :style="amenity.is_active
+                                          ? { backgroundColor: themeColors.success, color: '#000' }
+                                          : { backgroundColor: themeColors.border, color: themeColors.textSecondary }">
                                     {{ amenity.is_active ? 'Active' : 'Inactive' }}
                                 </span>
-                                <span class="text-xs text-gray-500">{{ amenity.room_types_count }} room types</span>
+                                <span class="text-xs" :style="{ color: themeColors.textSecondary }">
+                                    {{ amenity.room_types_count }} room type{{ amenity.room_types_count !== 1 ? 's' : '' }}
+                                </span>
                             </div>
                         </div>
-                        <div class="flex gap-2">
-                            <button @click="editAmenity(amenity)" class="text-blue-600 hover:text-blue-800">
-                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-                                </svg>
+                        <div class="flex gap-2 ml-3">
+                            <button @click="editAmenity(amenity)"
+                                    class="p-1.5 rounded transition-opacity hover:opacity-70"
+                                    :style="{ color: themeColors.primary }">
+                                <PencilIcon class="h-4 w-4" />
                             </button>
-                            <button @click="deleteAmenity(amenity)" class="text-red-600 hover:text-red-800">
-                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                                </svg>
+                            <button @click="deleteAmenity(amenity)"
+                                    class="p-1.5 rounded transition-opacity hover:opacity-70"
+                                    :style="{ color: themeColors.danger }">
+                                <TrashIcon class="h-4 w-4" />
                             </button>
                         </div>
                     </div>
@@ -44,42 +104,53 @@
 
         <!-- Add/Edit Modal -->
         <div v-if="showModal" @click="closeModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div @click.stop class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-                <h2 class="text-xl font-bold mb-4 text-gray-900">{{ editingAmenity ? 'Edit' : 'Add' }} Amenity</h2>
+            <div @click.stop class="rounded-lg p-6 max-w-md w-full mx-4 shadow-xl border"
+                 :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }">
+                <h2 class="text-xl font-bold mb-5" :style="{ color: themeColors.textPrimary }">
+                    {{ editingAmenity ? 'Edit' : 'Add' }} Amenity
+                </h2>
                 <form @submit.prevent="saveAmenity">
                     <div class="space-y-4">
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Name</label>
-                            <input v-model="form.name" type="text" required 
-                                   class="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-blue-500">
+                            <label class="block text-sm font-medium mb-1" :style="{ color: themeColors.textSecondary }">Name</label>
+                            <input v-model="form.name" type="text" required
+                                   class="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2"
+                                   :style="{ backgroundColor: themeColors.background, borderColor: themeColors.border, color: themeColors.textPrimary }" />
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Icon (optional)</label>
-                            <input v-model="form.icon" type="text" 
-                                   class="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-blue-500"
-                                   placeholder="e.g., wifi, tv, pool">
+                            <label class="block text-sm font-medium mb-1" :style="{ color: themeColors.textSecondary }">Icon (optional)</label>
+                            <input v-model="form.icon" type="text"
+                                   class="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2"
+                                   :style="{ backgroundColor: themeColors.background, borderColor: themeColors.border, color: themeColors.textPrimary }"
+                                   placeholder="e.g., wifi, tv, pool" />
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                            <label class="block text-sm font-medium mb-1" :style="{ color: themeColors.textSecondary }">Description</label>
                             <textarea v-model="form.description" rows="3"
-                                      class="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-blue-500"></textarea>
+                                      class="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2"
+                                      :style="{ backgroundColor: themeColors.background, borderColor: themeColors.border, color: themeColors.textPrimary }"></textarea>
                         </div>
-                        <div class="flex items-center">
-                            <input v-model="form.is_active" type="checkbox" class="mr-2">
-                            <label class="text-sm font-medium text-gray-700">Active</label>
+                        <div class="flex items-center gap-2">
+                            <input v-model="form.is_active" type="checkbox" id="is_active_manager" class="rounded" />
+                            <label for="is_active_manager" class="text-sm font-medium" :style="{ color: themeColors.textSecondary }">Active</label>
                         </div>
                     </div>
-                    <div class="flex gap-2 mt-6">
-                        <button type="submit" class="flex-1 bg-blue-600 text-white py-2 rounded hover:bg-blue-700">
+                    <div class="flex gap-3 mt-6">
+                        <button type="submit"
+                                class="flex-1 py-2 rounded-md font-medium hover:opacity-90 transition-opacity"
+                                :style="{ backgroundColor: themeColors.primary, color: '#000' }">
                             Save
                         </button>
-                        <button type="button" @click="closeModal" class="flex-1 bg-gray-200 text-gray-700 py-2 rounded hover:bg-gray-300">
+                        <button type="button" @click="closeModal"
+                                class="flex-1 py-2 rounded-md font-medium border hover:opacity-80 transition-opacity"
+                                :style="{ borderColor: themeColors.border, color: themeColors.textSecondary, backgroundColor: themeColors.background }">
                             Cancel
                         </button>
                     </div>
                 </form>
             </div>
         </div>
+
     </DashboardLayout>
 </template>
 
@@ -88,21 +159,46 @@ import { ref, computed } from 'vue'
 import { router } from '@inertiajs/vue3'
 import DashboardLayout from '@/Layouts/DashboardLayout.vue'
 import { getNavigationForRole } from '@/Utils/navigation.js'
+import { useTheme } from '@/Composables/useTheme'
+import {
+    PlusIcon,
+    PencilIcon,
+    TrashIcon,
+    SparklesIcon,
+    CheckCircleIcon,
+    XCircleIcon,
+} from '@heroicons/vue/24/outline'
 
 const props = defineProps({
     user: Object,
     amenities: Array,
 })
 
-const navigation = computed(() => getNavigationForRole('admin'))
+const navigation = computed(() => getNavigationForRole('manager'))
+
+const { currentTheme, loadTheme } = useTheme()
+loadTheme()
+
+const themeColors = computed(() => ({
+    background: `var(--kotel-background)`,
+    card: `var(--kotel-card)`,
+    border: `var(--kotel-border)`,
+    textPrimary: `var(--kotel-text-primary)`,
+    textSecondary: `var(--kotel-text-secondary)`,
+    primary: `var(--kotel-primary)`,
+    secondary: `var(--kotel-secondary)`,
+    success: `var(--kotel-success)`,
+    warning: `var(--kotel-warning)`,
+    danger: `var(--kotel-danger)`,
+    hover: currentTheme.value.theme_mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.02)'
+}))
+
+const activeCount = computed(() => (props.amenities || []).filter(a => a.is_active).length)
+
+const hoveredCard = ref(null)
 const showModal = ref(false)
 const editingAmenity = ref(null)
-const form = ref({
-    name: '',
-    icon: '',
-    description: '',
-    is_active: true,
-})
+const form = ref({ name: '', icon: '', description: '', is_active: true })
 
 const editAmenity = (amenity) => {
     editingAmenity.value = amenity
@@ -118,19 +214,15 @@ const closeModal = () => {
 
 const saveAmenity = () => {
     if (editingAmenity.value) {
-        router.put(`/admin/room-amenities/${editingAmenity.value.id}`, form.value, {
-            onSuccess: () => closeModal()
-        })
+        router.put(`/manager/room-amenities/${editingAmenity.value.id}`, form.value, { onSuccess: () => closeModal() })
     } else {
-        router.post('/admin/room-amenities', form.value, {
-            onSuccess: () => closeModal()
-        })
+        router.post('/manager/room-amenities', form.value, { onSuccess: () => closeModal() })
     }
 }
 
 const deleteAmenity = (amenity) => {
     if (confirm(`Delete "${amenity.name}"?`)) {
-        router.delete(`/admin/room-amenities/${amenity.id}`)
+        router.delete(`/manager/room-amenities/${amenity.id}`)
     }
 }
 </script>

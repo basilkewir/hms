@@ -202,6 +202,10 @@
                     </div>
                 </div>
                 <div class="flex justify-end gap-3 p-6 border-t border-gray-200">
+                    <button @click="printReceipt(selectedTransaction)"
+                            class="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 transition-colors">
+                        🖨 Print Receipt
+                    </button>
                     <button @click="closeModal"
                             class="px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
                         Close
@@ -249,6 +253,31 @@ const viewTransaction = (txn) => {
 
 const closeModal = () => {
     selectedTransaction.value = null
+}
+
+const printReceipt = (txn) => {
+    const html = `<!DOCTYPE html><html><head><title>Receipt - ${txn.payment_number || txn.transaction_id}</title>
+    <style>body{font-family:Arial,sans-serif;font-size:13px;margin:20px;}h2{text-align:center;}.row{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #eee;font-size:12px;}.label{color:#666;}.val{font-weight:500;}.grand{font-weight:bold;font-size:15px;border-top:2px solid #333;margin-top:8px;padding-top:6px;}</style>
+    </head><body>
+    <h2>Payment Receipt</h2>
+    <p style="text-align:center;margin:2px 0;"><strong>${txn.payment_number || txn.transaction_id}</strong></p>
+    <p style="text-align:center;margin:2px 0;color:#555;font-size:12px;">${formatDate(txn.date || txn.created_at)}</p>
+    <hr style="margin:12px 0;"/>
+    <div class="row"><span class="label">Guest</span><span class="val">${txn.guest_name}</span></div>
+    <div class="row"><span class="label">Room</span><span class="val">${txn.room_number || 'N/A'}</span></div>
+    <div class="row"><span class="label">Reference</span><span class="val">${txn.reference || 'N/A'}</span></div>
+    <div class="row"><span class="label">Payment Method</span><span class="val">${formatMethod(txn.payment_method)}</span></div>
+    <div class="row"><span class="label">Status</span><span class="val">${formatStatus(txn.status)}</span></div>
+    ${txn.notes ? `<div class="row"><span class="label">Notes</span><span class="val">${txn.notes}</span></div>` : ''}
+    <div class="row grand"><span>TOTAL PAID</span><span>${formatCurrency(txn.amount)}</span></div>
+    <p style="text-align:center;margin-top:24px;font-size:11px;color:#999;">Thank you for your payment!</p>
+    </body></html>`
+
+    const w = window.open('', '_blank', 'width=400,height=500')
+    w.document.write(html)
+    w.document.close()
+    w.focus()
+    w.print()
 }
 
 // Filtered list (client-side)

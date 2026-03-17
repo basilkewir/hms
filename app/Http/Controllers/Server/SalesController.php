@@ -17,9 +17,10 @@ class SalesController extends Controller
     {
         $user = Auth::user()->load('roles');
 
-        // Get all completed sales
+        // Get only this user's completed sales
         $sales = Sale::where('payment_status', 'completed')
-            ->with(['user', 'customer'])
+            ->where('user_id', $user->id)
+            ->with(['user', 'customer', 'items.product'])
             ->orderBy('sale_date', 'desc')
             ->get()
             ->map(function ($sale) {
@@ -34,6 +35,12 @@ class SalesController extends Controller
                     'payment_method' => $sale->payment_method,
                     'payment_status' => $sale->payment_status,
                     'sale_date' => $sale->sale_date,
+                    'items' => $sale->items->map(fn($item) => [
+                        'name' => $item->product?->name ?? 'Item',
+                        'quantity' => $item->quantity,
+                        'unit_price' => (float) ($item->unit_price ?? 0),
+                        'total' => (float) ($item->total_price ?? 0),
+                    ])->values(),
                 ];
             });
 

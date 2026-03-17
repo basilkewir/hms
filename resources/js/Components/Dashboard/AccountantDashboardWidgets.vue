@@ -272,9 +272,9 @@ const getTransactionIcon = (type) => {
 const getFinancialRoute = (key) => {
     const routes = {
         todaysRevenue: '/accountant/transactions',
-        monthlyRevenue: '/accountant/reports',
+        monthlyRevenue: '/accountant/reports/revenue',
         monthlyExpenses: '/accountant/expenses',
-        netProfit: '/accountant/reports'
+        netProfit: '/accountant/reports/profit-loss'
     }
     return routes[key] || '/accountant/dashboard'
 }
