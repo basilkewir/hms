@@ -742,18 +742,17 @@ const getAvailableRoomsForSelection = (index) => {
     })
 }
 
-// Handle room type selection change
 const onRoomTypeSelectionChange = (index) => {
     const room = roomSelections.value[index]
     if (room.room_type_id) {
         room.selectedRoomType = props.roomTypes.find(t => t.id == room.room_type_id)
         room.room_id = ''
         room.selectedRoom = null
+        room.room_rate = room.selectedRoomType?.price || room.selectedRoomType?.base_price || 0
 
-        // Update form's room_type_id and room_rate for backward compatibility
         if (index === 0) {
             form.room_type_id = room.room_type_id
-            form.room_rate = room.selectedRoomType?.price || 0
+            form.room_rate = room.room_rate
         }
     }
 }

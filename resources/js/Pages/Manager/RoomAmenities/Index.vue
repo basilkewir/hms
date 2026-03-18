@@ -71,7 +71,10 @@
                      @mouseleave="hoveredCard = null">
                     <div class="flex justify-between items-start">
                         <div class="flex-1">
-                            <h3 class="font-semibold text-base" :style="{ color: themeColors.textPrimary }">{{ amenity.name }}</h3>
+                        <div class="flex items-center gap-2 mb-1">
+                                <span v-if="amenity.icon" class="text-xl leading-none">{{ amenityEmoji(amenity.icon) }}</span>
+                                <h3 class="font-semibold text-base" :style="{ color: themeColors.textPrimary }">{{ amenity.name }}</h3>
+                            </div>
                             <p v-if="amenity.description" class="text-sm mt-1" :style="{ color: themeColors.textSecondary }">{{ amenity.description }}</p>
                             <div class="mt-3 flex items-center gap-2">
                                 <span class="text-xs px-2 py-0.5 rounded-full font-medium"
@@ -118,11 +121,25 @@
                                    :style="{ backgroundColor: themeColors.background, borderColor: themeColors.border, color: themeColors.textPrimary }" />
                         </div>
                         <div>
-                            <label class="block text-sm font-medium mb-1" :style="{ color: themeColors.textSecondary }">Icon (optional)</label>
+                            <label class="block text-sm font-medium mb-2" :style="{ color: themeColors.textSecondary }">Icon</label>
+                            <!-- Icon picker grid -->
+                            <div class="grid grid-cols-6 gap-1 mb-2 p-2 rounded-md border" :style="{ borderColor: themeColors.border, backgroundColor: themeColors.background }">
+                                <button v-for="opt in iconOptions" :key="opt.key" type="button"
+                                        @click="form.icon = opt.key"
+                                        class="flex flex-col items-center gap-0.5 p-1.5 rounded text-xs transition-colors"
+                                        :title="opt.label"
+                                        :style="form.icon === opt.key
+                                            ? { backgroundColor: themeColors.primary, color: '#000' }
+                                            : { backgroundColor: 'transparent', color: themeColors.textSecondary }">
+                                    <span class="text-lg leading-none">{{ opt.emoji }}</span>
+                                    <span class="text-[9px] leading-tight truncate w-full text-center">{{ opt.label }}</span>
+                                </button>
+                            </div>
                             <input v-model="form.icon" type="text"
-                                   class="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2"
+                                   class="w-full border rounded-md px-3 py-2 text-sm focus:outline-none"
                                    :style="{ backgroundColor: themeColors.background, borderColor: themeColors.border, color: themeColors.textPrimary }"
-                                   placeholder="e.g., wifi, tv, pool" />
+                                   placeholder="or type a key, e.g. wifi" />
+                            <p v-if="form.icon" class="mt-1 text-xs" :style="{ color: themeColors.textSecondary }">Preview: <span class="text-base">{{ amenityEmoji(form.icon) }}</span></p>
                         </div>
                         <div>
                             <label class="block text-sm font-medium mb-1" :style="{ color: themeColors.textSecondary }">Description</label>
@@ -194,6 +211,45 @@ const themeColors = computed(() => ({
 }))
 
 const activeCount = computed(() => (props.amenities || []).filter(a => a.is_active).length)
+
+const iconOptions = [
+    { key: 'wifi',          emoji: '📶', label: 'WiFi' },
+    { key: 'tv',            emoji: '📺', label: 'TV' },
+    { key: 'ac',            emoji: '❄️', label: 'A/C' },
+    { key: 'pool',          emoji: '🏊', label: 'Pool' },
+    { key: 'gym',           emoji: '💪', label: 'Gym' },
+    { key: 'parking',       emoji: '🅿️', label: 'Parking' },
+    { key: 'restaurant',    emoji: '🍽️', label: 'Restaurant' },
+    { key: 'bar',           emoji: '🍹', label: 'Bar' },
+    { key: 'spa',           emoji: '💆', label: 'Spa' },
+    { key: 'safe',          emoji: '🔒', label: 'Safe' },
+    { key: 'minibar',       emoji: '🍷', label: 'Mini Bar' },
+    { key: 'balcony',       emoji: '🌅', label: 'Balcony' },
+    { key: 'jacuzzi',       emoji: '🛁', label: 'Jacuzzi' },
+    { key: 'kitchen',       emoji: '🍳', label: 'Kitchen' },
+    { key: 'coffee',        emoji: '☕', label: 'Coffee' },
+    { key: 'desk',          emoji: '💼', label: 'Work Desk' },
+    { key: 'ocean_view',    emoji: '🌊', label: 'Ocean View' },
+    { key: 'city_view',     emoji: '🏙️', label: 'City View' },
+    { key: 'breakfast',     emoji: '🥐', label: 'Breakfast' },
+    { key: 'laundry',       emoji: '👕', label: 'Laundry' },
+    { key: 'hair_dryer',    emoji: '💇', label: 'Hair Dryer' },
+    { key: 'iron',          emoji: '🪜', label: 'Iron' },
+    { key: 'telephone',     emoji: '☎️', label: 'Phone' },
+    { key: 'fridge',        emoji: '🧊', label: 'Fridge' },
+]
+
+const iconEmojiMap = Object.fromEntries(iconOptions.map(o => [o.key, o.emoji]))
+
+const amenityEmoji = (icon) => {
+    if (!icon) return '✨'
+    const key = icon.toLowerCase().replace(/[\s-]/g, '_')
+    if (iconEmojiMap[key]) return iconEmojiMap[key]
+    for (const [k, v] of Object.entries(iconEmojiMap)) {
+        if (key.includes(k) || k.includes(key)) return v
+    }
+    return '✨'
+}
 
 const hoveredCard = ref(null)
 const showModal = ref(false)

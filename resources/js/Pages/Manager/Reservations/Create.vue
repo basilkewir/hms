@@ -399,7 +399,7 @@
                         </div>
                         <div v-if="autoDiscountAmount > 0 && form.discount_amount > 0" class="text-xs mt-1 pl-4"
                              :style="{ color: themeColors.textTertiary }">
-                            (Automatic: {{ formatCurrency(autoDiscountAmount) }} + Manual: {{ formatCurrency(form.discountAmount) }})
+                            (Automatic: {{ formatCurrency(autoDiscountAmount) }} + Manual: {{ formatCurrency(form.discount_amount) }})
                         </div>
                         <div class="flex justify-between text-sm font-semibold pt-2 border-t"
                              :style="{
@@ -577,7 +577,7 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue'
-import { useForm, Link, usePage } from '@inertiajs/vue3'
+import { useForm, Link } from '@inertiajs/vue3'
 import DashboardLayout from '@/Layouts/DashboardLayout.vue'
 import DatePicker from '@/Components/DatePicker.vue'
 import TimePicker from '@/Components/TimePicker.vue'
@@ -737,18 +737,17 @@ const getAvailableRoomsForSelection = (index) => {
     })
 }
 
-// Handle room type selection change
 const onRoomTypeSelectionChange = (index) => {
     const room = roomSelections.value[index]
     if (room.room_type_id) {
         room.selectedRoomType = props.roomTypes.find(t => t.id == room.room_type_id)
         room.room_id = ''
         room.selectedRoom = null
+        room.room_rate = room.selectedRoomType?.price || room.selectedRoomType?.base_price || 0
 
-        // Update form's room_type_id and room_rate for backward compatibility
         if (index === 0) {
             form.room_type_id = room.room_type_id
-            form.room_rate = room.selectedRoomType?.price || 0
+            form.room_rate = room.room_rate
         }
     }
 }
@@ -843,27 +842,15 @@ const totalDiscountAmount = computed(() => {
     return autoDiscountAmount.value + (form.discount_amount || 0)
 })
 
-const calculatedTaxes = computed(() => {
-    const taxRate = usePage().props.hotelSettings?.tax?.tax_rate ?? 0
-    const subtotal = calculatedRoomCharges.value - totalDiscountAmount.value
-    return subtotal * (taxRate / 100)
-})
-
-const calculatedServiceCharges = computed(() => {
-    const subtotal = calculatedRoomCharges.value - totalDiscountAmount.value
-    return subtotal * 0.05 // 5% service charge - should come from settings
-})
-
-const calculatedTotal = computed(() => {
-    return calculatedRoomCharges.value - totalDiscountAmount.value + calculatedTaxes.value + calculatedServiceCharges.value
+const totalAmount = computed(() => {
+    return Math.max(0, calculatedRoomCharges.value - totalDiscountAmount.value)
 })
 
 const onRoomTypeChange = () => {
     const selectedType = props.roomTypes.find(t => t.id == form.room_type_id)
     if (selectedType) {
-        form.room_rate = selectedType.base_price || 0
+        form.room_rate = selectedType.price || selectedType.base_price || 0
     }
-    // Clear room selection when room type changes
     form.room_id = null
 }
 
@@ -895,12 +882,8 @@ const onRoomRateChange = (index) => {
     }
 }
 
-watch([() => form.check_in_date, () => form.check_out_date, () => form.room_type_id], () => {
-    // Check for overbooking
-    if (form.check_in_date && form.check_out_date && form.room_type_id) {
-        // This would be checked server-side, but we can show a warning
-        overbookingWarning.value = ''
-    }
+watch([() => form.check_in_date, () => form.check_out_date], () => {
+    form.number_of_nights = calculatedNights.value
 })
 
 const submit = () => {
@@ -909,14 +892,13 @@ const submit = () => {
         return
     }
 
-    // Prepare form data
     const formData = {
         ...form.data(),
+        number_of_nights: calculatedNights.value,
         allow_overbooking: allowOverbooking.value,
         number_of_rooms: form.number_of_rooms,
     }
 
-    // For single room, use the traditional format
     if (form.number_of_rooms === 1 && roomSelections.value.length > 0) {
         const room = roomSelections.value[0]
         if (room.room_type_id) {
@@ -927,7 +909,6 @@ const submit = () => {
             formData.room_id = room.room_id
         }
     } else if (form.number_of_rooms > 1) {
-        // For multiple rooms, include the room selections
         formData.selected_rooms = roomSelections.value
     }
 

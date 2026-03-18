@@ -3031,7 +3031,7 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
 
         return Inertia::render('Admin/Checkin/PoliceReport', [
             'user'             => $user,
-            'navigation'       => app(\App\Http\Controllers\Admin\DashboardController::class)->getNavigationForRole($role),
+            'navigation'       => app(DashboardController::class)->getNavigationForRole($role),
             'checkedInGuests'  => $checkedInGuests,
             'reportDate'       => now()->format('Y-m-d H:i:s'),
             'hotelName'        => \App\Models\Setting::get('hotel_name', 'Hotel'),
@@ -3040,6 +3040,62 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
         ]);
     })->name('police.report');
 
+    // Today's checked-in guests report (admin)
+    Route::get('/checkin/today-guests', function () {
+        $user = auth()->user()->load('roles');
+        $today = now()->toDateString();
+        $todayGuests = \App\Models\Reservation::with(['guest', 'room', 'roomType'])
+            ->whereDate('check_in_date', $today)
+            ->whereIn('status', ['checked_in', 'confirmed', 'pending'])
+            ->orderBy('check_in_date', 'asc')
+            ->get()
+            ->map(function ($r) {
+                $g = $r->guest;
+                return [
+                    'reservation_number' => $r->reservation_number,
+                    'room_number'        => $r->room->room_number ?? 'N/A',
+                    'room_type'          => $r->roomType->name ?? 'N/A',
+                    'status'             => $r->status,
+                    'check_in_date'      => $r->check_in_date?->format('Y-m-d'),
+                    'check_out_date'     => $r->check_out_date?->format('Y-m-d'),
+                    'actual_check_in'    => $r->actual_check_in?->format('Y-m-d H:i'),
+                    'nights'             => $r->nights ?? ($r->check_in_date && $r->check_out_date ? $r->check_in_date->diffInDays($r->check_out_date) : 0),
+                    'number_of_adults'   => $r->number_of_adults ?? 1,
+                    'number_of_children' => $r->number_of_children ?? 0,
+                    'guest' => $g ? [
+                        'full_name'                  => $g->full_name,
+                        'gender'                     => $g->gender,
+                        'date_of_birth'              => $g->date_of_birth,
+                        'nationality'                => $g->nationality,
+                        'phone'                      => $g->phone,
+                        'email'                      => $g->email,
+                        'address'                    => $g->address,
+                        'city'                       => $g->city,
+                        'country'                    => $g->country,
+                        'id_type'                    => $g->id_type,
+                        'id_number'                  => $g->id_number,
+                        'id_expiry_date'             => $g->id_expiry_date,
+                        'passport_number'            => $g->passport_number,
+                        'passport_expiry_date'       => $g->passport_expiry_date,
+                        'arrival_from'               => $g->arrival_from,
+                        'departure_to'               => $g->departure_to,
+                        'purpose_of_visit'           => $g->purpose_of_visit,
+                        'police_verification_status' => $g->police_verification_status,
+                        'emergency_contact_name'     => $g->emergency_contact_name,
+                        'emergency_contact_phone'    => $g->emergency_contact_phone,
+                    ] : null,
+                ];
+            });
+        return Inertia::render('Admin/Checkin/TodayGuests', [
+            'user'         => $user,
+            'todayGuests'  => $todayGuests,
+            'today'        => $today,
+            'reportDate'   => now()->format('Y-m-d H:i:s'),
+            'hotelName'    => \App\Models\Setting::get('hotel_name', 'Hotel'),
+            'hotelAddress' => \App\Models\Setting::get('hotel_address', ''),
+            'hotelPhone'   => \App\Models\Setting::get('hotel_phone', ''),
+        ]);
+    })->name('checkin.today-guests');
 
     Route::get('/checkout/print', [\App\Http\Controllers\FrontDesk\CheckOutController::class, 'printReceipt'])->name('checkout.print');
 
@@ -5583,6 +5639,66 @@ Route::middleware(['auth', 'role:front_desk'])->prefix('front-desk')->name('fron
 
     Route::post('/checkin', [\App\Http\Controllers\FrontDesk\CheckInController::class, 'store'])->name('checkin.store');
     Route::get('/checkin/receipt', [\App\Http\Controllers\FrontDesk\CheckInController::class, 'printReceipt'])->name('checkin.receipt');
+
+    // Police report — all currently checked-in guests (front desk)
+    Route::get('/checkin/police-report', function () {
+        $user = auth()->user()->load('roles');
+        $role = $user->roles->first()?->name ?? 'front_desk';
+        $checkedInGuests = \App\Models\Reservation::with(['guest', 'room', 'roomType'])
+            ->where('status', 'checked_in')
+            ->orderBy('check_in_date', 'asc')
+            ->get()
+            ->map(function ($r) {
+                $g = $r->guest;
+                return [
+                    'reservation_number' => $r->reservation_number,
+                    'room_number'        => $r->room->room_number ?? 'N/A',
+                    'room_type'          => $r->roomType->name ?? 'N/A',
+                    'check_in_date'      => $r->check_in_date?->format('Y-m-d'),
+                    'check_out_date'     => $r->check_out_date?->format('Y-m-d'),
+                    'actual_check_in'    => $r->actual_check_in?->format('Y-m-d H:i'),
+                    'nights'             => $r->nights ?? ($r->check_in_date && $r->check_out_date ? $r->check_in_date->diffInDays($r->check_out_date) : 0),
+                    'number_of_adults'   => $r->number_of_adults ?? 1,
+                    'number_of_children' => $r->number_of_children ?? 0,
+                    'guest' => $g ? [
+                        'full_name'                  => $g->full_name,
+                        'first_name'                 => $g->first_name,
+                        'last_name'                  => $g->last_name,
+                        'gender'                     => $g->gender,
+                        'date_of_birth'              => $g->date_of_birth,
+                        'nationality'                => $g->nationality,
+                        'phone'                      => $g->phone,
+                        'email'                      => $g->email,
+                        'address'                    => $g->address,
+                        'city'                       => $g->city,
+                        'country'                    => $g->country,
+                        'id_type'                    => $g->id_type,
+                        'id_number'                  => $g->id_number,
+                        'id_expiry_date'             => $g->id_expiry_date,
+                        'passport_number'            => $g->passport_number,
+                        'passport_expiry_date'       => $g->passport_expiry_date,
+                        'visa_number'                => $g->visa_number,
+                        'visa_type'                  => $g->visa_type,
+                        'visa_expiry_date'           => $g->visa_expiry_date,
+                        'arrival_from'               => $g->arrival_from,
+                        'departure_to'               => $g->departure_to,
+                        'purpose_of_visit'           => $g->purpose_of_visit,
+                        'police_verification_status' => $g->police_verification_status,
+                        'emergency_contact_name'     => $g->emergency_contact_name,
+                        'emergency_contact_phone'    => $g->emergency_contact_phone,
+                    ] : null,
+                ];
+            });
+        return Inertia::render('FrontDesk/Checkin/PoliceReport', [
+            'user'            => $user,
+            'navigation'      => app(DashboardController::class)->getNavigationForRole($role),
+            'checkedInGuests' => $checkedInGuests,
+            'reportDate'      => now()->format('Y-m-d H:i:s'),
+            'hotelName'       => \App\Models\Setting::get('hotel_name', 'Hotel'),
+            'hotelAddress'    => \App\Models\Setting::get('hotel_address', ''),
+            'hotelPhone'      => \App\Models\Setting::get('hotel_phone', ''),
+        ]);
+    })->name('checkin.police-report');
 
     Route::get('/checkout', [CheckOutController::class, 'index'])->name('checkout');
 
@@ -8930,12 +9046,54 @@ Route::middleware(['auth', 'role:manager'])->prefix('manager')->name('manager.')
     Route::get('/reservations/arrivals', function () {
         $user = auth()->user()->load('roles');
         $role = $user->roles->first()?->name ?? 'manager';
-        return Inertia::render('Manager/Reservations/Arrivals', ['user' => $user, 'navigation' => app(DashboardController::class)->getNavigationForRole($role)]);
+        $arrivals = \App\Models\Reservation::with(['guest', 'roomType', 'room'])
+            ->whereDate('check_in_date', today())
+            ->whereIn('status', ['confirmed', 'pending'])
+            ->orderBy('check_in_date')
+            ->get()
+            ->map(function ($r) {
+                return [
+                    'id'                  => $r->id,
+                    'confirmation_number' => $r->reservation_number,
+                    'guest_name'          => $r->guest->full_name ?? 'N/A',
+                    'room_type'           => $r->roomType->name ?? 'N/A',
+                    'room_number'         => $r->room->room_number ?? null,
+                    'nights'              => $r->nights,
+                    'adults'              => $r->adults ?? $r->number_of_adults ?? 1,
+                    'children'            => $r->children ?? $r->number_of_children ?? 0,
+                    'status'              => $r->status,
+                    'check_in_date'       => $r->check_in_date->format('Y-m-d'),
+                    'check_in_time'       => $r->preferred_check_in_time ?? null,
+                ];
+            });
+        return Inertia::render('Manager/Reservations/Arrivals', [
+            'user'       => $user,
+            'navigation' => app(DashboardController::class)->getNavigationForRole($role),
+            'arrivals'   => $arrivals,
+        ]);
     })->name('reservations.arrivals');
     Route::get('/reservations/departures', function () {
         $user = auth()->user()->load('roles');
         $role = $user->roles->first()?->name ?? 'manager';
-        return Inertia::render('Manager/Reservations/Departures', ['user' => $user, 'navigation' => app(DashboardController::class)->getNavigationForRole($role)]);
+        $departures = \App\Models\Reservation::with(['guest', 'room', 'roomType'])
+            ->whereDate('check_out_date', today())
+            ->where('status', 'checked_in')
+            ->orderBy('check_out_date')
+            ->get()
+            ->map(function ($r) {
+                return [
+                    'id'                  => $r->id,
+                    'guest_name'          => $r->guest->full_name ?? 'N/A',
+                    'room_number'         => $r->room->room_number ?? 'N/A',
+                    'room_type'           => $r->roomType->name ?? 'N/A',
+                    'expected_departure'  => $r->check_out_date->format('Y-m-d') . 'T12:00:00',
+                ];
+            });
+        return Inertia::render('Manager/Reservations/Departures', [
+            'user'        => $user,
+            'navigation'  => app(DashboardController::class)->getNavigationForRole($role),
+            'departures'  => $departures,
+        ]);
     })->name('reservations.departures');
     Route::get('/reservations/create', [ReservationController::class, 'create'])->name('reservations.create');
     Route::get('/reservations/checkins', function () {
@@ -9167,17 +9325,129 @@ Route::middleware(['auth', 'role:manager'])->prefix('manager')->name('manager.')
     })->name('checkin');
     Route::post('/checkin', [\App\Http\Controllers\FrontDesk\CheckInController::class, 'store'])->name('checkin.store');
     Route::get('/checkin/receipt', [\App\Http\Controllers\FrontDesk\CheckInController::class, 'printReceipt'])->name('checkin.receipt');
+
+    // Today's checked-in guests report (manager)
+    Route::get('/checkin/today-guests', function () {
+        $user = auth()->user()->load('roles');
+        $today = now()->toDateString();
+        $todayGuests = \App\Models\Reservation::with(['guest', 'room', 'roomType'])
+            ->whereDate('check_in_date', $today)
+            ->whereIn('status', ['checked_in', 'confirmed', 'pending'])
+            ->orderBy('check_in_date', 'asc')
+            ->get()
+            ->map(function ($r) {
+                $g = $r->guest;
+                return [
+                    'reservation_number' => $r->reservation_number,
+                    'room_number'        => $r->room->room_number ?? 'N/A',
+                    'room_type'          => $r->roomType->name ?? 'N/A',
+                    'status'             => $r->status,
+                    'check_in_date'      => $r->check_in_date?->format('Y-m-d'),
+                    'check_out_date'     => $r->check_out_date?->format('Y-m-d'),
+                    'actual_check_in'    => $r->actual_check_in?->format('Y-m-d H:i'),
+                    'nights'             => $r->nights ?? ($r->check_in_date && $r->check_out_date ? $r->check_in_date->diffInDays($r->check_out_date) : 0),
+                    'number_of_adults'   => $r->number_of_adults ?? 1,
+                    'number_of_children' => $r->number_of_children ?? 0,
+                    'guest' => $g ? [
+                        'full_name'                  => $g->full_name,
+                        'gender'                     => $g->gender,
+                        'date_of_birth'              => $g->date_of_birth,
+                        'nationality'                => $g->nationality,
+                        'phone'                      => $g->phone,
+                        'email'                      => $g->email,
+                        'address'                    => $g->address,
+                        'city'                       => $g->city,
+                        'country'                    => $g->country,
+                        'id_type'                    => $g->id_type,
+                        'id_number'                  => $g->id_number,
+                        'id_expiry_date'             => $g->id_expiry_date,
+                        'passport_number'            => $g->passport_number,
+                        'passport_expiry_date'       => $g->passport_expiry_date,
+                        'arrival_from'               => $g->arrival_from,
+                        'departure_to'               => $g->departure_to,
+                        'purpose_of_visit'           => $g->purpose_of_visit,
+                        'police_verification_status' => $g->police_verification_status,
+                        'emergency_contact_name'     => $g->emergency_contact_name,
+                        'emergency_contact_phone'    => $g->emergency_contact_phone,
+                    ] : null,
+                ];
+            });
+        return Inertia::render('Manager/Checkin/TodayGuests', [
+            'user'         => $user,
+            'todayGuests'  => $todayGuests,
+            'today'        => $today,
+            'reportDate'   => now()->format('Y-m-d H:i:s'),
+            'hotelName'    => \App\Models\Setting::get('hotel_name', 'Hotel'),
+            'hotelAddress' => \App\Models\Setting::get('hotel_address', ''),
+            'hotelPhone'   => \App\Models\Setting::get('hotel_phone', ''),
+        ]);
+    })->name('checkin.today-guests');
+
+    // Police report — all currently checked-in guests (manager)
+    Route::get('/checkin/police-report', function () {
+        $user = auth()->user()->load('roles');
+        $checkedInGuests = \App\Models\Reservation::with(['guest', 'room', 'roomType'])
+            ->where('status', 'checked_in')
+            ->orderBy('check_in_date', 'asc')
+            ->get()
+            ->map(function ($r) {
+                $g = $r->guest;
+                return [
+                    'reservation_number' => $r->reservation_number,
+                    'room_number'        => $r->room->room_number ?? 'N/A',
+                    'room_type'          => $r->roomType->name ?? 'N/A',
+                    'check_in_date'      => $r->check_in_date?->format('Y-m-d'),
+                    'check_out_date'     => $r->check_out_date?->format('Y-m-d'),
+                    'actual_check_in'    => $r->actual_check_in?->format('Y-m-d H:i'),
+                    'nights'             => $r->nights ?? ($r->check_in_date && $r->check_out_date ? $r->check_in_date->diffInDays($r->check_out_date) : 0),
+                    'number_of_adults'   => $r->number_of_adults ?? 1,
+                    'number_of_children' => $r->number_of_children ?? 0,
+                    'guest' => $g ? [
+                        'full_name'                  => $g->full_name,
+                        'first_name'                 => $g->first_name,
+                        'last_name'                  => $g->last_name,
+                        'gender'                     => $g->gender,
+                        'date_of_birth'              => $g->date_of_birth,
+                        'nationality'                => $g->nationality,
+                        'phone'                      => $g->phone,
+                        'email'                      => $g->email,
+                        'address'                    => $g->address,
+                        'city'                       => $g->city,
+                        'country'                    => $g->country,
+                        'id_type'                    => $g->id_type,
+                        'id_number'                  => $g->id_number,
+                        'id_expiry_date'             => $g->id_expiry_date,
+                        'passport_number'            => $g->passport_number,
+                        'passport_expiry_date'       => $g->passport_expiry_date,
+                        'visa_number'                => $g->visa_number,
+                        'visa_type'                  => $g->visa_type,
+                        'visa_expiry_date'           => $g->visa_expiry_date,
+                        'arrival_from'               => $g->arrival_from,
+                        'departure_to'               => $g->departure_to,
+                        'purpose_of_visit'           => $g->purpose_of_visit,
+                        'police_verification_status' => $g->police_verification_status,
+                        'emergency_contact_name'     => $g->emergency_contact_name,
+                        'emergency_contact_phone'    => $g->emergency_contact_phone,
+                    ] : null,
+                ];
+            });
+        return Inertia::render('Manager/Checkin/PoliceReport', [
+            'user'             => $user,
+            'checkedInGuests'  => $checkedInGuests,
+            'reportDate'       => now()->format('Y-m-d H:i:s'),
+            'hotelName'        => \App\Models\Setting::get('hotel_name', 'Hotel'),
+            'hotelAddress'     => \App\Models\Setting::get('hotel_address', ''),
+            'hotelPhone'       => \App\Models\Setting::get('hotel_phone', ''),
+        ]);
+    })->name('police.report');
+
     Route::get('/checkout', [CheckOutController::class, 'index'])->name('checkout');
 
     Route::post('/checkout', [CheckOutController::class, 'store'])->name('checkout.store');
     Route::get('/checkout/print', [CheckOutController::class, 'printReceipt'])->name('checkout.print');
 
     // Room Assignment
-    Route::get('/room-assignment', function () {
-        $user = auth()->user()->load('roles');
-        $role = $user->roles->first()?->name ?? 'manager';
-        return Inertia::render('Manager/RoomAssignment', ['user' => $user, 'navigation' => app(DashboardController::class)->getNavigationForRole($role)]);
-    })->name('room-assignment');
+    Route::get('/room-assignment', [\App\Http\Controllers\Manager\RoomAssignmentController::class, 'index'])->name('room-assignment');
 
     // Rooms — delegates to RoomController (renders Admin/Rooms pages, navigation adapts to role)
     Route::get('/rooms', [RoomController::class, 'index'])->name('rooms.index');

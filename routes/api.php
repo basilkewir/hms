@@ -49,22 +49,23 @@ Route::prefix('public')->middleware(['throttle:60,1'])->group(function () {
 
 // Online Booking Sync API (for hotel website integration)
 // All write endpoints require X-Booking-Token header (set in Settings > Integration)
-Route::prefix('booking')->middleware(['throttle:60,1'])->group(function () {
-    // Room availability + services (public read)
-    Route::get('/availability', [OnlineBookingController::class, 'checkAvailability']);
-    Route::get('/services', [OnlineBookingController::class, 'getServices']);
+Route::prefix('booking')->group(function () {
+    // Room availability + services (public read — 60 req/min)
+    Route::middleware(['throttle:60,1'])->group(function () {
+        Route::get('/availability', [OnlineBookingController::class, 'checkAvailability']);
+        Route::get('/services', [OnlineBookingController::class, 'getServices']);
+        Route::get('/confirmation', [OnlineBookingController::class, 'getBookingConfirmation']);
+        Route::get('/guest-lookup', [OnlineBookingController::class, 'guestLookup']);
+    });
 
-    // Guest profile lookup — for pre-filling the online booking form (token-protected)
-    Route::get('/guest-lookup', [OnlineBookingController::class, 'guestLookup']);
+    // Write endpoints — tighter limit (10 req/min per IP)
+    Route::middleware(['throttle:10,1'])->group(function () {
+        // Create booking (token-protected)
+        Route::post('/create', [OnlineBookingController::class, 'createBooking']);
 
-    // Create booking (token-protected)
-    Route::post('/create', [OnlineBookingController::class, 'createBooking']);
-
-    // Booking confirmation lookup — requires confirmation token, not just reservation number
-    Route::get('/confirmation', [OnlineBookingController::class, 'getBookingConfirmation']);
-
-    // Webhook: website notifies HMS of booking status changes (e.g. payment received)
-    Route::post('/webhook', [OnlineBookingController::class, 'handleWebhook']);
+        // Webhook: website notifies HMS of booking status changes (e.g. payment received)
+        Route::post('/webhook', [OnlineBookingController::class, 'handleWebhook']);
+    });
 });
 
 // Mobile App Authentication (Public) — throttled to prevent brute-force

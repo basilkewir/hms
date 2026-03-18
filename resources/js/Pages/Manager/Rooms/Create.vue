@@ -403,6 +403,7 @@ loadTheme()
 const props = defineProps({
     user: Object,
     roomTypes: Array,
+    amenities: { type: Array, default: () => [] },
     floors: Array,
     buildingWings: Array,
     bedTypes: Array,
@@ -411,20 +412,7 @@ const props = defineProps({
 const navigation = computed(() => getNavigationForRole('admin'))
 const isSubmitting = ref(false)
 
-const amenities = [
-    { id: 1, name: 'Air Conditioning' },
-    { id: 2, name: 'WiFi' },
-    { id: 3, name: 'TV' },
-    { id: 4, name: 'Mini Bar' },
-    { id: 5, name: 'Safe' },
-    { id: 6, name: 'Balcony' },
-    { id: 7, name: 'Ocean View' },
-    { id: 8, name: 'City View' },
-    { id: 9, name: 'Kitchenette' },
-    { id: 10, name: 'Jacuzzi' },
-    { id: 11, name: 'Work Desk' },
-    { id: 12, name: 'Coffee Maker' },
-]
+const amenities = computed(() => props.amenities || [])
 
 const form = ref({
     room_number: '',

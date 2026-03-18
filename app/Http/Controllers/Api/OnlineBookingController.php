@@ -14,8 +14,10 @@ use Illuminate\Http\Request;
 use App\Models\Setting;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Validator;
 use Carbon\Carbon;
+use App\Mail\BookingConfirmation;
 
 class OnlineBookingController extends Controller
 {
@@ -149,7 +151,7 @@ class OnlineBookingController extends Controller
             'guest.last_name' => 'required|string|max:255',
             'guest.email' => 'required|email|max:255',
             'guest.phone' => 'required|string|max:20',
-            'guest.date_of_birth' => 'required|date',
+            'guest.date_of_birth' => 'nullable|date',
             'guest.nationality' => 'required|string|max:100',
             'guest.id_type' => 'required|string',
             'guest.id_number' => 'required|string',
@@ -238,8 +240,13 @@ class OnlineBookingController extends Controller
                 ], 409);
             }
 
-            // Create or update guest — merge strategy: always update core fields,
-            // but only fill extended fields if not already set on the existing record.
+            // Create or update guest — merge strategy:
+            // - Core identity fields (name, phone, id) are always updated from the form.
+            // - police_verification_status is ONLY set to 'pending' for brand-new guests;
+            //   existing guests keep their current verification status so verified records
+            //   are not silently downgraded on every re-booking.
+            // - Extended optional fields fill in blanks only; we never overwrite existing data.
+            // - guest_type_id defaults to 1 (Regular) for new online guests.
             $existingGuest = Guest::where('email', $request->guest['email'])->first();
             $guestInput = $request->guest;
 
@@ -247,12 +254,21 @@ class OnlineBookingController extends Controller
                 'first_name'  => $guestInput['first_name'],
                 'last_name'   => $guestInput['last_name'],
                 'phone'       => $guestInput['phone'],
-                'date_of_birth' => $guestInput['date_of_birth'],
                 'nationality' => $guestInput['nationality'],
                 'id_type'     => $guestInput['id_type'],
                 'id_number'   => $guestInput['id_number'],
-                'police_verification_status' => 'pending',
             ];
+
+            // Only fill date_of_birth if provided (it is now optional on the website form)
+            if (!empty($guestInput['date_of_birth'])) {
+                $coreFields['date_of_birth'] = $guestInput['date_of_birth'];
+            }
+
+            // New guest defaults — never applied to returning guests
+            if (!$existingGuest) {
+                $coreFields['police_verification_status'] = 'pending';
+                $coreFields['guest_type_id'] = 1; // Regular
+            }
 
             // Extended fields — only update if the current record is null/empty
             $extendedFieldKeys = [
@@ -362,6 +378,20 @@ class OnlineBookingController extends Controller
             $availableRoom->update(['status' => 'reserved']);
 
             DB::commit();
+
+            // Send booking confirmation email (queued — does not block the API response)
+            try {
+                $reservation->load(['guest', 'room', 'roomType']);
+                Mail::to(
+                    $guest->email,
+                    $guest->full_name ?? trim($guest->first_name . ' ' . $guest->last_name)
+                )->queue(new BookingConfirmation($reservation, $confirmationToken));
+            } catch (\Exception $mailEx) {
+                Log::warning('Booking confirmation email could not be queued', [
+                    'reservation' => $reservationNumber,
+                    'error'       => $mailEx->getMessage(),
+                ]);
+            }
 
             return response()->json([
                 'success' => true,

@@ -179,8 +179,8 @@ success ".env patched"
 step "Setting Permissions"
 
 chown -R www-data:www-data "$INSTALL_DIR"
-find "$INSTALL_DIR" -type d -exec chmod 755 {} \;
-find "$INSTALL_DIR" -type f -exec chmod 644 {} \;
+find "$INSTALL_DIR" -type d -exec chmod 755 {} +
+find "$INSTALL_DIR" -type f -exec chmod 644 {} +
 chmod -R 775 "$INSTALL_DIR/storage" "$INSTALL_DIR/bootstrap/cache"
 chmod +x "$INSTALL_DIR/artisan"
 
@@ -190,7 +190,7 @@ step "Installing Composer Dependencies"
 
 cd "$INSTALL_DIR"
 info "Running composer install..."
-COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev --optimize-autoloader --prefer-dist --no-interaction --ignore-platform-reqs
+timeout 600 env COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev --optimize-autoloader --prefer-dist --no-interaction --ignore-platform-reqs
 success "Composer dependencies installed"
 
 step "Running Database Migrations"
@@ -211,6 +211,15 @@ else
     warning "License seeding failed — check /var/log/hms_update.log"
 fi
 
+step "Seeding Room Amenities"
+
+cd "$INSTALL_DIR"
+if php artisan db:seed --class=RoomAmenitiesSeeder --force 2>&1 | tee -a /var/log/hms_update.log; then
+    success "Room amenities seeded"
+else
+    warning "Room amenities seeding failed — check /var/log/hms_update.log"
+fi
+
 step "Clearing Caches"
 
 cd "$INSTALL_DIR"
@@ -229,10 +238,10 @@ step "Rebuilding Frontend Assets"
 
 cd "$INSTALL_DIR"
 info "Running npm install..."
-npm install --prefer-offline 2>&1 | tail -5
+timeout 600 npm install --prefer-offline --no-audit --no-fund 2>&1 | tail -5
 
 info "Running npm run build..."
-if npm run build 2>&1 | tail -5; then
+if timeout 900 npm run build 2>&1 | tail -5; then
     success "Frontend assets rebuilt"
 else
     warning "npm build failed — pages may show old assets. Check logs."

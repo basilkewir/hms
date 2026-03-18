@@ -1,82 +1,71 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { computed } from 'vue'
 import { Head, Link } from '@inertiajs/vue3'
 import DashboardLayout from '@/Layouts/DashboardLayout.vue'
+import { useTheme } from '@/Composables/useTheme.js'
 import { formatCurrency } from '@/Utils/currency.js'
-import {
-    HomeIcon,
-    UserIcon,
-    CalendarDaysIcon,
-    CurrencyDollarIcon,
-    WrenchScrewdriverIcon,
-    CheckCircleIcon,
-    ClockIcon,
-    ArrowLeftIcon,
-    PencilIcon,
-    TrashIcon,
-} from '@heroicons/vue/24/outline'
+import { CheckCircleIcon, PencilIcon, HomeIcon } from '@heroicons/vue/24/outline'
 
-// Theme system
-const themeColors = ref({
-    primary: '#3b82f6',
-    hover: '#2563eb',
-    background: '#f8fafc',
-    card: '#ffffff',
-    border: '#e2e8f0',
-    textPrimary: '#1e293b',
-    textSecondary: '#64748b',
-    textTertiary: '#94a3b8',
-    success: '#10b981',
-    warning: '#f59e0b',
-    error: '#ef4444',
-})
-
-const loadTheme = () => {
-    const savedTheme = localStorage.getItem('themeColors')
-    if (savedTheme) {
-        themeColors.value = JSON.parse(savedTheme)
-    }
-}
-
+const { loadTheme } = useTheme()
+const themeColors = computed(() => ({
+    background:    'var(--kotel-background)',
+    card:          'var(--kotel-card)',
+    border:        'var(--kotel-border)',
+    textPrimary:   'var(--kotel-text-primary)',
+    textSecondary: 'var(--kotel-text-secondary)',
+    textTertiary:  'var(--kotel-text-tertiary)',
+    primary:       'var(--kotel-primary)',
+    secondary:     'var(--kotel-secondary)',
+    success:       'var(--kotel-success)',
+    warning:       'var(--kotel-warning)',
+    danger:        'var(--kotel-danger)',
+}))
 loadTheme()
 
-// Props
 const props = defineProps({
     user: Object,
     room: Object,
 })
 
-// Computed properties
-const statusColor = computed(() => {
-    const colors = {
-        'available': 'bg-green-100 text-green-800',
-        'occupied': 'bg-blue-100 text-blue-800',
-        'cleaning': 'bg-yellow-100 text-yellow-800',
-        'maintenance': 'bg-red-100 text-red-800',
-        'out_of_order': 'bg-gray-100 text-gray-800',
-    }
-    return colors[props.room.status] || 'bg-gray-100 text-gray-800'
+// Determines route prefix based on role so buttons work for both admin and manager
+const routePrefix = computed(() => {
+    const roles = props.user?.roles ?? []
+    if (roles.some(r => r.name === 'admin')) return 'admin'
+    return 'manager'
 })
 
-const housekeepingColor = computed(() => {
-    const colors = {
-        'clean': 'bg-green-100 text-green-800',
-        'dirty': 'bg-red-100 text-red-800',
-        'inspected': 'bg-blue-100 text-blue-800',
-        'maintenance_required': 'bg-yellow-100 text-yellow-800',
-        'waiting_for_check': 'bg-purple-100 text-purple-800',
+const getStatusStyle = (status) => {
+    const map = {
+        available:    { backgroundColor: 'var(--kotel-success)',   color: 'white' },
+        occupied:     { backgroundColor: 'var(--kotel-primary)',   color: 'white' },
+        cleaning:     { backgroundColor: 'var(--kotel-warning)',   color: 'white' },
+        maintenance:  { backgroundColor: 'var(--kotel-danger)',    color: 'white' },
+        out_of_order: { backgroundColor: 'var(--kotel-secondary)', color: 'white' },
     }
-    return colors[props.room.housekeeping_status] || 'bg-gray-100 text-gray-800'
-})
+    return map[status] || { backgroundColor: 'var(--kotel-secondary)', color: 'white' }
+}
 
-// Methods
+const getHousekeepingStyle = (status) => {
+    const map = {
+        clean:                { backgroundColor: 'var(--kotel-success)',   color: 'white' },
+        dirty:                { backgroundColor: 'var(--kotel-danger)',    color: 'white' },
+        inspected:            { backgroundColor: 'var(--kotel-primary)',   color: 'white' },
+        maintenance_required: { backgroundColor: 'var(--kotel-warning)',   color: 'white' },
+        waiting_for_check:    { backgroundColor: 'var(--kotel-secondary)', color: 'white' },
+    }
+    return map[status] || { backgroundColor: 'var(--kotel-secondary)', color: 'white' }
+}
+
+const formatLabel = (str) => str ? str.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'N/A'
+
 const formatDate = (date) => {
+    if (!date) return 'N/A'
     return new Date(date).toLocaleDateString('en-US', {
         year: 'numeric',
         month: 'long',
         day: 'numeric',
         hour: '2-digit',
-        minute: '2-digit'
+        minute: '2-digit',
     })
 }
 </script>
@@ -84,210 +73,170 @@ const formatDate = (date) => {
 <template>
     <Head :title="`Room ${room.number} - Details`" />
 
-    <DashboardLayout>
-        <div class="py-6">
-            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <!-- Header -->
-                <div class="mb-8">
-                    <div class="flex items-center justify-between">
-                        <div class="flex items-center space-x-4">
-                            <Link :href="route('admin.rooms.index')" class="inline-flex items-center text-sm text-gray-500 hover:text-gray-700">
-                                <ArrowLeftIcon class="h-4 w-4 mr-1" />
-                                Back to Rooms
-                            </Link>
-                            <h1 class="text-2xl font-bold" :style="{ color: themeColors.textPrimary }">
-                                Room {{ room.number }}
-                            </h1>
-                        </div>
-                        <div class="flex space-x-3">
-                            <Link :href="route('admin.rooms.edit', room.id)" class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                                <PencilIcon class="h-4 w-4 mr-2" />
-                                Edit Room
-                            </Link>
-                        </div>
+    <DashboardLayout :title="`Room ${room.number}`">
+        <div class="shadow rounded-lg p-6 mb-8"
+             :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }">
+
+            <!-- Header -->
+            <div class="flex items-center justify-between mb-6">
+                <div>
+                    <h1 class="text-2xl font-bold mb-2" :style="{ color: themeColors.textPrimary }">
+                        Room {{ room.number }}
+                    </h1>
+                    <div class="flex items-center gap-3 flex-wrap">
+                        <span class="text-sm" :style="{ color: themeColors.textSecondary }">Status:
+                            <span class="px-2 py-1 text-xs rounded-full ml-1 font-medium"
+                                  :style="getStatusStyle(room.status)">
+                                {{ formatLabel(room.status) }}
+                            </span>
+                        </span>
+                        <span class="text-sm" :style="{ color: themeColors.textSecondary }">Housekeeping:
+                            <span class="px-2 py-1 text-xs rounded-full ml-1 font-medium"
+                                  :style="getHousekeepingStyle(room.housekeeping_status)">
+                                {{ formatLabel(room.housekeeping_status) }}
+                            </span>
+                        </span>
                     </div>
                 </div>
+                <div class="flex items-center gap-3 flex-wrap">
+                    <Link :href="route(`${routePrefix}.rooms.edit`, room.id)"
+                          class="px-4 py-2 rounded-md transition-colors font-medium text-white"
+                          :style="{ backgroundColor: themeColors.warning }">
+                        <PencilIcon class="h-4 w-4 inline mr-1" />
+                        Edit
+                    </Link>
+                    <Link :href="route(`${routePrefix}.rooms.index`)"
+                          class="px-4 py-2 rounded-md transition-colors font-medium text-white"
+                          :style="{ backgroundColor: themeColors.primary }">
+                        Back
+                    </Link>
+                </div>
+            </div>
 
-                <!-- Room Details Grid -->
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <!-- Main Information -->
-                    <div class="lg:col-span-2 space-y-6">
-                        <!-- Basic Information -->
-                        <div class="bg-white rounded-lg shadow border" :style="{ borderColor: themeColors.border }">
-                            <div class="px-6 py-4 border-b border-gray-200">
-                                <h3 class="text-lg font-medium" :style="{ color: themeColors.textPrimary }">
-                                    Room Information
-                                </h3>
+            <!-- Room Details -->
+            <div class="mb-8">
+                <h3 class="text-lg font-medium mb-4" :style="{ color: themeColors.textPrimary }">Room Information</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Basic Info -->
+                    <div class="rounded-lg p-4 border"
+                         :style="{ backgroundColor: themeColors.background, borderColor: themeColors.border, borderStyle: 'solid', borderWidth: '1px' }">
+                        <div class="space-y-3">
+                            <div class="flex items-start">
+                                <span class="text-sm font-medium mr-3"
+                                      :style="{ color: themeColors.textSecondary, minWidth: '110px' }">Room Number:</span>
+                                <span class="text-sm" :style="{ color: themeColors.textPrimary }">{{ room.number }}</span>
                             </div>
-                            <div class="px-6 py-4">
-                                <dl class="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2">
-                                    <div>
-                                        <dt class="text-sm font-medium text-gray-500">Room Number</dt>
-                                        <dd class="mt-1 text-sm text-gray-900">{{ room.number }}</dd>
-                                    </div>
-                                    <div>
-                                        <dt class="text-sm font-medium text-gray-500">Room Type</dt>
-                                        <dd class="mt-1 text-sm text-gray-900">{{ room.type }}</dd>
-                                    </div>
-                                    <div>
-                                        <dt class="text-sm font-medium text-gray-500">Floor</dt>
-                                        <dd class="mt-1 text-sm text-gray-900">{{ room.floor }}</dd>
-                                    </div>
-                                    <div>
-                                        <dt class="text-sm font-medium text-gray-500">Capacity</dt>
-                                        <dd class="mt-1 text-sm text-gray-900">{{ room.capacity }} guests</dd>
-                                    </div>
-                                    <div>
-                                        <dt class="text-sm font-medium text-gray-500">Status</dt>
-                                        <dd class="mt-1">
-                                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full" :class="statusColor">
-                                                {{ room.status.replace('_', ' ').toUpperCase() }}
-                                            </span>
-                                        </dd>
-                                    </div>
-                                    <div>
-                                        <dt class="text-sm font-medium text-gray-500">Housekeeping Status</dt>
-                                        <dd class="mt-1">
-                                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full" :class="housekeepingColor">
-                                                {{ room.housekeeping_status.replace('_', ' ').toUpperCase() }}
-                                            </span>
-                                        </dd>
-                                    </div>
-                                    <div>
-                                        <dt class="text-sm font-medium text-gray-500">Nightly Rate</dt>
-                                        <dd class="mt-1 text-sm text-gray-900">{{ formatCurrency(room.rate) }}</dd>
-                                    </div>
-                                    <div>
-                                        <dt class="text-sm font-medium text-gray-500">Last Cleaned</dt>
-                                        <dd class="mt-1 text-sm text-gray-900">{{ room.last_cleaned || 'Never' }}</dd>
-                                    </div>
-                                </dl>
+                            <div class="flex items-start">
+                                <span class="text-sm font-medium mr-3"
+                                      :style="{ color: themeColors.textSecondary, minWidth: '110px' }">Room Type:</span>
+                                <span class="text-sm" :style="{ color: themeColors.textPrimary }">{{ room.type }}</span>
                             </div>
-                        </div>
-
-                        <!-- Guest Information (if occupied) -->
-                        <div v-if="room.guest" class="bg-white rounded-lg shadow border" :style="{ borderColor: themeColors.border }">
-                            <div class="px-6 py-4 border-b border-gray-200">
-                                <h3 class="text-lg font-medium" :style="{ color: themeColors.textPrimary }">
-                                    Current Guest
-                                </h3>
+                            <div class="flex items-start">
+                                <span class="text-sm font-medium mr-3"
+                                      :style="{ color: themeColors.textSecondary, minWidth: '110px' }">Floor:</span>
+                                <span class="text-sm" :style="{ color: themeColors.textPrimary }">{{ room.floor }}</span>
                             </div>
-                            <div class="px-6 py-4">
-                                <dl class="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2">
-                                    <div>
-                                        <dt class="text-sm font-medium text-gray-500">Guest Name</dt>
-                                        <dd class="mt-1 text-sm text-gray-900">{{ room.guest }}</dd>
-                                    </div>
-                                    <div>
-                                        <dt class="text-sm font-medium text-gray-500">Check-in</dt>
-                                        <dd class="mt-1 text-sm text-gray-900">{{ formatDate(room.check_in) }}</dd>
-                                    </div>
-                                    <div>
-                                        <dt class="text-sm font-medium text-gray-500">Check-out</dt>
-                                        <dd class="mt-1 text-sm text-gray-900">{{ formatDate(room.check_out) }}</dd>
-                                    </div>
-                                    <div>
-                                        <dt class="text-sm font-medium text-gray-500">Reservation ID</dt>
-                                        <dd class="mt-1 text-sm text-gray-900">#{{ room.reservation_id }}</dd>
-                                    </div>
-                                </dl>
-                            </div>
-                        </div>
-
-                        <!-- Amenities -->
-                        <div v-if="room.amenities && room.amenities.length > 0" class="bg-white rounded-lg shadow border" :style="{ borderColor: themeColors.border }">
-                            <div class="px-6 py-4 border-b border-gray-200">
-                                <h3 class="text-lg font-medium" :style="{ color: themeColors.textPrimary }">
-                                    Room Amenities
-                                </h3>
-                            </div>
-                            <div class="px-6 py-4">
-                                <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
-                                    <div v-for="amenity in room.amenities" :key="amenity" class="flex items-center">
-                                        <CheckCircleIcon class="h-4 w-4 text-green-500 mr-2" />
-                                        <span class="text-sm text-gray-900">{{ amenity }}</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Notes -->
-                        <div v-if="room.notes" class="bg-white rounded-lg shadow border" :style="{ borderColor: themeColors.border }">
-                            <div class="px-6 py-4 border-b border-gray-200">
-                                <h3 class="text-lg font-medium" :style="{ color: themeColors.textPrimary }">
-                                    Notes
-                                </h3>
-                            </div>
-                            <div class="px-6 py-4">
-                                <p class="text-sm text-gray-900">{{ room.notes }}</p>
+                            <div class="flex items-start">
+                                <span class="text-sm font-medium mr-3"
+                                      :style="{ color: themeColors.textSecondary, minWidth: '110px' }">Capacity:</span>
+                                <span class="text-sm" :style="{ color: themeColors.textPrimary }">{{ room.capacity }} guests</span>
                             </div>
                         </div>
                     </div>
-
-                    <!-- Sidebar -->
-                    <div class="space-y-6">
-                        <!-- Quick Actions -->
-                        <div class="bg-white rounded-lg shadow border" :style="{ borderColor: themeColors.border }">
-                            <div class="px-6 py-4 border-b border-gray-200">
-                                <h3 class="text-lg font-medium" :style="{ color: themeColors.textPrimary }">
-                                    Quick Actions
-                                </h3>
+                    <!-- Rates & Housekeeping -->
+                    <div class="rounded-lg p-4 border"
+                         :style="{ backgroundColor: themeColors.background, borderColor: themeColors.border, borderStyle: 'solid', borderWidth: '1px' }">
+                        <div class="space-y-3">
+                            <div class="flex items-start">
+                                <span class="text-sm font-medium mr-3"
+                                      :style="{ color: themeColors.textSecondary, minWidth: '110px' }">Nightly Rate:</span>
+                                <span class="text-sm" :style="{ color: themeColors.textPrimary }">{{ formatCurrency(room.rate) }}</span>
                             </div>
-                            <div class="px-6 py-4 space-y-3">
-                                <Link :href="route('admin.rooms.edit', room.id)" class="block w-full text-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                                    <PencilIcon class="h-4 w-4 inline mr-2" />
-                                    Edit Room
-                                </Link>
-                                <Link :href="route('admin.rooms.status')" class="block w-full text-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                                    <HomeIcon class="h-4 w-4 inline mr-2" />
-                                    Room Status
-                                </Link>
+                            <div class="flex items-start">
+                                <span class="text-sm font-medium mr-3"
+                                      :style="{ color: themeColors.textSecondary, minWidth: '110px' }">Last Cleaned:</span>
+                                <span class="text-sm" :style="{ color: themeColors.textPrimary }">{{ room.last_cleaned || 'Not recorded' }}</span>
                             </div>
-                        </div>
-
-                        <!-- Room Status Summary -->
-                        <div class="bg-white rounded-lg shadow border" :style="{ borderColor: themeColors.border }">
-                            <div class="px-6 py-4 border-b border-gray-200">
-                                <h3 class="text-lg font-medium" :style="{ color: themeColors.textPrimary }">
-                                    Status Summary
-                                </h3>
-                            </div>
-                            <div class="px-6 py-4 space-y-4">
-                                <div class="flex items-center justify-between">
-                                    <span class="text-sm text-gray-500">Current Status</span>
-                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full" :class="statusColor">
-                                        {{ room.status.replace('_', ' ').toUpperCase() }}
-                                    </span>
-                                </div>
-                                <div class="flex items-center justify-between">
-                                    <span class="text-sm text-gray-500">Housekeeping</span>
-                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full" :class="housekeepingColor">
-                                        {{ room.housekeeping_status.replace('_', ' ').toUpperCase() }}
-                                    </span>
-                                </div>
-                                <div class="flex items-center justify-between">
-                                    <span class="text-sm text-gray-500">Occupancy</span>
-                                    <span class="text-sm font-medium" :style="{ color: themeColors.textPrimary }">
-                                        {{ room.guest ? 'Occupied' : 'Available' }}
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Special Features -->
-                        <div v-if="room.special_features" class="bg-white rounded-lg shadow border" :style="{ borderColor: themeColors.border }">
-                            <div class="px-6 py-4 border-b border-gray-200">
-                                <h3 class="text-lg font-medium" :style="{ color: themeColors.textPrimary }">
-                                    Special Features
-                                </h3>
-                            </div>
-                            <div class="px-6 py-4">
-                                <p class="text-sm text-gray-900">{{ room.special_features }}</p>
+                            <div class="flex items-start">
+                                <span class="text-sm font-medium mr-3"
+                                      :style="{ color: themeColors.textSecondary, minWidth: '110px' }">Occupancy:</span>
+                                <span class="text-sm" :style="{ color: themeColors.textPrimary }">{{ room.guest ? 'Occupied' : 'Vacant' }}</span>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
+
+            <!-- Current Guest -->
+            <div v-if="room.guest" class="mb-8">
+                <h3 class="text-lg font-medium mb-4" :style="{ color: themeColors.textPrimary }">Current Guest</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="rounded-lg p-4 border"
+                         :style="{ backgroundColor: 'rgba(34, 197, 94, 0.08)', borderColor: themeColors.success, borderStyle: 'solid', borderWidth: '1px' }">
+                        <div class="space-y-3">
+                            <div class="flex items-start">
+                                <span class="text-sm font-medium mr-3"
+                                      :style="{ color: themeColors.textSecondary, minWidth: '110px' }">Guest Name:</span>
+                                <span class="text-sm font-medium" :style="{ color: themeColors.textPrimary }">{{ room.guest }}</span>
+                            </div>
+                            <div class="flex items-start">
+                                <span class="text-sm font-medium mr-3"
+                                      :style="{ color: themeColors.textSecondary, minWidth: '110px' }">Check-in:</span>
+                                <span class="text-sm" :style="{ color: themeColors.textPrimary }">{{ formatDate(room.check_in) }}</span>
+                            </div>
+                            <div class="flex items-start">
+                                <span class="text-sm font-medium mr-3"
+                                      :style="{ color: themeColors.textSecondary, minWidth: '110px' }">Check-out:</span>
+                                <span class="text-sm" :style="{ color: themeColors.textPrimary }">{{ formatDate(room.check_out) }}</span>
+                            </div>
+                            <div class="flex items-start">
+                                <span class="text-sm font-medium mr-3"
+                                      :style="{ color: themeColors.textSecondary, minWidth: '110px' }">Reservation:</span>
+                                <Link v-if="room.reservation_id"
+                                      :href="route(`${routePrefix}.reservations.show`, room.reservation_id)"
+                                      class="text-sm font-medium"
+                                      :style="{ color: themeColors.primary }">#{{ room.reservation_id }}</Link>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Amenities -->
+            <div v-if="room.amenities && room.amenities.length > 0" class="mb-8">
+                <h3 class="text-lg font-medium mb-4" :style="{ color: themeColors.textPrimary }">Room Amenities</h3>
+                <div class="rounded-lg p-4 border"
+                     :style="{ backgroundColor: themeColors.background, borderColor: themeColors.border, borderStyle: 'solid', borderWidth: '1px' }">
+                    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                        <div v-for="amenity in room.amenities" :key="amenity.id ?? amenity"
+                             class="flex items-center gap-2">
+                            <CheckCircleIcon class="h-4 w-4 flex-shrink-0" :style="{ color: themeColors.success }" />
+                            <span class="text-sm" :style="{ color: themeColors.textPrimary }">
+                                {{ amenity.name ?? amenity }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Special Features -->
+            <div v-if="room.special_features" class="mb-8">
+                <h3 class="text-lg font-medium mb-4" :style="{ color: themeColors.textPrimary }">Special Features</h3>
+                <div class="rounded-lg p-4 border"
+                     :style="{ backgroundColor: themeColors.background, borderColor: themeColors.border, borderStyle: 'solid', borderWidth: '1px' }">
+                    <p class="text-sm whitespace-pre-wrap" :style="{ color: themeColors.textPrimary }">{{ room.special_features }}</p>
+                </div>
+            </div>
+
+            <!-- Notes -->
+            <div v-if="room.notes" class="mb-8">
+                <h3 class="text-lg font-medium mb-4" :style="{ color: themeColors.textPrimary }">Notes</h3>
+                <div class="rounded-lg p-4 border"
+                     :style="{ backgroundColor: themeColors.background, borderColor: themeColors.border, borderStyle: 'solid', borderWidth: '1px' }">
+                    <p class="text-sm whitespace-pre-wrap" :style="{ color: themeColors.textPrimary }">{{ room.notes }}</p>
+                </div>
+            </div>
+
         </div>
     </DashboardLayout>
 </template>

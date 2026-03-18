@@ -27,11 +27,14 @@ return [
 
     'allowed_methods' => ['GET', 'POST', 'OPTIONS'],
 
-    // Parse from env: comma-separated list, or * for all
-    'allowed_origins' => array_filter(array_map(
+    // Parse from env: comma-separated list of allowed origins.
+    // Leave CORS_ALLOWED_ORIGINS blank to block all cross-origin requests (safest default).
+    // Set to your booking website domain(s) in .env, e.g.:
+    //   CORS_ALLOWED_ORIGINS=https://hoteldonzebe.com,https://www.hoteldonzebe.com
+    'allowed_origins' => array_values(array_filter(array_map(
         'trim',
-        explode(',', env('CORS_ALLOWED_ORIGINS', '*'))
-    )),
+        explode(',', env('CORS_ALLOWED_ORIGINS', ''))
+    ))),
 
     'allowed_origins_patterns' => [],
 

@@ -215,7 +215,7 @@ const initializeActiveSubmenu = () => {
     else if (currentPath?.includes('/accountant/reports')) openSubmenus.value = ['accountant-reports']
     else if (currentPath?.includes('/accountant/customers') || currentPath?.includes('/accountant/customer-groups')) openSubmenus.value = ['accountant-users']
     else if (currentPath?.includes('/accountant/transactions') || currentPath?.includes('/accountant/expenses') || currentPath?.includes('/accountant/invoices') || currentPath?.includes('/accountant/payroll')) openSubmenus.value = ['accountant-accounting']
-    else if (currentPath?.includes('/manager/operations') || currentPath?.includes('/manager/rooms') || currentPath?.includes('/manager/guests') || currentPath?.includes('/manager/reservations')) openSubmenus.value = ['manager-operations']
+    else if (currentPath?.includes('/manager/operations') || currentPath?.includes('/manager/rooms') || currentPath?.includes('/manager/guests') || currentPath?.includes('/manager/reservations') || currentPath?.includes('/manager/checkin') || currentPath?.includes('/manager/checkout')) openSubmenus.value = ['manager-operations']
     else if (currentPath?.includes('/manager/employee') || currentPath?.includes('/manager/staff') || currentPath?.includes('/manager/schedules')) openSubmenus.value = ['manager-employee']
     else if (currentPath?.includes('/manager/maintenance') || currentPath?.includes('/manager/housekeeping') || currentPath?.includes('/manager/iptv')) openSubmenus.value = ['manager-maintenance']
     else if (currentPath?.includes('/manager/reports')) openSubmenus.value = ['manager-reports']

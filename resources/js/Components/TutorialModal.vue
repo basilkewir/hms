@@ -75,6 +75,8 @@ const adminTutorial = [
             'Click a guest\'s row → Check In. Verify their ID, confirm or change the room assignment if required, note any early check-in fee, then click "Confirm Check In". The room status instantly becomes Occupied.',
             'Key Cards: after check-in, go to Key Cards, click "+ New Card", select the room and expiry date, and hand the physical card to the guest.',
             'Early check-in fee: if the guest arrives before standard check-in time, an early fee can be added to their folio from the check-in screen.',
+            'Today\'s Guests: in the sidebar go to Operations → Today\'s Guests to see every guest arriving on today\'s date, including confirmed, pending, and already checked-in reservations.',
+            'Police Report: in the sidebar go to Operations → Police Report to view all currently checked-in guests in a formatted register for police or immigration submission. Use the Print button to print in black and white, or Export CSV to download the data.',
             'Operations → Check Out shows today\'s departures. Click the guest → Review Folio to see every charge: room nights, services, minibar, laundry, POS charges, etc.',
             'Click "Add Charge" on the folio if any item is missing. Click "Apply Discount" to give a complimentary deduction with a reason code.',
             'Select the payment method (Cash, Card, Bank Transfer), enter the amount received, and click "Check Out". The room status changes to Dirty, triggering a housekeeping task automatically.',

@@ -37,7 +37,7 @@ const props = defineProps({
     hotelPhone: String,
 })
 
-const navigation = computed(() => props.navigation || getNavigationForRole(props.user?.roles?.[0]?.name || 'admin'))
+const navigation = computed(() => props.navigation || getNavigationForRole(props.user?.roles?.[0]?.name || 'front_desk'))
 
 // Export as CSV
 const exportCSV = () => {
@@ -105,9 +105,6 @@ const formatDate = (d) => d ? new Date(d).toLocaleDateString('en-GB') : '—'
 // Escape HTML to prevent XSS when writing data into the print window
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
-// Build a clean standalone HTML document and print from a new window.
-// This completely bypasses Vue / Tailwind / CSS-variable issues that cause
-// overflow-x-auto to clip the table body in print media.
 const printReport = () => {
     const guests = props.checkedInGuests || []
     const fmtD = (d) => d ? new Date(d).toLocaleDateString('en-GB') : '—'
@@ -207,7 +204,7 @@ ${tableHtml}
         <!-- Top action bar (hidden on print) -->
         <div class="flex flex-wrap items-center justify-between gap-4 mb-6 no-print">
             <div class="flex items-center gap-3">
-                <Link href="/admin/checkin"
+                <Link href="/front-desk/checkin"
                       class="inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors"
                       :style="{ backgroundColor: themeColors.secondary, color: themeColors.textPrimary, border: '1px solid ' + themeColors.border }">
                     <ArrowLeftIcon class="h-4 w-4" />
@@ -356,16 +353,13 @@ ${tableHtml}
 
 <style>
 @media print {
-    /* Hide the sidebar and top header — leave main content visible */
     aside { display: none !important; }
     header { display: none !important; }
     .no-print { display: none !important; }
 
-    /* Remove the left margin added by the layout for the sidebar */
     .flex-1 { margin-left: 0 !important; }
     main { padding: 0 !important; }
 
-    /* Report container — white background, black text */
     #police-report-print {
         background: #fff !important;
         background-color: #fff !important;
@@ -377,19 +371,15 @@ ${tableHtml}
         print-color-adjust: exact;
     }
 
-    /* Force all descendant text to black
-       (overrides any inline style="color: var(--kotel-text-primary)") */
     #police-report-print,
     #police-report-print * {
         color: #000 !important;
     }
 
-    /* CRITICAL FIX: overflow-x-auto clips the table on print — make it visible */
     #police-report-print .overflow-x-auto {
         overflow: visible !important;
     }
 
-    /* Compact table to fit A4 landscape */
     #police-report-print table {
         font-size: 8pt !important;
         width: 100% !important;
@@ -400,14 +390,12 @@ ${tableHtml}
         padding: 2px 4px !important;
     }
 
-    /* Table header subtle shading */
     #police-report-print thead tr {
         background-color: #f0f0f0 !important;
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
     }
 
-    /* Alternating row shading */
     #police-report-print tbody tr:nth-child(even) {
         background-color: #f8f8f8 !important;
         -webkit-print-color-adjust: exact;

@@ -45,6 +45,8 @@ export const getNavigationForRole = (role, userPermissions = []) => {
                 { name: 'New Reservation',   href: isAdmin ? '/admin/reservations/create' : `/${normalizedRole}/reservations/create`, permission: 'manage_reservations', roles: ['admin', 'manager', 'front_desk'] },
                 { name: 'Check-in',          href: isAdmin ? '/admin/checkin'  : `/${normalizedRole}/checkin`,  permission: 'check_in_out', roles: ['admin', 'manager', 'front_desk'] },
                 { name: 'Check-out',         href: isAdmin ? '/admin/checkout' : `/${normalizedRole}/checkout`, permission: 'check_in_out', roles: ['admin', 'manager', 'front_desk'] },
+                { name: "Today's Guests",    href: isAdmin ? '/admin/checkin/today-guests' : `/${normalizedRole}/checkin/today-guests`, permission: 'check_in_out', roles: ['admin', 'manager'] },
+                { name: 'Police Report',     href: isAdmin ? '/admin/checkin/police-report' : `/${normalizedRole}/checkin/police-report`, permission: 'check_in_out', roles: ['admin', 'manager'] },
                 { name: 'Room Assignment',   href: isAdmin ? '/admin/room-assignment' : `/${normalizedRole}/room-assignment`, permission: 'manage_rooms', roles: ['admin', 'manager', 'front_desk'] },
                 { name: 'Key Cards',         href: isAdmin ? '/admin/key-cards' : `/${normalizedRole}/key-cards`, permission: 'manage_rooms', roles: ['admin', 'manager', 'front_desk'] },
                 { name: 'Housekeeping Tasks', href: isAdmin ? '/admin/housekeeping-tasks' : `/${normalizedRole}/housekeeping-tasks`, permission: 'view_rooms', roles: ['admin', 'manager'] },

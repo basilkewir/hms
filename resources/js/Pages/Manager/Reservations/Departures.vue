@@ -65,7 +65,7 @@ import { UserIcon } from '@heroicons/vue/24/outline'
 
 const props = defineProps({
     user: Object,
-    departures: Array,
+    departures: { type: Array, default: () => [] },
 })
 
 const navigation = computed(() => getNavigationForRole('manager'))

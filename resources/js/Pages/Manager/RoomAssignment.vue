@@ -453,8 +453,8 @@ loadTheme()
 
 const props = defineProps({
     user: Object,
-    pendingReservations: Array,
-    availableRooms: Array,
+    pendingReservations: { type: Array, default: () => [] },
+    availableRooms: { type: Array, default: () => [] },
     stats: Object,
 })
 

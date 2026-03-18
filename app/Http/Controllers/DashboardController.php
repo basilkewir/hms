@@ -1150,13 +1150,15 @@ class DashboardController extends Controller
                     'icon' => 'BuildingOfficeIcon',
                     'current' => false,
                     'children' => [
-                        ['name' => 'Room Types', 'href' => '/admin/room-types', 'icon' => 'HomeIcon'],
-                        ['name' => 'Rooms', 'href' => '/admin/rooms', 'icon' => 'HomeIcon'],
+                        ['name' => 'Room Types',    'href' => '/admin/room-types',    'icon' => 'HomeIcon'],
+                        ['name' => 'Rooms',          'href' => '/admin/rooms',          'icon' => 'HomeIcon'],
                         ['name' => 'Room Amenities', 'href' => '/admin/room-amenities', 'icon' => 'HomeIcon'],
-                        ['name' => 'Halls', 'href' => '/admin/halls', 'icon' => 'BuildingOfficeIcon'],
-                        ['name' => 'Hall Bookings', 'href' => '/admin/hall-bookings', 'icon' => 'CalendarDaysIcon'],
-                        ['name' => 'Reservations', 'href' => '/admin/reservations', 'icon' => 'CalendarDaysIcon'],
-                        ['name' => 'Guests', 'href' => '/admin/guests', 'icon' => 'UsersIcon']
+                        ['name' => 'Halls',          'href' => '/admin/halls',          'icon' => 'BuildingOfficeIcon'],
+                        ['name' => 'Hall Bookings',  'href' => '/admin/hall-bookings',  'icon' => 'CalendarDaysIcon'],
+                        ['name' => 'Reservations',   'href' => '/admin/reservations',   'icon' => 'CalendarDaysIcon'],
+                        ['name' => 'Guests',         'href' => '/admin/guests',         'icon' => 'UsersIcon'],
+                        ['name' => "Today's Guests", 'href' => '/admin/checkin/today-guests',  'icon' => 'UserGroupIcon'],
+                        ['name' => 'Police Report',  'href' => '/admin/checkin/police-report', 'icon' => 'DocumentTextIcon'],
                     ]
                 ],
                 [
@@ -1311,9 +1313,11 @@ class DashboardController extends Controller
                         ['name' => 'Check-ins Today',   'href' => '/manager/reservations/checkins',   'icon' => 'ArrowRightOnRectangleIcon'],
                         ['name' => 'Check-outs Today',  'href' => '/manager/reservations/checkouts',  'icon' => 'ArrowLeftOnRectangleIcon'],
                         ['name' => 'New Reservation',   'href' => '/manager/reservations/create',     'icon' => 'PlusIcon'],
-                        ['name' => 'Check In',          'href' => '/manager/checkin',                 'icon' => 'ArrowRightOnRectangleIcon'],
-                        ['name' => 'Check Out',         'href' => '/manager/checkout',                'icon' => 'ArrowLeftOnRectangleIcon'],
-                        ['name' => 'Waitlist',          'href' => '/manager/waitlist',                'icon' => 'QueueListIcon'],
+                        ['name' => 'Check In',         'href' => '/manager/checkin',                       'icon' => 'ArrowRightOnRectangleIcon'],
+                        ['name' => 'Check Out',        'href' => '/manager/checkout',                      'icon' => 'ArrowLeftOnRectangleIcon'],
+                        ['name' => "Today's Guests",  'href' => '/manager/checkin/today-guests',          'icon' => 'UserGroupIcon'],
+                        ['name' => 'Police Report',    'href' => '/manager/checkin/police-report',         'icon' => 'DocumentTextIcon'],
+                        ['name' => 'Waitlist',         'href' => '/manager/waitlist',                      'icon' => 'QueueListIcon'],
                         ['name' => 'Group Bookings',    'href' => '/manager/group-bookings',          'icon' => 'UserGroupIcon'],
                         ['name' => 'Channel Manager',   'href' => '/manager/channel-manager',         'icon' => 'GlobeAltIcon'],
                     ]

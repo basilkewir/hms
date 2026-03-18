@@ -26,6 +26,16 @@
             </div>
 
             <form @submit.prevent="updateRoom" class="space-y-6">
+                <!-- Validation Errors -->
+                <div v-if="Object.keys(form.errors).length"
+                     class="rounded-md p-4 border"
+                     :style="{ backgroundColor: 'rgba(239,68,68,0.1)', borderColor: themeColors.danger }">
+                    <p class="text-sm font-semibold mb-1" :style="{ color: themeColors.danger }">Please fix the following errors:</p>
+                    <ul class="list-disc list-inside space-y-1">
+                        <li v-for="(msg, field) in form.errors" :key="field" class="text-sm" :style="{ color: themeColors.danger }">{{ msg }}</li>
+                    </ul>
+                </div>
+
                 <!-- Basic Information -->
                 <div>
                     <h3 class="text-lg font-medium mb-4"
@@ -136,6 +146,13 @@
                                       :style="{ color: themeColors.primary }">Add bed types</Link>
                             </p>
                         </div>
+                        <div class="flex items-center pt-6">
+                            <input type="checkbox" id="is_active" v-model="form.is_active"
+                                   class="h-4 w-4 rounded focus:outline-none"
+                                   :style="{ accentColor: themeColors.primary }">
+                            <label for="is_active" class="ml-2 block text-sm font-medium"
+                                   :style="{ color: themeColors.textPrimary }">Room is Active</label>
+                        </div>
                     </div>
                 </div>
 
@@ -198,6 +215,7 @@
                                     }">
                                 <option value="available">Available</option>
                                 <option value="occupied">Occupied</option>
+                                <option value="cleaning">Being Cleaned</option>
                                 <option value="maintenance">Under Maintenance</option>
                                 <option value="reserved">Reserved</option>
                                 <option value="out_of_order">Out of Order</option>
@@ -219,8 +237,9 @@
                                     }">
                                 <option value="clean">Clean</option>
                                 <option value="dirty">Dirty</option>
-                                <option value="cleaning">Being Cleaned</option>
-                                <option value="inspecting">Inspecting</option>
+                                <option value="inspected">Inspected</option>
+                                <option value="maintenance_required">Maintenance Required</option>
+                                <option value="waiting_for_check">Waiting for Check</option>
                             </select>
                         </div>
                     </div>
@@ -374,6 +393,7 @@ const form = useForm({
     status: props.room.status || 'available',
     housekeeping_status: props.room.housekeeping_status || 'clean',
     iptv_active: props.room.iptv_active ?? false,
+    is_active: props.room.is_active ?? true,
     amenities: initializeAmenities(),
     special_features: props.room.special_features || '',
     notes: props.room.notes || '',

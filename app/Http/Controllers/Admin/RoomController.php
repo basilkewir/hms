@@ -317,6 +317,7 @@ class RoomController extends Controller
             'status' => $room->status,
             'housekeeping_status' => $room->housekeeping_status ?? 'clean',
             'iptv_active' => $room->iptv_active ?? false,
+            'is_active' => $room->is_active ?? true,
             'features' => $room->features ?? [], // This will be used to initialize amenities
             'special_features' => $room->special_features ?? '',
             'notes' => $room->notes ?? '',
@@ -334,7 +335,10 @@ class RoomController extends Controller
             }
         }
 
-        return Inertia::render('Admin/Rooms/Edit', [
+        $routeName = request()->route()->getName() ?? '';
+        $editView  = str_starts_with($routeName, 'manager.') ? 'Manager/Rooms/Edit' : 'Admin/Rooms/Edit';
+
+        return Inertia::render($editView, [
             'user' => auth()->user()->load('roles'),
             'room' => $roomData,
             'roomTypes' => $roomTypes,
@@ -448,7 +452,10 @@ class RoomController extends Controller
         // Sync live room count to license server (non-blocking — failure won't abort the request)
         app(LicenseValidationService::class)->syncRooms(Room::count());
 
-        return redirect()->route('admin.rooms.index')->with('success', 'Room created successfully');
+        $routeName  = request()->route()->getName() ?? '';
+        $indexRoute = str_starts_with($routeName, 'manager.') ? 'manager.rooms.index' : 'admin.rooms.index';
+
+        return redirect()->route($indexRoute)->with('success', 'Room created successfully');
     }
 
     public function update(Request $request, Room $room)
@@ -461,6 +468,7 @@ class RoomController extends Controller
             'status' => 'required|in:available,occupied,maintenance,cleaning,reserved,out_of_order',
             'housekeeping_status' => 'nullable|in:clean,dirty,inspected,maintenance_required,waiting_for_check',
             'iptv_active' => 'nullable|boolean',
+            'is_active' => 'nullable|boolean',
             'amenities' => 'nullable|array',
             'special_features' => 'nullable|string',
             'notes' => 'nullable|string',
@@ -496,7 +504,10 @@ class RoomController extends Controller
 
         $room->update($validated);
 
-        return redirect()->route('admin.rooms.index')->with('success', 'Room updated successfully');
+        $routeName   = request()->route()->getName() ?? '';
+        $indexRoute  = str_starts_with($routeName, 'manager.') ? 'manager.rooms.index' : 'admin.rooms.index';
+
+        return redirect()->route($indexRoute)->with('success', 'Room updated successfully');
     }
 
     /**
