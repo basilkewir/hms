@@ -49,6 +49,16 @@ info ""
 info "Your database and .env file will NOT be modified."
 info ""
 
+step "Pulling Latest Code from GitHub"
+
+if git -C "$SOURCE_DIR" rev-parse --is-inside-work-tree &>/dev/null; then
+    info "Running git pull origin master in $SOURCE_DIR..."
+    git -C "$SOURCE_DIR" pull origin master || error "git pull failed. Fix any conflicts or connectivity issues and re-run."
+    success "Source code up to date"
+else
+    warning "$SOURCE_DIR is not a git repository — skipping git pull. Files will be copied as-is."
+fi
+
 mkdir -p "$BACKUP_DIR"
 
 # Optional database backup
