@@ -1046,17 +1046,11 @@ const saveLogo = async () => {
         formData.append('logo', uploadedLogo.value)
         formData.append('_token', document.querySelector('meta[name="csrf-token"]').getAttribute('content'))
 
-        const response = await fetch('/admin/settings/logo', {
-            method: 'POST',
-            headers: {
-                'Accept': 'application/json',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-            },
-            body: formData,
+        const { data: result } = await window.axios.post('/admin/settings/logo', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
         })
 
-        const result = await response.json()
-        if (response.ok && result.success) {
+        if (result.success) {
             settings.value.hotel_logo = result.logo_url
             logoPreview.value = result.logo_url
             uploadedLogo.value = null
@@ -1082,12 +1076,7 @@ const handleRemoveLogo = async () => {
     if (logoInput.value) logoInput.value.value = ''
 
     try {
-        await fetch('/admin/settings/logo', {
-            method: 'DELETE',
-            headers: {
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-            },
-        })
+        await window.axios.delete('/admin/settings/logo')
         notify.success('Logo removed.')
     } catch {
         // silently ignore network errors for remove
@@ -1359,12 +1348,7 @@ const activateLicense = async () => {
     activateError.value = ''
     activateSuccess.value = ''
     try {
-        const res = await fetch('/admin/settings/license/activate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content') },
-            body: JSON.stringify(activateForm.value),
-        })
-        const data = await res.json()
+        const { data } = await window.axios.post('/admin/settings/license/activate', activateForm.value)
         if (data.success) {
             activateSuccess.value = 'License activated successfully.'
             showActivateForm.value = false
@@ -1372,8 +1356,8 @@ const activateLicense = async () => {
         } else {
             activateError.value = data.message || data.errors?.license_key?.[0] || 'Activation failed.'
         }
-    } catch {
-        activateError.value = 'Network error — could not reach license server.'
+    } catch (err) {
+        activateError.value = err?.response?.data?.message || 'Network error — could not reach license server.'
     }
     licenseActionLoading.value = false
 }
@@ -1381,11 +1365,7 @@ const activateLicense = async () => {
 const refreshToken = async () => {
     licenseActionLoading.value = true
     try {
-        const res = await fetch('/admin/settings/license/refresh', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content') },
-        })
-        const data = await res.json()
+        const { data } = await window.axios.post('/admin/settings/license/refresh')
         if (data.success) {
             notify.success('License token refreshed.')
             await loadLicenseInfo()
@@ -1402,17 +1382,10 @@ const runBackup = async () => {
     if (!confirm('Create a new system backup now?')) return
     backupRunning.value = true
     try {
-        const res = await fetch('/admin/settings/backup', {
-            method: 'POST',
-            headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content') },
-        })
-        if (res.ok) {
-            notify.success('Backup created successfully.')
-        } else {
-            notify.error('Backup failed.')
-        }
+        await window.axios.post('/admin/settings/backup')
+        notify.success('Backup created successfully.')
     } catch {
-        notify.error('Network error.')
+        notify.error('Backup failed.')
     }
     backupRunning.value = false
 }
@@ -1484,15 +1457,8 @@ onMounted(async () => {
 const loadLicenseInfo = async () => {
     licenseLoading.value = true
     try {
-        const response = await fetch('/admin/license/info', {
-            headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '' }
-        })
-        if (response.ok) {
-            const data = await response.json()
-            licenseInfo.value = data.licensed ? data : null
-        } else {
-            licenseInfo.value = null
-        }
+        const { data } = await window.axios.get('/admin/license/info')
+        licenseInfo.value = data.licensed ? data : null
     } catch {
         licenseInfo.value = null
     } finally {
@@ -1501,6 +1467,7 @@ const loadLicenseInfo = async () => {
 }
 
 const saveSettings = async () => {
+    if (isSaving.value) return
     isSaving.value = true
 
     try {
@@ -1572,20 +1539,9 @@ const saveSettings = async () => {
             settingsToSave.theme_radius = settings.value.theme_radius
         }
 
-        const response = await fetch(settingsRoute, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-            },
-            body: JSON.stringify({
-                settings: settingsToSave
-            })
-        })
+        const { data: result } = await window.axios.put(settingsRoute, { settings: settingsToSave })
 
-        if (response.ok) {
-            const result = await response.json()
-            console.log('📊 Server response:', result)
+        console.log('📊 Server response:', result)
 
             if (result.debug) {
                 console.log('✅ Total settings saved:', result.debug.total_settings_saved)
@@ -1641,12 +1597,9 @@ const saveSettings = async () => {
                 console.log('🎨 Border color in CSS after apply:', borderColor)
             }, 100)
 
-        } else {
-            console.error('❌ Server response not OK:', response.status)
-            notify.error('Error saving settings. Please try again.')
-        }
     } catch (error) {
-        console.error('Error saving settings:', error)
+        const status = error?.response?.status
+        console.error('❌ Server response not OK:', status ?? error?.message)
         notify.error('Error saving settings. Please try again.')
     }
 
@@ -1684,20 +1637,7 @@ const removeLicense = async () => {
     if (!confirm('Remove the license? The system will be locked until re-activated.')) return
     licenseActionLoading.value = true
     try {
-        const res = await fetch('/admin/settings/license/deactivate', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-            },
-        })
-        if (!res.ok && res.status !== 200) {
-            notify.error('Server error (' + res.status + '). Please try again.')
-            licenseActionLoading.value = false
-            return
-        }
-        const result = await res.json()
+        const { data: result } = await window.axios.post('/admin/settings/license/deactivate')
         if (result.success) {
             licenseInfo.value = null
             notify.success('License removed. Redirecting to activation…')
@@ -1706,7 +1646,12 @@ const removeLicense = async () => {
             notify.error(result.message || 'Failed to remove license.')
         }
     } catch (err) {
-        notify.error('Could not reach the server. Please try again.')
+        const status = err?.response?.status
+        if (status) {
+            notify.error('Server error (' + status + '). Please try again.')
+        } else {
+            notify.error('Could not reach the server. Please try again.')
+        }
     }
     licenseActionLoading.value = false
 }
@@ -1790,22 +1735,8 @@ const saveTheme = async () => {
         const userRole = props.user?.roles?.[0]?.name || 'admin'
         const settingsRoute = userRole === 'manager' ? '/manager/settings' : '/admin/settings'
 
-        const response = await fetch(settingsRoute, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-            },
-            body: JSON.stringify({
-                settings: settings.value
-            })
-        })
-
-        if (response.ok) {
-            notify.success('Theme saved successfully!')
-        } else {
-            notify.error('Error saving theme. Please try again.')
-        }
+        await window.axios.put(settingsRoute, { settings: settings.value })
+        notify.success('Theme saved successfully!')
     } catch (error) {
         console.error('Error saving theme:', error)
         notify.error('Error saving theme. Please try again.')

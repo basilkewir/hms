@@ -17,15 +17,32 @@ class BookingController extends Controller
     public function roomTypes()
     {
         $types = RoomType::where('is_active', true)
-            ->orderBy('name')
-            ->get(['id', 'name', 'code', 'base_price', 'max_occupancy'])
-            ->map(fn ($type) => [
-                'id' => $type->id,
-                'name' => $type->name,
-                'code' => $type->code,
-                'base_price' => (float) $type->base_price,
-                'max_occupancy' => $type->max_occupancy,
-            ]);
+            ->orderBy('base_price')
+            ->get()
+            ->map(function ($type) {
+                $amenities = is_array($type->amenities) ? $type->amenities : [];
+
+                return [
+                    'id'              => $type->id,
+                    'name'            => $type->name,
+                    'code'            => $type->code,
+                    'description'     => $type->description,
+                    'base_price'      => (float) $type->base_price,
+                    'max_occupancy'   => $type->max_occupancy,
+                    'max_adults'      => $type->max_adults,
+                    'max_children'    => $type->max_children,
+                    'bed_type'        => $type->bed_type,
+                    'room_size_sqft'  => $type->room_size_sqft,
+                    'view_type'       => $type->view_type,
+                    'has_balcony'     => (bool) $type->has_balcony,
+                    'has_living_room' => (bool) $type->has_living_room,
+                    'amenities'       => $amenities,
+                    'available_rooms' => Room::where('room_type_id', $type->id)
+                        ->where('status', 'available')
+                        ->where('is_active', true)
+                        ->count(),
+                ];
+            });
 
         return response()->json([
             'success' => true,
