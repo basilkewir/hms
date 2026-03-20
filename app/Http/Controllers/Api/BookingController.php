@@ -8,12 +8,15 @@ use App\Models\Reservation;
 use App\Models\Room;
 use App\Models\RoomType;
 use App\Models\Setting;
+use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
 class BookingController extends Controller
 {
+    private const WEBSITE_ROOM_REFRESH_SECONDS = 30;
+
     public function roomTypes()
     {
         $types = RoomType::where('is_active', true)
@@ -48,7 +51,10 @@ class BookingController extends Controller
         return response()->json([
             'success' => true,
             'data' => $types,
-        ]);
+            'meta' => [
+                'refresh_after_seconds' => self::WEBSITE_ROOM_REFRESH_SECONDS,
+            ],
+        ])->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
     }
 
     /**
@@ -58,6 +64,8 @@ class BookingController extends Controller
     public function rooms()
     {
         $rooms = Room::with(['roomType.amenities', 'floorRelation'])
+            ->where('status', 'available')
+            ->where('housekeeping_status', 'clean')
             ->where('is_active', true)
             ->orderBy('room_number')
             ->get()
@@ -126,7 +134,10 @@ class BookingController extends Controller
         return response()->json([
             'success' => true,
             'data'    => $rooms,
-        ]);
+            'meta'    => [
+                'refresh_after_seconds' => self::WEBSITE_ROOM_REFRESH_SECONDS,
+            ],
+        ])->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
     }
 
     public function availability(Request $request)
@@ -160,7 +171,10 @@ class BookingController extends Controller
                 'available_rooms' => $availableRooms,
                 'rooms' => $rooms,
             ],
-        ]);
+            'meta' => [
+                'refresh_after_seconds' => self::WEBSITE_ROOM_REFRESH_SECONDS,
+            ],
+        ])->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
     }
 
     public function store(Request $request)
@@ -197,49 +211,91 @@ class BookingController extends Controller
         $checkIn = Carbon::parse($validated['check_in_date']);
         $checkOut = Carbon::parse($validated['check_out_date']);
         $nights = max(1, $checkIn->diffInDays($checkOut));
+        $systemUserId = $this->resolveSystemUserId();
 
-        $room = $this->availableRoomsQuery($roomType->id, $checkIn, $checkOut)->first();
+        DB::beginTransaction();
+        try {
+            $room = $this->availableRoomsQuery($roomType->id, $checkIn, $checkOut)
+                ->lockForUpdate()
+                ->first();
 
-        $roomCharges = (float) $roomType->base_price * $nights;
-        $taxRate = (float) Setting::get('tax_rate', 0);
-        $serviceChargeRate = (float) Setting::get('service_charge_rate', 0);
-        $taxAmount = $roomCharges * ($taxRate / 100);
-        $serviceCharges = $roomCharges * ($serviceChargeRate / 100);
-        $totalAmount = $roomCharges + $taxAmount + $serviceCharges;
+            if (!$room) {
+                DB::rollBack();
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No rooms available for the selected dates',
+                ], 409);
+            }
 
-        $guest = Guest::updateOrCreate(
-            ['email' => $validated['guest']['email']],
-            [
-                'first_name' => $validated['guest']['first_name'],
-                'last_name' => $validated['guest']['last_name'],
-                'phone' => $validated['guest']['phone'] ?? null,
-                'created_by' => null,
-                'updated_by' => null,
-            ]
-        );
+            $roomCharges = (float) $roomType->base_price * $nights;
+            $taxRate = (float) Setting::get('tax_rate', 0);
+            $serviceChargeRate = (float) Setting::get('service_charge_rate', 0);
+            $taxAmount = $roomCharges * ($taxRate / 100);
+            $serviceCharges = $roomCharges * ($serviceChargeRate / 100);
+            $totalAmount = $roomCharges + $taxAmount + $serviceCharges;
 
-        $reservation = Reservation::create([
-            'reservation_number' => 'RES-' . strtoupper(Str::random(8)),
-            'guest_id' => $guest->id,
-            'room_id' => $room?->id,
-            'room_type_id' => $roomType->id,
-            'check_in_date' => $checkIn->format('Y-m-d'),
-            'check_out_date' => $checkOut->format('Y-m-d'),
-            'nights' => $nights,
-            'adults' => $validated['adults'],
-            'children' => $validated['children'] ?? 0,
-            'infants' => $validated['infants'] ?? 0,
-            'status' => 'pending',
-            'room_rate' => (float) $roomType->base_price,
-            'total_room_charges' => $roomCharges,
-            'taxes' => $taxAmount,
-            'service_charges' => $serviceCharges,
-            'total_amount' => $totalAmount,
-            'balance_amount' => $totalAmount,
-            'booking_source' => 'website',
-            'booking_reference' => $validated['booking_reference'] ?? null,
-            'special_requests' => $validated['special_requests'] ?? null,
-        ]);
+            $guest = Guest::updateOrCreate(
+                ['email' => $validated['guest']['email']],
+                [
+                    'first_name' => $validated['guest']['first_name'],
+                    'last_name' => $validated['guest']['last_name'],
+                    'phone' => $validated['guest']['phone'] ?? null,
+                    'date_of_birth' => now()->subYears(30)->format('Y-m-d'),
+                    'gender' => 'other',
+                    'nationality' => 'Unknown',
+                    'address' => 'N/A',
+                    'city' => 'N/A',
+                    'state' => 'N/A',
+                    'country' => 'N/A',
+                    'emergency_contact_name' => trim(($validated['guest']['first_name'] ?? '') . ' ' . ($validated['guest']['last_name'] ?? '')),
+                    'emergency_contact_phone' => $validated['guest']['phone'] ?? 'N/A',
+                    'emergency_contact_relationship' => 'self',
+                    'id_type' => 'other',
+                    'id_number' => 'WEB-' . strtoupper(Str::random(8)),
+                    'id_issuing_authority' => 'Website',
+                    'id_issue_date' => now()->format('Y-m-d'),
+                    'id_expiry_date' => now()->addYears(10)->format('Y-m-d'),
+                    'created_by' => $systemUserId,
+                    'updated_by' => $systemUserId,
+                ]
+            );
+
+            $reservation = Reservation::create([
+                'reservation_number' => 'RES-' . strtoupper(Str::random(8)),
+                'guest_id' => $guest->id,
+                'room_id' => $room->id,
+                'room_type_id' => $roomType->id,
+                'check_in_date' => $checkIn->format('Y-m-d'),
+                'check_out_date' => $checkOut->format('Y-m-d'),
+                'nights' => $nights,
+                'adults' => $validated['adults'],
+                'children' => $validated['children'] ?? 0,
+                'infants' => $validated['infants'] ?? 0,
+                'status' => 'pending',
+                'room_rate' => (float) $roomType->base_price,
+                'total_room_charges' => $roomCharges,
+                'taxes' => $taxAmount,
+                'service_charges' => $serviceCharges,
+                'total_amount' => $totalAmount,
+                'balance_amount' => $totalAmount,
+                'booking_source' => 'website',
+                'booking_reference' => $validated['booking_reference'] ?? null,
+                'special_requests' => $validated['special_requests'] ?? null,
+                'created_by' => $systemUserId,
+                'updated_by' => $systemUserId,
+            ]);
+
+            $room->update(['status' => 'reserved']);
+
+            DB::commit();
+        } catch (\Throwable $exception) {
+            DB::rollBack();
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Unable to complete your booking. Please try again.',
+            ], 500);
+        }
 
         return response()->json([
             'success' => true,
@@ -247,7 +303,7 @@ class BookingController extends Controller
                 'reservation_id' => $reservation->id,
                 'reservation_number' => $reservation->reservation_number,
                 'status' => $reservation->status,
-                'room_assigned' => (bool) $room,
+                'room_assigned' => true,
             ],
         ], 201);
     }
@@ -275,5 +331,16 @@ class BookingController extends Controller
                             ->whereDate('check_out_date', '>', $checkIn);
                     });
             });
+    }
+
+    private function resolveSystemUserId(): int
+    {
+        $userId = DB::table('users')->min('id');
+
+        if (!$userId) {
+            throw new \RuntimeException('No system user available for booking audit fields.');
+        }
+
+        return (int) $userId;
     }
 }

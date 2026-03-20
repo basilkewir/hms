@@ -13,7 +13,9 @@ return new class extends Migration
     public function up(): void
     {
         // Modify the enum to include 'cleaning'
-        DB::statement("ALTER TABLE housekeeping_tasks MODIFY COLUMN task_type ENUM('checkout', 'stayover', 'deep_clean', 'inspection', 'maintenance', 'cleaning') DEFAULT 'checkout'");
+        if (DB::getDriverName() !== 'sqlite') {
+            DB::statement("ALTER TABLE housekeeping_tasks MODIFY COLUMN task_type ENUM('checkout', 'stayover', 'deep_clean', 'inspection', 'maintenance', 'cleaning') DEFAULT 'checkout'");
+        }
     }
 
     /**
@@ -22,6 +24,8 @@ return new class extends Migration
     public function down(): void
     {
         // Revert back to original enum values
-        DB::statement("ALTER TABLE housekeeping_tasks MODIFY COLUMN task_type ENUM('checkout', 'stayover', 'deep_clean', 'inspection', 'maintenance') DEFAULT 'checkout'");
+        if (DB::getDriverName() !== 'sqlite') {
+            DB::statement("ALTER TABLE housekeeping_tasks MODIFY COLUMN task_type ENUM('checkout', 'stayover', 'deep_clean', 'inspection', 'maintenance') DEFAULT 'checkout'");
+        }
     }
 };

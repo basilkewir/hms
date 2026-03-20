@@ -13,6 +13,8 @@ return new class extends Migration
     {
         Schema::table('rooms', function (Blueprint $table) {
             // Change floor from integer to foreign key
+            // Drop index first — SQLite can't drop an indexed column without removing the index
+            $table->dropIndex('rooms_floor_index');
             $table->dropColumn('floor');
             $table->foreignId('floor_id')->nullable()->after('room_type_id')->constrained('floors')->onDelete('restrict');
             

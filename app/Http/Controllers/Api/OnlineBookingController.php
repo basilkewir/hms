@@ -21,6 +21,8 @@ use App\Mail\BookingConfirmation;
 
 class OnlineBookingController extends Controller
 {
+    private const ONLINE_AVAILABILITY_REFRESH_SECONDS = 30;
+
     /**
      * Check room availability for given dates
      */
@@ -98,7 +100,10 @@ class OnlineBookingController extends Controller
             'adults' => $adults,
             'children' => $children,
             'available_room_types' => $roomTypes,
-        ]);
+            'meta' => [
+                'refresh_after_seconds' => self::ONLINE_AVAILABILITY_REFRESH_SECONDS,
+            ],
+        ])->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
     }
 
     /**
@@ -209,6 +214,8 @@ class OnlineBookingController extends Controller
 
         DB::beginTransaction();
         try {
+            $systemUserId = $this->resolveSystemUserId();
+
             // Check availability again
             $checkIn = Carbon::parse($request->reservation['check_in_date']);
             $checkOut = Carbon::parse($request->reservation['check_out_date']);
@@ -257,18 +264,34 @@ class OnlineBookingController extends Controller
                 'nationality' => $guestInput['nationality'],
                 'id_type'     => $guestInput['id_type'],
                 'id_number'   => $guestInput['id_number'],
+                'gender'      => $guestInput['gender'] ?? 'other',
+                'address'     => $guestInput['address'] ?? 'N/A',
+                'city'        => $guestInput['city'] ?? 'N/A',
+                'state'       => $guestInput['state'] ?? 'N/A',
+                'country'     => $guestInput['country'] ?? 'N/A',
+                'emergency_contact_name' => $guestInput['emergency_contact_name']
+                    ?? trim(($guestInput['first_name'] ?? '') . ' ' . ($guestInput['last_name'] ?? '')),
+                'emergency_contact_phone' => $guestInput['emergency_contact_phone']
+                    ?? ($guestInput['phone'] ?? 'N/A'),
+                'emergency_contact_relationship' => $guestInput['emergency_contact_relationship'] ?? 'self',
+                'id_issuing_authority' => $guestInput['id_issuing_authority'] ?? 'Website',
+                'id_issue_date' => $guestInput['id_issue_date'] ?? now()->format('Y-m-d'),
+                'id_expiry_date' => $guestInput['id_expiry_date'] ?? now()->addYears(10)->format('Y-m-d'),
             ];
 
             // Only fill date_of_birth if provided (it is now optional on the website form)
-            if (!empty($guestInput['date_of_birth'])) {
-                $coreFields['date_of_birth'] = $guestInput['date_of_birth'];
-            }
+            $coreFields['date_of_birth'] = !empty($guestInput['date_of_birth'])
+                ? $guestInput['date_of_birth']
+                : now()->subYears(30)->format('Y-m-d');
 
             // New guest defaults — never applied to returning guests
             if (!$existingGuest) {
                 $coreFields['police_verification_status'] = 'pending';
                 $coreFields['guest_type_id'] = 1; // Regular
+                $coreFields['created_by'] = $systemUserId;
             }
+
+            $coreFields['updated_by'] = $systemUserId;
 
             // Extended fields — only update if the current record is null/empty
             $extendedFieldKeys = [
@@ -325,6 +348,7 @@ class OnlineBookingController extends Controller
                 'check_in_date'        => $checkIn,
                 'check_out_date'       => $checkOut,
                 'nights'               => $nights,
+                'adults'               => $request->reservation['number_of_adults'],
                 'number_of_adults'     => $request->reservation['number_of_adults'],
                 'number_of_children'   => $request->reservation['number_of_children'] ?? 0,
                 'status'               => 'confirmed',
@@ -339,6 +363,8 @@ class OnlineBookingController extends Controller
                 'booking_source'       => 'website',
                 'booking_reference'    => $request->payment['transaction_id'] ?? null,
                 'special_requests'     => $request->reservation['special_requests'] ?? null,
+                'created_by'           => $systemUserId,
+                'updated_by'           => $systemUserId,
             ]);
 
             // Attach services if provided
@@ -417,6 +443,17 @@ class OnlineBookingController extends Controller
                 'message' => 'Unable to complete your booking. Please try again or contact the hotel.',
             ], 500);
         }
+    }
+
+    private function resolveSystemUserId(): int
+    {
+        $userId = DB::table('users')->min('id');
+
+        if (!$userId) {
+            throw new \RuntimeException('No system user available for booking audit fields.');
+        }
+
+        return (int) $userId;
     }
 
     /**

@@ -13,7 +13,9 @@ return new class extends Migration
     public function up(): void
     {
         // Add 'waiting_for_check' to housekeeping_status enum
-        DB::statement("ALTER TABLE rooms MODIFY COLUMN housekeeping_status ENUM('clean', 'dirty', 'inspected', 'maintenance_required', 'waiting_for_check') DEFAULT 'clean'");
+        if (DB::getDriverName() !== 'sqlite') {
+            DB::statement("ALTER TABLE rooms MODIFY COLUMN housekeeping_status ENUM('clean', 'dirty', 'inspected', 'maintenance_required', 'waiting_for_check') DEFAULT 'clean'");
+        }
     }
 
     /**
@@ -22,6 +24,8 @@ return new class extends Migration
     public function down(): void
     {
         // Revert back to original enum values
-        DB::statement("ALTER TABLE rooms MODIFY COLUMN housekeeping_status ENUM('clean', 'dirty', 'inspected', 'maintenance_required') DEFAULT 'clean'");
+        if (DB::getDriverName() !== 'sqlite') {
+            DB::statement("ALTER TABLE rooms MODIFY COLUMN housekeeping_status ENUM('clean', 'dirty', 'inspected', 'maintenance_required') DEFAULT 'clean'");
+        }
     }
 };
