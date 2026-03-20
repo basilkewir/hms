@@ -43,6 +43,7 @@ Route::prefix('public')->middleware(['throttle:60,1'])->group(function () {
 
     // Booking website integration
     Route::get('/room-types', [BookingController::class, 'roomTypes']);
+    Route::get('/rooms',      [BookingController::class, 'rooms']);
     Route::get('/availability', [BookingController::class, 'availability']);
     Route::post('/bookings', [BookingController::class, 'store']);
 });

@@ -39,6 +39,7 @@ class BookingController extends Controller
                     'amenities'       => $amenities,
                     'available_rooms' => Room::where('room_type_id', $type->id)
                         ->where('status', 'available')
+                        ->where('housekeeping_status', 'clean')
                         ->where('is_active', true)
                         ->count(),
                 ];
@@ -47,6 +48,84 @@ class BookingController extends Controller
         return response()->json([
             'success' => true,
             'data' => $types,
+        ]);
+    }
+
+    /**
+     * Public rooms endpoint — returns individual rooms with room type details.
+     * Used by hotel website to display actual room listings (room numbers, floors, amenities).
+     */
+    public function rooms()
+    {
+        $rooms = Room::with(['roomType.amenities', 'floorRelation'])
+            ->where('is_active', true)
+            ->orderBy('room_number')
+            ->get()
+            ->map(function ($room) {
+                $type = $room->roomType;
+
+                // Floor label: use Floor relationship if available, else numeric floor
+                $floorModel = $room->floorRelation ?? null;
+                $floorLabel = null;
+                if ($floorModel) {
+                    $floorLabel = $floorModel->name ?? ('Floor ' . $floorModel->floor_number);
+                } elseif (!is_null($room->floor)) {
+                    $floorLabel = $room->floor == 0 ? 'Ground Floor' : 'Floor ' . $room->floor;
+                }
+
+                // Amenities: prefer relationship (room_type_amenity pivot), fall back to JSON column
+                $amenities = [];
+                if ($type && $type->amenities instanceof \Illuminate\Database\Eloquent\Collection) {
+                    $amenities = $type->amenities->where('is_active', true)
+                        ->map(fn ($a) => ['id' => $a->id, 'name' => $a->name])
+                        ->values()
+                        ->toArray();
+                }
+                // Fall back to JSON column if relationship returns nothing
+                if (empty($amenities) && is_array($type?->getAttributes()['amenities'] ?? null)) {
+                    $jsonAmenities = json_decode($type->getAttributes()['amenities'], true) ?? [];
+                    $amenities = array_map(function ($a) {
+                        if (is_array($a) && isset($a['name'])) return $a;
+                        return ['id' => $a, 'name' => (string) $a];
+                    }, $jsonAmenities);
+                }
+
+                return [
+                    // Room-level fields
+                    'id'                  => $room->id,
+                    'room_number'         => $room->room_number,
+                    'floor'               => $floorModel?->floor_number ?? $room->floor ?? null,
+                    'floor_label'         => $floorLabel,
+                    'building'            => $room->building,
+                    'wing'                => $room->wing,
+                    'status'              => $room->status,
+                    'housekeeping_status' => $room->housekeeping_status,
+                    'is_smoking'          => (bool) ($room->is_smoking ?? false),
+                    'is_accessible'       => (bool) ($room->is_accessible ?? false),
+                    'notes'               => $room->notes,
+
+                    // Room type fields (inherited)
+                    'room_type_id'        => $type?->id,
+                    'type_name'           => $type?->name,
+                    'code'                => $type?->code,
+                    'description'         => $type?->description,
+                    'base_price'          => $room->custom_price ?? (float) ($type?->base_price ?? 0),
+                    'max_occupancy'       => $type?->max_occupancy,
+                    'max_adults'          => $type?->max_adults,
+                    'max_children'        => $type?->max_children,
+                    'bed_type'            => $type?->bed_type,
+                    'bed_count'           => $type?->bed_count ?? 1,
+                    'room_size_sqft'      => $type?->room_size_sqft,
+                    'view_type'           => $type?->view_type,
+                    'has_balcony'         => (bool) ($type?->has_balcony ?? false),
+                    'has_living_room'     => (bool) ($type?->has_living_room ?? false),
+                    'amenities'           => $amenities,
+                ];
+            });
+
+        return response()->json([
+            'success' => true,
+            'data'    => $rooms,
         ]);
     }
 
