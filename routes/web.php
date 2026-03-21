@@ -3103,6 +3103,33 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
     Route::get('/checkout', [CheckOutController::class, 'index'])->name('checkout');
 
     Route::post('/checkout', [\App\Http\Controllers\FrontDesk\CheckOutController::class, 'store'])->name('checkout.store');
+    Route::post('/checkout/service-charge', [\App\Http\Controllers\FrontDesk\CheckOutController::class, 'addServiceCharge'])->name('checkout.service-charge');
+    
+    // Online Booking Payments (all online booking payments)
+    Route::get('/payments/online-booking', function () {
+        $user = auth()->user()->load('roles');
+        $role = $user->roles->first()?->name ?? 'admin';
+        
+        $onlineSources = ['website', 'booking_com', 'expedia', 'agoda'];
+        
+        $payments = \App\Models\Payment::with(['reservation.guest', 'reservation.room', 'processedBy'])
+            ->whereHas('reservation', function ($query) use ($onlineSources) {
+                $query->whereIn('booking_source', $onlineSources)
+                    ->orWhereNotNull('booking_reference');
+            })
+            ->orderByRaw('COALESCE(processed_at, created_at) DESC')
+            ->paginate(20)
+            ->withQueryString();
+        
+        return Inertia::render('FrontDesk/Payments/History', [
+            'user' => $user,
+            'navigation' => app(DashboardController::class)->getNavigationForRole($role),
+            'payments' => $payments,
+            'title' => 'Online Booking Payments',
+            'subtitle' => 'All payments received from website and OTA bookings.',
+            'showProcessedBy' => true,
+        ]);
+    })->name('payments.online');
 
     // Room Status
     Route::get('/rooms/status', function () {
@@ -5703,6 +5730,7 @@ Route::middleware(['auth', 'role:front_desk'])->prefix('front-desk')->name('fron
     Route::get('/checkout', [CheckOutController::class, 'index'])->name('checkout');
 
     Route::post('/checkout', [\App\Http\Controllers\FrontDesk\CheckOutController::class, 'store'])->name('checkout.store');
+    Route::post('/checkout/service-charge', [\App\Http\Controllers\FrontDesk\CheckOutController::class, 'addServiceCharge'])->name('checkout.service-charge');
     Route::get('/checkout/print', [\App\Http\Controllers\FrontDesk\CheckOutController::class, 'printReceipt'])->name('checkout.print');
 
     // Rooms
@@ -6081,6 +6109,32 @@ Route::middleware(['auth', 'role:front_desk'])->prefix('front-desk')->name('fron
             'payments'   => $payments,
         ]);
     })->name('payments.history');
+
+    // Online Booking Payments (all online booking payments)
+    Route::get('/payments/online-booking', function () {
+        $user = auth()->user()->load('roles');
+        $role = $user->roles->first()?->name ?? 'front_desk';
+
+        $onlineSources = ['website', 'booking_com', 'expedia', 'agoda'];
+
+        $payments = \App\Models\Payment::with(['reservation.guest', 'reservation.room', 'processedBy'])
+            ->whereHas('reservation', function ($query) use ($onlineSources) {
+                $query->whereIn('booking_source', $onlineSources)
+                    ->orWhereNotNull('booking_reference');
+            })
+            ->orderByRaw('COALESCE(processed_at, created_at) DESC')
+            ->paginate(20)
+            ->withQueryString();
+
+        return Inertia::render('FrontDesk/Payments/History', [
+            'user' => $user,
+            'navigation' => app(DashboardController::class)->getNavigationForRole($role),
+            'payments' => $payments,
+            'title' => 'Online Booking Payments',
+            'subtitle' => 'All payments received from website and OTA bookings.',
+            'showProcessedBy' => true,
+        ]);
+    })->name('payments.online');
 
     // Transactions — only shows transactions processed by this front desk user
     Route::get('/transactions', function () {
@@ -9444,6 +9498,33 @@ Route::middleware(['auth', 'role:manager'])->prefix('manager')->name('manager.')
     Route::get('/checkout', [CheckOutController::class, 'index'])->name('checkout');
 
     Route::post('/checkout', [CheckOutController::class, 'store'])->name('checkout.store');
+    Route::post('/checkout/service-charge', [CheckOutController::class, 'addServiceCharge'])->name('checkout.service-charge');
+
+    // Online Booking Payments (all online booking payments)
+    Route::get('/payments/online-booking', function () {
+        $user = auth()->user()->load('roles');
+        $role = $user->roles->first()?->name ?? 'manager';
+
+        $onlineSources = ['website', 'booking_com', 'expedia', 'agoda'];
+
+        $payments = \App\Models\Payment::with(['reservation.guest', 'reservation.room', 'processedBy'])
+            ->whereHas('reservation', function ($query) use ($onlineSources) {
+                $query->whereIn('booking_source', $onlineSources)
+                    ->orWhereNotNull('booking_reference');
+            })
+            ->orderByRaw('COALESCE(processed_at, created_at) DESC')
+            ->paginate(20)
+            ->withQueryString();
+
+        return Inertia::render('FrontDesk/Payments/History', [
+            'user' => $user,
+            'navigation' => app(DashboardController::class)->getNavigationForRole($role),
+            'payments' => $payments,
+            'title' => 'Online Booking Payments',
+            'subtitle' => 'All payments received from website and OTA bookings.',
+            'showProcessedBy' => true,
+        ]);
+    })->name('payments.online');
     Route::get('/checkout/print', [CheckOutController::class, 'printReceipt'])->name('checkout.print');
 
     // Room Assignment

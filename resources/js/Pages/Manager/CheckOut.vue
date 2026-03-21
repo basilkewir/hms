@@ -306,6 +306,46 @@
                             </div>
                         </div>
 
+                        <!-- Add Service Charge -->
+                        <div>
+                            <h5 class="font-semibold text-kotel-yellow mb-2">Add Service Charge</h5>
+                            <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                                <div class="md:col-span-2">
+                                    <label class="block text-xs text-gray-300 mb-1">Description</label>
+                                    <input v-model="serviceChargeForm.description"
+                                           type="text"
+                                           class="w-full bg-kotel-black/50 border border-kotel-yellow/30 text-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-kotel-yellow focus:border-kotel-yellow"
+                                           placeholder="e.g. Laundry service, Room service">
+                                </div>
+                                <div>
+                                    <label class="block text-xs text-gray-300 mb-1">Amount</label>
+                                    <input v-model.number="serviceChargeForm.amount"
+                                           type="number"
+                                           min="0.01"
+                                           step="0.01"
+                                           class="w-full bg-kotel-black/50 border border-kotel-yellow/30 text-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-kotel-yellow focus:border-kotel-yellow"
+                                           placeholder="0.00">
+                                </div>
+                                <div>
+                                    <label class="block text-xs text-gray-300 mb-1">Quantity</label>
+                                    <input v-model.number="serviceChargeForm.quantity"
+                                           type="number"
+                                           min="1"
+                                           step="1"
+                                           class="w-full bg-kotel-black/50 border border-kotel-yellow/30 text-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-kotel-yellow focus:border-kotel-yellow">
+                                </div>
+                            </div>
+                            <div class="mt-3 flex items-center justify-end">
+                                <button type="button"
+                                        @click="addServiceCharge"
+                                        :disabled="isAddingServiceCharge"
+                                        class="px-4 py-2 rounded-md text-sm font-medium text-white bg-kotel-yellow hover:bg-kotel-yellow/90 disabled:opacity-50 transition-colors">
+                                    <span v-if="isAddingServiceCharge">Adding...</span>
+                                    <span v-else>Add Charge</span>
+                                </button>
+                            </div>
+                        </div>
+
                         <!-- Damages / Incidentals -->
                         <div>
                             <h5 class="font-semibold text-gray-200 mb-2 flex items-center justify-between">
@@ -530,6 +570,13 @@ const checkOutForm = ref({
     damages: [],
 })
 
+const serviceChargeForm = ref({
+    description: '',
+    amount: null,
+    quantity: 1,
+})
+const isAddingServiceCharge = ref(false)
+
 const selectGuest = (guest) => {
     selectedGuest.value = guest
 }
@@ -546,6 +593,38 @@ const startCheckOut = (guest) => {
         checkOutForm.value.outstandingAmount = balance
     }
     checkOutForm.value.damages = []
+    serviceChargeForm.value = {
+        description: '',
+        amount: null,
+        quantity: 1,
+    }
+}
+
+const addServiceCharge = () => {
+    if (!selectedGuest.value?.id) return
+    if (!serviceChargeForm.value.description || !serviceChargeForm.value.amount || serviceChargeForm.value.amount <= 0) return
+
+    isAddingServiceCharge.value = true
+
+    router.post(route('manager.checkout.service-charge'), {
+        reservation_id: selectedGuest.value.id,
+        description: serviceChargeForm.value.description,
+        amount: parseFloat(serviceChargeForm.value.amount),
+        quantity: parseInt(serviceChargeForm.value.quantity || 1, 10),
+    }, {
+        onSuccess: () => {
+            const reservationId = selectedGuest.value.id
+            serviceChargeForm.value = {
+                description: '',
+                amount: null,
+                quantity: 1,
+            }
+            router.visit(route('manager.checkout', { reservation_id: reservationId }))
+        },
+        onFinish: () => {
+            isAddingServiceCharge.value = false
+        },
+    })
 }
 
 const processCheckOut = () => {

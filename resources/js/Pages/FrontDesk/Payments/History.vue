@@ -5,8 +5,8 @@
             <div class="px-4 py-6 sm:px-6 border-b border-gray-200">
                 <div class="flex justify-between items-center">
                     <div>
-                        <h1 class="text-2xl font-bold text-gray-900">Payment History</h1>
-                        <p class="mt-1 text-sm text-gray-600">View all payments you have processed</p>
+                        <h1 class="text-2xl font-bold text-gray-900">{{ title || 'Payment History' }}</h1>
+                        <p class="mt-1 text-sm text-gray-600">{{ subtitle || 'View all payments you have processed' }}</p>
                     </div>
                 </div>
             </div>
@@ -22,13 +22,16 @@
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Room</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Method</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Source</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Booking Ref</th>
+                                <th v-if="showProcessedBy" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Processed By</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                             </tr>
                         </thead>
                         <tbody class="bg-white divide-y divide-gray-200">
                             <tr v-if="payments.data.length === 0">
-                                <td colspan="7" class="px-6 py-4 text-center text-gray-500">
+                                <td :colspan="showProcessedBy ? 11 : 10" class="px-6 py-4 text-center text-gray-500">
                                     No payments found
                                 </td>
                             </tr>
@@ -47,6 +50,15 @@
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                     {{ formatMethod(payment.payment_method || '') }}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                    {{ formatBookingSource(payment.reservation?.booking_source) }}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                    {{ payment.reservation?.booking_reference || 'N/A' }}
+                                </td>
+                                <td v-if="showProcessedBy" class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                    {{ payment.processed_by?.name || payment.processed_by?.full_name || 'N/A' }}
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <span class="px-2 py-1 text-xs rounded-full"
@@ -93,13 +105,29 @@ import { formatCurrency } from '@/Utils/currency.js'
 
 const props = defineProps({
     user: Object,
+    navigation: {
+        type: Array,
+        default: () => []
+    },
     payments: {
         type: Object,
         default: () => ({ data: [], links: [], from: 0, to: 0, total: 0 })
     },
+    title: {
+        type: String,
+        default: ''
+    },
+    subtitle: {
+        type: String,
+        default: ''
+    },
+    showProcessedBy: {
+        type: Boolean,
+        default: false
+    }
 })
 
-const navigation = computed(() => getNavigationForRole('front_desk'))
+const navigation = computed(() => (props.navigation?.length ? props.navigation : getNavigationForRole('front_desk')))
 
 const formatMethod = (method) => {
     if (!method) return 'N/A'
@@ -109,6 +137,24 @@ const formatMethod = (method) => {
 const formatDate = (date) => {
     if (!date) return 'N/A'
     return new Date(date).toLocaleString()
+}
+
+const formatBookingSource = (source) => {
+    if (!source) return 'N/A'
+
+    const sources = {
+        walk_in: 'Walk-in',
+        phone: 'Phone',
+        email: 'Email',
+        website: 'Website',
+        booking_com: 'Booking.com',
+        expedia: 'Expedia',
+        agoda: 'Agoda',
+        travel_agent: 'Travel Agent',
+        corporate: 'Corporate',
+    }
+
+    return sources[source] || source
 }
 
 const getStatusClass = (status) => {

@@ -456,11 +456,52 @@
                 </div>
             </div>
         </div>
+
+        <!-- Add Service Charge (only visible while guest is checked in) -->
+        <div v-if="reservation.status === 'checked_in'" class="shadow rounded-lg p-6 mt-6"
+             :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }">
+            <h3 class="text-lg font-medium mb-4" :style="{ color: themeColors.primary }">Add Service Charge</h3>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <div class="md:col-span-2">
+                    <label class="block text-xs mb-1" :style="{ color: themeColors.textSecondary }">Description</label>
+                    <input v-model="serviceChargeForm.description"
+                           type="text"
+                           class="w-full rounded-md px-3 py-2 text-sm border focus:outline-none focus:ring-2"
+                           :style="{ backgroundColor: themeColors.background, borderColor: themeColors.border, color: themeColors.textPrimary }"
+                           placeholder="e.g. Laundry service, Room service">
+                </div>
+                <div>
+                    <label class="block text-xs mb-1" :style="{ color: themeColors.textSecondary }">Amount</label>
+                    <input v-model.number="serviceChargeForm.amount"
+                           type="number" min="0.01" step="0.01"
+                           class="w-full rounded-md px-3 py-2 text-sm border focus:outline-none focus:ring-2"
+                           :style="{ backgroundColor: themeColors.background, borderColor: themeColors.border, color: themeColors.textPrimary }"
+                           placeholder="0.00">
+                </div>
+                <div>
+                    <label class="block text-xs mb-1" :style="{ color: themeColors.textSecondary }">Quantity</label>
+                    <input v-model.number="serviceChargeForm.quantity"
+                           type="number" min="1" step="1"
+                           class="w-full rounded-md px-3 py-2 text-sm border focus:outline-none focus:ring-2"
+                           :style="{ backgroundColor: themeColors.background, borderColor: themeColors.border, color: themeColors.textPrimary }">
+                </div>
+            </div>
+            <div class="mt-3 flex items-center justify-end">
+                <button type="button"
+                        @click="addServiceCharge"
+                        :disabled="isAddingServiceCharge"
+                        class="px-4 py-2 rounded-md text-sm font-medium text-white transition-colors"
+                        :style="{ backgroundColor: themeColors.primary }">
+                    <span v-if="isAddingServiceCharge">Adding...</span>
+                    <span v-else>Add Charge</span>
+                </button>
+            </div>
+        </div>
     </DashboardLayout>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { router, Link } from '@inertiajs/vue3'
 import DashboardLayout from '@/Layouts/DashboardLayout.vue'
 import { useTheme } from '@/Composables/useTheme.js'
@@ -600,6 +641,26 @@ const confirmReservation = () => {
 
 const sendConfirmationEmail = () => {
     router.post(route('admin.reservations.send-confirmation', props.reservation.id))
+}
+
+const serviceChargeForm = ref({ description: '', amount: null, quantity: 1 })
+const isAddingServiceCharge = ref(false)
+
+const addServiceCharge = () => {
+    if (!serviceChargeForm.value.description || !serviceChargeForm.value.amount || serviceChargeForm.value.amount <= 0) return
+    isAddingServiceCharge.value = true
+    router.post(route('admin.checkout.service-charge'), {
+        reservation_id: props.reservation.id,
+        description: serviceChargeForm.value.description,
+        amount: parseFloat(serviceChargeForm.value.amount),
+        quantity: parseInt(serviceChargeForm.value.quantity || 1, 10),
+    }, {
+        onSuccess: () => {
+            serviceChargeForm.value = { description: '', amount: null, quantity: 1 }
+            isAddingServiceCharge.value = false
+        },
+        onError: () => { isAddingServiceCharge.value = false },
+    })
 }
 </script>
 

@@ -549,4 +549,139 @@ class BookingApiTest extends TestCase
             ->postJson('/api/booking/create', $payload)
             ->assertStatus(409);
     }
+
+    /** Booking sets room status to 'reserved' */
+    public function test_online_create_booking_sets_room_to_reserved(): void
+    {
+        $checkIn  = now()->addDays(1)->format('Y-m-d');
+        $checkOut = now()->addDays(3)->format('Y-m-d');
+
+        $this->assertEquals('available', $this->room->status);
+
+        $this->withHeaders(['X-Booking-Token' => $this->bookingToken])
+            ->postJson('/api/booking/create', [
+                'guest' => [
+                    'first_name'  => 'Test',
+                    'last_name'   => 'User',
+                    'email'       => 'test@example.com',
+                    'phone'       => '+237600000000',
+                    'nationality' => 'CM',
+                    'id_type'     => 'passport',
+                    'id_number'   => 'A123',
+                ],
+                'reservation' => [
+                    'room_type_id'     => $this->roomType->id,
+                    'check_in_date'    => $checkIn,
+                    'check_out_date'   => $checkOut,
+                    'number_of_adults' => 1,
+                ],
+            ])
+            ->assertCreated();
+
+        $this->room->refresh();
+        $this->assertEquals('reserved', $this->room->status);
+    }
+
+    /** Reserved rooms are excluded from availability API */
+    public function test_online_availability_excludes_reserved_rooms(): void
+    {
+        $checkIn  = now()->addDays(5)->format('Y-m-d');
+        $checkOut = now()->addDays(7)->format('Y-m-d');
+
+        // Book the room for dates +5 to +7
+        $this->withHeaders(['X-Booking-Token' => $this->bookingToken])
+            ->postJson('/api/booking/create', [
+                'guest' => [
+                    'first_name'  => 'Alice',
+                    'last_name'   => 'Dupont',
+                    'email'       => 'alice@example.com',
+                    'phone'       => '+237699000001',
+                    'nationality' => 'CM',
+                    'id_type'     => 'passport',
+                    'id_number'   => 'P123',
+                ],
+                'reservation' => [
+                    'room_type_id'     => $this->roomType->id,
+                    'check_in_date'    => $checkIn,
+                    'check_out_date'   => $checkOut,
+                    'number_of_adults' => 1,
+                ],
+            ])
+            ->assertCreated();
+
+        // Query availability for the overlapping dates — should find no rooms
+        $response = $this->getJson('/api/booking/availability?' . http_build_query([
+            'check_in'  => $checkIn,
+            'check_out' => $checkOut,
+            'adults'    => 1,
+        ]));
+
+        $response->assertOk()
+            ->assertJsonPath('available_room_types', [])
+            ->assertJsonPath('success', true);
+    }
+
+    /** Reserved rooms are hidden from public room listing */
+    public function test_public_rooms_excludes_reserved_rooms(): void
+    {
+        $checkIn  = now()->addDays(1)->format('Y-m-d');
+        $checkOut = now()->addDays(3)->format('Y-m-d');
+
+        // Verify room is visible before booking
+        $this->getJson('/api/public/rooms')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.room_number', '101');
+
+        // Book the room
+        $this->withHeaders(['X-Booking-Token' => $this->bookingToken])
+            ->postJson('/api/booking/create', [
+                'guest' => [
+                    'first_name'  => 'Bob',
+                    'last_name'   => 'Martin',
+                    'email'       => 'bob@example.com',
+                    'phone'       => '+237699000001',
+                    'nationality' => 'CM',
+                    'id_type'     => 'passport',
+                    'id_number'   => 'P456',
+                ],
+                'reservation' => [
+                    'room_type_id'     => $this->roomType->id,
+                    'check_in_date'    => $checkIn,
+                    'check_out_date'   => $checkOut,
+                    'number_of_adults' => 1,
+                ],
+            ])
+            ->assertCreated();
+
+        // Verify room is now hidden (reserved status filters it out)
+        $this->getJson('/api/public/rooms')
+            ->assertOk()
+            ->assertJsonCount(0, 'data');
+    }
+
+    /** Rooms in other statuses (maintenance, cleaning, out_of_order, occupied) are also excluded from availability */
+    public function test_availability_excludes_unavailable_room_statuses(): void
+    {
+        $statusesToTest = ['maintenance', 'cleaning', 'out_of_order', 'occupied'];
+
+        foreach ($statusesToTest as $status) {
+            // Put the main room in an unavailable status
+            $this->room->update(['status' => $status]);
+
+            // Query availability for dates in the future — should find no rooms
+            $response = $this->getJson('/api/booking/availability?' . http_build_query([
+                'check_in'  => now()->addDays(1)->format('Y-m-d'),
+                'check_out' => now()->addDays(3)->format('Y-m-d'),
+                'adults'    => 1,
+            ]));
+
+            // Since our only room is in {$status} status, it should not be available
+            $response->assertOk()
+                ->assertJsonPath('available_room_types', []);
+
+            // Reset room for next iteration
+            $this->room->update(['status' => 'available']);
+        }
+    }
 }

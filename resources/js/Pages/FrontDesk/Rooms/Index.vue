@@ -445,6 +445,42 @@
                         </div>
                     </div>
 
+                    <!-- Add Service Charge (if occupied with reservation) -->
+                    <div v-if="selectedRoom.status === 'occupied' && selectedRoom.reservation_id">
+                        <h3 class="text-kotel-yellow font-semibold mb-3 flex items-center gap-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
+                            Add Service Charge
+                        </h3>
+                        <div class="bg-kotel-black/50 border border-blue-400/30 rounded-lg p-4">
+                            <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                                <div class="md:col-span-2">
+                                    <label class="text-kotel-sky-blue/90 text-sm block mb-1">Description</label>
+                                    <input v-model="serviceChargeForm.description" type="text"
+                                           class="w-full bg-kotel-black border border-kotel-yellow/30 rounded-md px-3 py-2 text-white text-sm focus:outline-none focus:ring-1 focus:ring-kotel-yellow placeholder-kotel-sky-blue/40"
+                                           placeholder="e.g. Laundry service, Room service">
+                                </div>
+                                <div>
+                                    <label class="text-kotel-sky-blue/90 text-sm block mb-1">Amount</label>
+                                    <input v-model.number="serviceChargeForm.amount" type="number" min="0.01" step="0.01"
+                                           class="w-full bg-kotel-black border border-kotel-yellow/30 rounded-md px-3 py-2 text-white text-sm focus:outline-none focus:ring-1 focus:ring-kotel-yellow placeholder-kotel-sky-blue/40"
+                                           placeholder="0.00">
+                                </div>
+                                <div>
+                                    <label class="text-kotel-sky-blue/90 text-sm block mb-1">Qty</label>
+                                    <input v-model.number="serviceChargeForm.quantity" type="number" min="1" step="1"
+                                           class="w-full bg-kotel-black border border-kotel-yellow/30 rounded-md px-3 py-2 text-white text-sm focus:outline-none focus:ring-1 focus:ring-kotel-yellow">
+                                </div>
+                            </div>
+                            <div class="mt-3 flex justify-end">
+                                <button type="button" @click="addServiceCharge" :disabled="isAddingServiceCharge"
+                                        class="bg-blue-600/90 hover:bg-blue-600 text-white text-sm font-medium py-2 px-4 rounded-md transition border border-blue-400/50">
+                                    <span v-if="isAddingServiceCharge">Adding...</span>
+                                    <span v-else>Add Charge</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Amenities -->
                     <div v-if="selectedRoom.amenities && selectedRoom.amenities.length > 0">
                         <h3 class="text-kotel-yellow font-semibold mb-3 flex items-center gap-2">
@@ -748,6 +784,28 @@ const markRoomDirty = (room) => {
             statusType.value = 'error'
             statusMessage.value = errors?.message || 'Failed to mark room as dirty. Please try again.'
         }
+    })
+}
+
+const serviceChargeForm = ref({ description: '', amount: null, quantity: 1 })
+const isAddingServiceCharge = ref(false)
+
+const addServiceCharge = () => {
+    if (!serviceChargeForm.value.description || !serviceChargeForm.value.amount || serviceChargeForm.value.amount <= 0) return
+    isAddingServiceCharge.value = true
+    router.post(route('front-desk.checkout.service-charge'), {
+        reservation_id: selectedRoom.value.reservation_id,
+        description: serviceChargeForm.value.description,
+        amount: parseFloat(serviceChargeForm.value.amount),
+        quantity: parseInt(serviceChargeForm.value.quantity || 1, 10),
+    }, {
+        onSuccess: () => {
+            serviceChargeForm.value = { description: '', amount: null, quantity: 1 }
+            isAddingServiceCharge.value = false
+            statusType.value = 'success'
+            statusMessage.value = 'Service charge added successfully.'
+        },
+        onError: () => { isAddingServiceCharge.value = false },
     })
 }
 </script>

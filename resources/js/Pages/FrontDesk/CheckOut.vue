@@ -474,6 +474,62 @@
                     </div>
                 </div>
 
+                <!-- Add Service Charge -->
+                <div>
+                    <h4 class="text-md font-medium mb-3" :style="{ color: themeColors.primary }">Add Service Charge</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                        <div class="md:col-span-2">
+                            <label class="block text-xs mb-1" :style="{ color: themeColors.textSecondary }">Description</label>
+                            <input v-model="serviceChargeForm.description"
+                                   type="text"
+                                   class="w-full rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2"
+                                   :style="{
+                                       backgroundColor: themeColors.card,
+                                       borderColor: themeColors.border,
+                                       color: themeColors.textPrimary
+                                   }"
+                                   placeholder="e.g. Laundry service, Room service">
+                        </div>
+                        <div>
+                            <label class="block text-xs mb-1" :style="{ color: themeColors.textSecondary }">Amount</label>
+                            <input v-model.number="serviceChargeForm.amount"
+                                   type="number"
+                                   min="0.01"
+                                   step="0.01"
+                                   class="w-full rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2"
+                                   :style="{
+                                       backgroundColor: themeColors.card,
+                                       borderColor: themeColors.border,
+                                       color: themeColors.textPrimary
+                                   }"
+                                   placeholder="0.00">
+                        </div>
+                        <div>
+                            <label class="block text-xs mb-1" :style="{ color: themeColors.textSecondary }">Quantity</label>
+                            <input v-model.number="serviceChargeForm.quantity"
+                                   type="number"
+                                   min="1"
+                                   step="1"
+                                   class="w-full rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2"
+                                   :style="{
+                                       backgroundColor: themeColors.card,
+                                       borderColor: themeColors.border,
+                                       color: themeColors.textPrimary
+                                   }">
+                        </div>
+                    </div>
+                    <div class="mt-3 flex items-center justify-end">
+                        <button type="button"
+                                @click="addServiceCharge"
+                                :disabled="isAddingServiceCharge"
+                                class="px-4 py-2 rounded-md text-sm font-medium text-white transition-colors"
+                                :style="{ backgroundColor: themeColors.primary }">
+                            <span v-if="isAddingServiceCharge">Adding...</span>
+                            <span v-else>Add Charge</span>
+                        </button>
+                    </div>
+                </div>
+
                 <!-- Damages / Incidental Charges -->
                 <div>
                     <h4 class="text-md font-medium mb-3 flex items-center justify-between"
@@ -741,6 +797,13 @@ const checkOutForm = ref({
     damages: [],
 })
 
+const serviceChargeForm = ref({
+    description: '',
+    amount: null,
+    quantity: 1,
+})
+const isAddingServiceCharge = ref(false)
+
 const selectGuest = (guest) => {
     selectedGuest.value = guest
 }
@@ -762,6 +825,38 @@ const startCheckOut = (guest) => {
 
     // Reset damages when starting a new checkout
     checkOutForm.value.damages = []
+    serviceChargeForm.value = {
+        description: '',
+        amount: null,
+        quantity: 1,
+    }
+}
+
+const addServiceCharge = () => {
+    if (!selectedGuest.value?.id) return
+    if (!serviceChargeForm.value.description || !serviceChargeForm.value.amount || serviceChargeForm.value.amount <= 0) return
+
+    isAddingServiceCharge.value = true
+
+    router.post(route('front-desk.checkout.service-charge'), {
+        reservation_id: selectedGuest.value.id,
+        description: serviceChargeForm.value.description,
+        amount: parseFloat(serviceChargeForm.value.amount),
+        quantity: parseInt(serviceChargeForm.value.quantity || 1, 10),
+    }, {
+        onSuccess: () => {
+            const reservationId = selectedGuest.value.id
+            serviceChargeForm.value = {
+                description: '',
+                amount: null,
+                quantity: 1,
+            }
+            router.visit(route('front-desk.checkout', { reservation_id: reservationId }))
+        },
+        onFinish: () => {
+            isAddingServiceCharge.value = false
+        },
+    })
 }
 
 const processCheckOut = () => {

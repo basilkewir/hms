@@ -398,6 +398,90 @@ class CheckOutController extends Controller
         ]);
     }
 
+    public function addServiceCharge(Request $request)
+    {
+        $validated = $request->validate([
+            'reservation_id' => 'required|exists:reservations,id',
+            'description' => 'required|string|max:255',
+            'amount' => 'required|numeric|min:0.01',
+            'quantity' => 'nullable|integer|min:1|max:100',
+            'department' => 'nullable|string|max:100',
+            'charge_date' => 'nullable|date',
+        ]);
+
+        $reservation = Reservation::with(['guest', 'room'])->findOrFail($validated['reservation_id']);
+
+        if ($reservation->status !== 'checked_in') {
+            return back()->withErrors([
+                'description' => 'Service charges can only be added while the guest is checked in.'
+            ]);
+        }
+
+        $folio = GuestFolio::where('reservation_id', $reservation->id)
+            ->where('status', 'open')
+            ->first();
+
+        if (!$folio) {
+            $folio = GuestFolio::create([
+                'folio_number' => 'FOL-' . str_pad($reservation->id, 6, '0', STR_PAD_LEFT),
+                'reservation_id' => $reservation->id,
+                'guest_id' => $reservation->guest_id,
+                'room_id' => $reservation->room_id,
+                'status' => 'open',
+                'folio_date' => now(),
+                'room_charges' => 0,
+                'service_charges' => 0,
+                'tax_amount' => 0,
+                'discount_amount' => 0,
+                'total_amount' => 0,
+                'paid_amount' => 0,
+                'balance_amount' => 0,
+            ]);
+        }
+
+        $quantity = (int) ($validated['quantity'] ?? 1);
+        $unitPrice = (float) $validated['amount'];
+        $baseAmount = $unitPrice * $quantity;
+
+        $taxRatePercent = (float) Setting::get('room_tax_rate', Setting::get('tax_rate', 0));
+        $taxRate = $taxRatePercent / 100;
+        $taxAmount = $baseAmount * $taxRate;
+        $netAmount = $baseAmount + $taxAmount;
+
+        FolioCharge::create([
+            'guest_folio_id' => $folio->id,
+            'charge_code' => 'SERVICE',
+            'description' => $validated['description'],
+            'charge_date' => !empty($validated['charge_date']) ? Carbon::parse($validated['charge_date'])->toDateString() : now()->toDateString(),
+            'charge_time' => now()->format('H:i:s'),
+            'quantity' => $quantity,
+            'unit_price' => $unitPrice,
+            'total_amount' => $baseAmount,
+            'tax_rate' => $taxRatePercent,
+            'tax_amount' => $taxAmount,
+            'discount_rate' => 0,
+            'discount_amount' => 0,
+            'net_amount' => $netAmount,
+            'reference_type' => 'service',
+            'reference_id' => $reservation->id,
+            'department' => $validated['department'] ?? 'Front Desk',
+            'posted_by' => auth()->id(),
+            'posted_at' => now(),
+        ]);
+
+        $charges = FolioCharge::where('guest_folio_id', $folio->id)
+            ->where('is_voided', false)
+            ->get();
+
+        $folio->service_charges = $charges->whereIn('charge_code', ['SERVICE', 'POS'])->sum('net_amount');
+        $folio->tax_amount = $charges->sum('tax_amount');
+        $folio->total_amount = ($folio->room_charges ?? 0) + $folio->service_charges + $folio->tax_amount - ($folio->discount_amount ?? 0);
+        $folio->balance_amount = $folio->total_amount - ($folio->paid_amount ?? 0);
+        $folio->save();
+
+        return back()->with('success', 'Service charge added successfully.');
+    }
+
     public function store(Request $request)
     {
         $validated = $request->validate([
