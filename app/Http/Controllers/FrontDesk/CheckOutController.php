@@ -805,7 +805,7 @@ class CheckOutController extends Controller
         if ($reservation->room) {
             $room = $reservation->room;
             $room->update([
-                'status' => 'cleaning', // Room needs cleaning before becoming available
+                'status' => 'available',
                 'housekeeping_status' => 'dirty', // Room needs cleaning after checkout
             ]);
 

@@ -176,12 +176,41 @@ class CheckInController extends Controller
             ]);
         }
 
-        $reservation->update([
-            'room_id' => $room->id,
-            'status' => 'checked_in',
+        // Late arrival adjustment: if the original check_in_date is earlier than today
+        // AND the current time is at or after 12:00 noon, start billing from today
+        // and remove the skipped day(s) from the reservation so the guest is not
+        // charged for nights they were not present.
+        $originalCheckIn = Carbon::parse($reservation->check_in_date)->startOfDay();
+        $todayStart      = now()->startOfDay();
+        $lateArrivalDays = 0;
+
+        if ($originalCheckIn->lt($todayStart) && now()->hour >= 12) {
+            $lateArrivalDays = (int) $originalCheckIn->diffInDays($todayStart);
+        }
+
+        $updateFields = [
+            'room_id'         => $room->id,
+            'status'          => 'checked_in',
             'actual_check_in' => now(),
-            'checked_in_by' => auth()->id(),
-        ]);
+            'checked_in_by'   => auth()->id(),
+        ];
+
+        if ($lateArrivalDays > 0) {
+            $newNights       = max(1, (int) ($reservation->nights ?? 1) - $lateArrivalDays);
+            $roomRate        = (float) ($reservation->room_rate ?? 0);
+            $discountAmount  = (float) ($reservation->discount_amount ?? 0);
+            $newRoomCharges  = $roomRate * $newNights;
+            $newTotal        = max(0, $newRoomCharges - $discountAmount);
+            $newBalance      = max(0, $newTotal - (float) ($reservation->paid_amount ?? 0));
+
+            $updateFields['check_in_date']       = $todayStart->toDateString();
+            $updateFields['nights']              = $newNights;
+            $updateFields['total_room_charges']  = $newRoomCharges;
+            $updateFields['total_amount']        = $newTotal;
+            $updateFields['balance_amount']      = $newBalance;
+        }
+
+        $reservation->update($updateFields);
 
         // Mark room as occupied. Keep housekeeping_status 'clean' for the rest
         // of today — the nightly GenerateDailyCleaningTasks command will flip it
@@ -244,9 +273,12 @@ class CheckInController extends Controller
         }
 
         // Build success message
-        $keyCardMsg  = !empty($validated['key_card_id']) ? ' and key card assigned' : '';
-        $paymentMsg  = $paymentAmount > 0 ? ' — payment of $' . number_format($paymentAmount, 2) . ' recorded' : '';
-        $successMsg  = 'Guest checked in successfully' . $keyCardMsg . $paymentMsg;
+        $keyCardMsg      = !empty($validated['key_card_id']) ? ' and key card assigned' : '';
+        $paymentMsg      = $paymentAmount > 0 ? ' — payment of $' . number_format($paymentAmount, 2) . ' recorded' : '';
+        $lateArrivalMsg  = $lateArrivalDays > 0
+            ? " — {$lateArrivalDays} day(s) removed from billing (late arrival after 12:00 noon)"
+            : '';
+        $successMsg  = 'Guest checked in successfully' . $keyCardMsg . $paymentMsg . $lateArrivalMsg;
 
         // If a payment was made at check-in, redirect to the check-in receipt
         if ($paymentAmount > 0) {

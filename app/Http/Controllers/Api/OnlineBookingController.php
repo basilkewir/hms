@@ -639,7 +639,18 @@ class OnlineBookingController extends Controller
 
                 case 'booking_cancelled':
                     if (in_array($reservation->status, ['pending', 'confirmed'])) {
-                        $reservation->update(['status' => 'cancelled']);
+                        $reservation->update([
+                            'status' => 'cancelled',
+                            'cancelled_at' => now(),
+                            'total_room_charges' => 0,
+                            'taxes' => 0,
+                            'service_charges' => 0,
+                            'discount_amount' => 0,
+                            'total_amount' => 0,
+                            'paid_amount' => 0,
+                            'balance_amount' => 0,
+                            'cancellation_charges' => 0,
+                        ]);
                         if ($reservation->room_id) {
                             Room::where('id', $reservation->room_id)
                                 ->where('status', 'reserved')

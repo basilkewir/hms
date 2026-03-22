@@ -489,8 +489,11 @@ class ReservationController extends Controller
         $reservation->load(['guest', 'room', 'roomType']);
 
         // Send confirmation email if requested
+        $emailWarning = null;
         if ($request->input('send_confirmation_email') && $reservation->guest && $reservation->guest->email) {
-            $this->sendConfirmationEmail($reservation);
+            if (!$this->sendConfirmationEmail($reservation)) {
+                $emailWarning = ' Reservation saved, but confirmation email could not be sent.';
+            }
         }
 
         // Redirect based on route name (prioritize route over role)
@@ -498,14 +501,14 @@ class ReservationController extends Controller
 
         if (str_starts_with($routeName, 'manager.')) {
             return redirect()->route('manager.reservations.show', $reservation->id)
-                ->with('success', 'Reservation created successfully!');
+                ->with('success', 'Reservation created successfully!' . ($emailWarning ?? ''));
         } elseif (str_starts_with($routeName, 'front-desk.')) {
             return redirect()->route('front-desk.reservations.show', $reservation->id)
-                ->with('success', 'Reservation created successfully!');
+                ->with('success', 'Reservation created successfully!' . ($emailWarning ?? ''));
         }
 
         return redirect()->route('admin.reservations.show', $reservation->id)
-            ->with('success', 'Reservation created successfully!');
+            ->with('success', 'Reservation created successfully!' . ($emailWarning ?? ''));
     }
 
     public function show(Reservation $reservation)
@@ -670,6 +673,8 @@ class ReservationController extends Controller
 
     public function update(Request $request, Reservation $reservation)
     {
+        $originalRoomId = $reservation->room_id;
+
         $validated = $request->validate([
             'guest_id' => 'required|exists:guests,id',
             'room_type_id' => 'required|exists:room_types,id',
@@ -761,11 +766,27 @@ class ReservationController extends Controller
         $validated['balance_amount'] = $totalAmount - ($reservation->paid_amount ?? 0);
         $validated['updated_by'] = auth()->id();
 
+        if (($validated['status'] ?? null) === 'cancelled') {
+            $validated['total_room_charges'] = 0;
+            $validated['taxes'] = 0;
+            $validated['service_charges'] = 0;
+            $validated['discount_amount'] = 0;
+            $validated['total_amount'] = 0;
+            $validated['paid_amount'] = 0;
+            $validated['balance_amount'] = 0;
+            $validated['cancellation_charges'] = 0;
+            $validated['cancelled_at'] = now();
+            $validated['cancelled_by'] = auth()->id();
+        }
+
         // Sync adults/children DB columns with number_of_adults/number_of_children
         $validated['adults'] = $validated['number_of_adults'] ?? 1;
         $validated['children'] = $validated['number_of_children'] ?? 0;
 
         $reservation->update($validated);
+
+        $this->refreshRoomOccupancyStatus($originalRoomId);
+        $this->refreshRoomOccupancyStatus($reservation->room_id);
 
         // Determine redirect route based on the route name used
         $routeName = request()->route()->getName() ?? '';
@@ -788,9 +809,10 @@ class ReservationController extends Controller
             'updated_by' => auth()->id(),
         ]);
 
+        $emailSent = true;
         // Send confirmation email
         if ($reservation->guest && $reservation->guest->email) {
-            $this->sendConfirmationEmail($reservation);
+            $emailSent = $this->sendConfirmationEmail($reservation);
         }
 
         // Redirect based on route name (prioritize route over role)
@@ -798,21 +820,26 @@ class ReservationController extends Controller
 
         if (str_starts_with($routeName, 'manager.')) {
             return redirect()->route('manager.reservations.show', $reservation->id)
-                ->with('success', 'Reservation confirmed and confirmation email sent!');
+                ->with($emailSent ? 'success' : 'error', $emailSent
+                    ? 'Reservation confirmed and confirmation email sent!'
+                    : 'Reservation confirmed, but confirmation email could not be sent.');
         } elseif (str_starts_with($routeName, 'front-desk.')) {
             return redirect()->route('front-desk.reservations.show', $reservation->id)
-                ->with('success', 'Reservation confirmed and confirmation email sent!');
+                ->with($emailSent ? 'success' : 'error', $emailSent
+                    ? 'Reservation confirmed and confirmation email sent!'
+                    : 'Reservation confirmed, but confirmation email could not be sent.');
         }
 
         return redirect()->route('admin.reservations.show', $reservation->id)
-            ->with('success', 'Reservation confirmed and confirmation email sent!');
+            ->with($emailSent ? 'success' : 'error', $emailSent
+                ? 'Reservation confirmed and confirmation email sent!'
+                : 'Reservation confirmed, but confirmation email could not be sent.');
     }
 
     public function cancel(Request $request, Reservation $reservation)
     {
         $validated = $request->validate([
             'cancellation_reason' => 'required|string',
-            'cancellation_charges' => 'nullable|numeric|min:0',
         ]);
 
         $reservation->update([
@@ -820,14 +847,18 @@ class ReservationController extends Controller
             'cancelled_at' => now(),
             'cancelled_by' => auth()->id(),
             'cancellation_reason' => $validated['cancellation_reason'],
-            'cancellation_charges' => $validated['cancellation_charges'] ?? 0,
+            'cancellation_charges' => 0,
+            'total_room_charges' => 0,
+            'taxes' => 0,
+            'service_charges' => 0,
+            'discount_amount' => 0,
+            'total_amount' => 0,
+            'paid_amount' => 0,
+            'balance_amount' => 0,
             'updated_by' => auth()->id(),
         ]);
 
-        // Free up the room if assigned
-        if ($reservation->room) {
-            $reservation->room->update(['status' => 'available']);
-        }
+        $this->refreshRoomOccupancyStatus($reservation->room_id);
 
         return redirect()->back()->with('success', 'Reservation cancelled successfully!');
     }
@@ -850,7 +881,20 @@ class ReservationController extends Controller
                 ->with('error', 'Guest email not available.');
         }
 
-        $this->sendConfirmationEmail($reservation);
+        if (!$this->sendConfirmationEmail($reservation)) {
+            $routeName = request()->route()->getName() ?? '';
+
+            if (str_starts_with($routeName, 'manager.')) {
+                return redirect()->route('manager.reservations.show', $reservation->id)
+                    ->with('error', 'Failed to send confirmation email. Please verify SMTP settings and logs.');
+            } elseif (str_starts_with($routeName, 'front-desk.')) {
+                return redirect()->route('front-desk.reservations.show', $reservation->id)
+                    ->with('error', 'Failed to send confirmation email. Please verify SMTP settings and logs.');
+            }
+
+            return redirect()->route('admin.reservations.show', $reservation->id)
+                ->with('error', 'Failed to send confirmation email. Please verify SMTP settings and logs.');
+        }
 
         // Redirect based on route name (prioritize route over role)
         $routeName = request()->route()->getName() ?? '';
@@ -867,7 +911,7 @@ class ReservationController extends Controller
             ->with('success', 'Confirmation email sent successfully!');
     }
 
-    private function sendConfirmationEmail(Reservation $reservation)
+    private function sendConfirmationEmail(Reservation $reservation): bool
     {
         try {
             $reservation->load(['guest', 'room', 'roomType']);
@@ -884,9 +928,42 @@ class ReservationController extends Controller
                 $message->to($reservation->guest->email, $reservation->guest->full_name)
                     ->subject('Reservation Confirmation - ' . $reservation->reservation_number);
             });
+
+            return true;
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error('Failed to send confirmation email: ' . $e->getMessage());
+            return false;
         }
+    }
+
+    private function refreshRoomOccupancyStatus(?int $roomId): void
+    {
+        if (!$roomId) {
+            return;
+        }
+
+        $room = Room::find($roomId);
+        if (!$room) {
+            return;
+        }
+
+        $activeCheckedInExists = Reservation::where('room_id', $roomId)
+            ->where('status', 'checked_in')
+            ->whereNull('actual_check_out')
+            ->exists();
+
+        if ($activeCheckedInExists) {
+            $room->update(['status' => 'occupied']);
+            return;
+        }
+
+        $activeReservedExists = Reservation::where('room_id', $roomId)
+            ->whereIn('status', ['confirmed', 'pending', 'modified'])
+            ->exists();
+
+        $room->update([
+            'status' => $activeReservedExists ? 'reserved' : 'available',
+        ]);
     }
 
     private function checkOverbooking($checkIn, $checkOut, $roomTypeId)

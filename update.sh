@@ -270,6 +270,9 @@ success "Caches cleared"
 
 step "Restarting Services"
 
+cd "$INSTALL_DIR"
+php artisan queue:restart && success "Laravel queue workers restarted" || warning "Could not signal Laravel queue workers to restart"
+
 systemctl restart php8.2-fpm && success "PHP-FPM restarted" || warning "Could not restart php8.2-fpm"
 systemctl restart nginx       && success "Nginx restarted"   || warning "Could not restart nginx"
 

@@ -8,8 +8,11 @@ use App\Models\RoomType;
 use App\Models\Room;
 use App\Models\Guest;
 use App\Models\HotelService;
+use App\Models\Setting;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Log;
 
 class ReservationController extends Controller
 {
@@ -132,6 +135,33 @@ class ReservationController extends Controller
             $viewPath = 'Manager/Reservations/Show';
         }
 
+        // Load folio and its individual SERVICE charges dynamically
+        $folio = \App\Models\GuestFolio::with(['charges' => function ($q) {
+            $q->where('charge_code', 'SERVICE')
+              ->where('is_voided', false)
+              ->orderBy('charge_date', 'asc')
+              ->orderBy('created_at', 'asc');
+        }])->where('reservation_id', $reservation->id)->first();
+
+        $serviceChargeItems = $folio
+            ? $folio->charges->map(fn($c) => [
+                'id'          => $c->id,
+                'description' => $c->description,
+                'quantity'    => (int) $c->quantity,
+                'unit_price'  => (float) $c->unit_price,
+                'total_amount'=> (float) $c->total_amount,
+                'tax_amount'  => (float) $c->tax_amount,
+                'net_amount'  => (float) $c->net_amount,
+                'charge_date' => $c->charge_date?->format('Y-m-d'),
+                'department'  => $c->department,
+              ])->values()->toArray()
+            : [];
+
+        // Use folio's service_charges total if available; fallback to reservation field
+        $dynamicServiceCharges = $folio
+            ? (float) ($folio->service_charges ?? 0)
+            : (float) ($reservation->service_charges ?? 0);
+
         return Inertia::render($viewPath, [
             'user' => auth()->user()->load('roles'),
             'reservation' => [
@@ -141,9 +171,19 @@ class ReservationController extends Controller
                 'check_in_date' => $reservation->check_in_date->format('Y-m-d'),
                 'check_out_date' => $reservation->check_out_date->format('Y-m-d'),
                 'nights' => $reservation->nights,
+                'number_of_adults' => $reservation->number_of_adults ?? $reservation->adults,
+                'number_of_children' => $reservation->number_of_children ?? $reservation->children,
                 'adults' => $reservation->adults,
                 'children' => $reservation->children,
                 'room_rate' => $reservation->room_rate,
+                'total_room_charges' => $reservation->total_room_charges,
+                'taxes' => $reservation->taxes,
+                'service_charges' => $dynamicServiceCharges,
+                'service_charge_items' => $serviceChargeItems,
+                'discount_amount' => $reservation->discount_amount,
+                'discount_reason' => $reservation->discount_reason,
+                'booking_source' => $reservation->booking_source,
+                'booking_reference' => $reservation->booking_reference,
                 'total_amount' => $reservation->total_amount,
                 'paid_amount' => $reservation->paid_amount,
                 'balance_amount' => $reservation->balance_amount,
@@ -409,11 +449,43 @@ class ReservationController extends Controller
         }
 
         // Send confirmation email if requested
+        $emailWarning = null;
         if ($validated['send_confirmation_email'] ?? false) {
-            // TODO: Implement email sending logic
+            if (!$this->sendConfirmationEmail($reservation)) {
+                $emailWarning = ' Reservation saved, but confirmation email could not be sent.';
+            }
         }
 
         return redirect()->route('front-desk.reservations.index')
-            ->with('success', 'Reservation created successfully!');
+            ->with('success', 'Reservation created successfully!' . ($emailWarning ?? ''));
+    }
+
+    private function sendConfirmationEmail(Reservation $reservation): bool
+    {
+        try {
+            $reservation->load(['guest', 'room', 'roomType']);
+
+            Mail::send('emails.reservation-confirmation', [
+                'reservation' => $reservation,
+                'hotel' => [
+                    'name' => Setting::get('hotel_name', 'Hotel'),
+                    'address' => Setting::get('hotel_address', ''),
+                    'phone' => Setting::get('hotel_phone', ''),
+                    'email' => Setting::get('hotel_email', ''),
+                ],
+            ], function ($message) use ($reservation) {
+                $message->to($reservation->guest->email, $reservation->guest->full_name)
+                    ->subject('Reservation Confirmation - ' . $reservation->reservation_number);
+            });
+
+            return true;
+        } catch (\Exception $e) {
+            Log::error('Failed to send confirmation email from front desk flow', [
+                'reservation_id' => $reservation->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return false;
+        }
     }
 }
