@@ -16,12 +16,18 @@ use Illuminate\Support\Facades\Log;
 
 class ReservationController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
+        $perPage = (int) $request->input('per_page', 15);
+        if ($perPage < 5 || $perPage > 100) {
+            $perPage = 15;
+        }
+
         $reservations = Reservation::with(['guest', 'room', 'roomType'])
             ->orderBy('check_in_date', 'desc')
-            ->get()
-            ->map(function ($reservation) {
+            ->paginate($perPage)
+            ->withQueryString()
+            ->through(function ($reservation) {
                 return [
                     'id' => $reservation->id,
                     'confirmation_number' => $reservation->reservation_number,

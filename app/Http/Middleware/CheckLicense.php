@@ -13,6 +13,8 @@ class CheckLicense
 {
     /** Cache TTL for license validity (seconds). 12 hours. */
     private const CACHE_TTL = 43200;
+    /** Grace period for network failures after last successful online validation. */
+    private const NETWORK_GRACE_TTL = 86400;
 
     public function __construct(private LicenseValidationService $licenseService) {}
 
@@ -44,9 +46,36 @@ class CheckLicense
         }
 
         // --- Offline-first license check ---
-        $licensed = Cache::remember('license_valid', self::CACHE_TTL, function () {
-            return $this->licenseService->isSystemLicensed();
-        });
+        try {
+            $licensed = Cache::remember('license_valid', self::CACHE_TTL, function () {
+                return $this->licenseService->isSystemLicensed();
+            });
+        } catch (\RuntimeException $e) {
+            $lastKnownValid = (int) Cache::get('license_last_known_valid', 0);
+            $withinGrace = $lastKnownValid > 0
+                && (now()->timestamp - $lastKnownValid) <= self::NETWORK_GRACE_TTL;
+
+            if ($withinGrace) {
+                Log::warning('License server unreachable; allowing access within grace period.', [
+                    'path' => $path,
+                    'error' => $e->getMessage(),
+                ]);
+                $licensed = true;
+                Cache::put('license_valid', true, 600);
+            } else {
+                Log::warning('License check failed and grace period expired.', [
+                    'path' => $path,
+                    'error' => $e->getMessage(),
+                ]);
+                $licensed = false;
+            }
+        } catch (\Throwable $e) {
+            Log::error('Unexpected license middleware error.', [
+                'path' => $path,
+                'error' => $e->getMessage(),
+            ]);
+            $licensed = false;
+        }
 
         if ($licensed) {
             return $next($request);

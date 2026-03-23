@@ -185,6 +185,23 @@
                     </tbody>
                 </table>
             </div>
+            <div v-if="paginationLinks.length > 1" class="px-6 py-4 border-t flex flex-col md:flex-row md:items-center md:justify-between gap-3" :style="{ borderColor: themeColors.border }">
+                <div class="text-sm" :style="{ color: themeColors.textSecondary }">
+                    Showing {{ paginationMeta.from }} to {{ paginationMeta.to }} of {{ paginationMeta.total }} reservations
+                </div>
+                <div class="flex items-center gap-1 flex-wrap">
+                    <Link
+                        v-for="(link, idx) in paginationLinks"
+                        :key="idx"
+                        :href="link.url || ''"
+                        :class="['px-3 py-1 rounded-md text-sm border', !link.url ? 'opacity-50 cursor-not-allowed' : '']"
+                        :style="link.active
+                            ? { backgroundColor: themeColors.primary, color: '#000', borderColor: themeColors.primary }
+                            : { backgroundColor: themeColors.card, color: themeColors.textPrimary, borderColor: themeColors.border }"
+                        v-html="link.label"
+                    />
+                </div>
+            </div>
         </div>
     </DashboardLayout>
 </template>
@@ -206,7 +223,7 @@ import {
 
 const props = defineProps({
     user: Object,
-    reservations: Array,
+    reservations: [Array, Object],
     reservationStats: Object,
 })
 
@@ -231,8 +248,34 @@ const themeColors = computed(() => ({
 }))
 
 const filteredReservations = computed(() => {
-    if (!selectedStatus.value) return props.reservations || []
-    return (props.reservations || []).filter(r => r.status === selectedStatus.value)
+    if (!selectedStatus.value) return reservationsData.value
+    return reservationsData.value.filter(r => r.status === selectedStatus.value)
+})
+
+const reservationsData = computed(() => {
+    if (Array.isArray(props.reservations)) return props.reservations
+    return props.reservations?.data || []
+})
+
+const paginationLinks = computed(() => {
+    if (Array.isArray(props.reservations)) return []
+    return props.reservations?.links || []
+})
+
+const paginationMeta = computed(() => {
+    if (Array.isArray(props.reservations)) {
+        return {
+            from: reservationsData.value.length ? 1 : 0,
+            to: reservationsData.value.length,
+            total: reservationsData.value.length,
+        }
+    }
+
+    return {
+        from: props.reservations?.from || 0,
+        to: props.reservations?.to || 0,
+        total: props.reservations?.total || 0,
+    }
 })
 
 const getStatusPillStyle = (status) => {

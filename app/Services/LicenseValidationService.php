@@ -314,10 +314,32 @@ class LicenseValidationService
             ->first();
 
         if ($real) {
-            return $this->validateOnline($real); // may throw RuntimeException for grace period
+            try {
+                if ($this->validateOnline($real)) {
+                    return true;
+                }
+            } catch (\RuntimeException $e) {
+                // Allow middleware grace handling, but still try valid trial fallback first.
+                if (!$this->hasValidTrial()) {
+                    throw $e;
+                }
+                return true;
+            }
+
+            // Real license is not valid right now — allow access if trial is still valid.
+            if ($this->hasValidTrial()) {
+                return true;
+            }
+
+            return false;
         }
 
         // Fall back to trial license
+        return $this->hasValidTrial();
+    }
+
+    private function hasValidTrial(): bool
+    {
         $trial = \App\Models\License::where('status', 'trial')->latest('id')->first();
 
         if (!$trial || !$trial->expires_at) {

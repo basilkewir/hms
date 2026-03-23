@@ -20,16 +20,22 @@ use Illuminate\Support\Facades\Auth;
 
 class ReservationController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
         $user = auth()->user()->load('roles');
         $isManager = $user->hasRole('manager');
         $viewPath = $isManager ? 'Manager/Reservations/Index' : 'Admin/Reservations/Index';
 
+        $perPage = (int) $request->input('per_page', 15);
+        if ($perPage < 5 || $perPage > 100) {
+            $perPage = 15;
+        }
+
         $reservations = Reservation::with(['guest', 'room', 'roomType'])
             ->orderBy('created_at', 'desc')
-            ->get()
-            ->map(fn($r) => [
+            ->paginate($perPage)
+            ->withQueryString()
+            ->through(fn($r) => [
                 'id'                  => $r->id,
                 'confirmation_number' => $r->reservation_number,
                 'guest_name'          => $r->guest ? trim(($r->guest->first_name ?? '') . ' ' . ($r->guest->last_name ?? '')) ?: ($r->guest->full_name ?? 'N/A') : 'N/A',
