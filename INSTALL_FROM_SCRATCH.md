@@ -578,8 +578,8 @@ sudo bash update.sh
 ```
 
 The update script will:
-1. Pull latest code
-2. Copy updated files
+1. Use code already pulled/cloned in your current directory
+2. Sync application files into `/opt/hms` (keeps `.env` and `storage/` intact)
 3. Run database migrations
 4. Update dependencies
 5. Rebuild assets
@@ -623,8 +623,8 @@ sudo bash update.sh
 ```
 
 Features:
-- Pulls latest code
-- Updates application files
+- Uses code you already pulled/cloned
+- Syncs application files to `/opt/hms`
 - Runs new migrations
 - Updates dependencies
 - Restarts services

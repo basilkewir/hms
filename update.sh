@@ -16,6 +16,7 @@ NC='\033[0m'
 INSTALL_DIR="/opt/hms"
 BACKUP_DIR="/root/hms_backups"
 DATE=$(date +%Y%m%d_%H%M%S)
+SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Helper functions
 info()    { echo -e "${BLUE}[INFO]${NC} $1"; }
@@ -41,6 +42,7 @@ fi
 step "HMS Update Script"
 
 info "Install directory: $INSTALL_DIR"
+info "Source directory : $SOURCE_DIR"
 info ""
 info "Code sync is MANUAL: push to git, pull on server, then run this script."
 info "Your database and .env file will NOT be modified by this script."
@@ -79,6 +81,15 @@ fi
 
 step "Verifying Pulled Code"
 
+if ! git -C "$SOURCE_DIR" rev-parse --is-inside-work-tree &>/dev/null; then
+    warning "$SOURCE_DIR is not a git repository. Make sure latest code is already present."
+else
+    SRC_BRANCH=$(git -C "$SOURCE_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+    SRC_COMMIT=$(git -C "$SOURCE_DIR" rev-parse --short HEAD 2>/dev/null || echo "unknown")
+    info "Source branch: $SRC_BRANCH"
+    info "Source commit: $SRC_COMMIT"
+fi
+
 if ! git -C "$INSTALL_DIR" rev-parse --is-inside-work-tree &>/dev/null; then
     warning "$INSTALL_DIR is not a git repository. Ensure updated code is already present before continuing."
 else
@@ -87,6 +98,29 @@ else
     info "Detected git repo in $INSTALL_DIR"
     info "Current branch: $CURRENT_BRANCH"
     info "Current commit: $CURRENT_COMMIT"
+fi
+
+step "Syncing Application Code"
+
+if [ "$SOURCE_DIR" = "$INSTALL_DIR" ]; then
+    info "Source and install directory are the same. No sync needed."
+else
+    if ! command -v rsync >/dev/null 2>&1; then
+        error "rsync is required for safe code sync. Install it with: apt-get install -y rsync"
+    fi
+
+    info "Syncing code from $SOURCE_DIR to $INSTALL_DIR"
+    info "Preserving: .env, storage/, bootstrap/cache/, node_modules/, .git/"
+
+    rsync -a --delete \
+        --exclude '.git/' \
+        --exclude '.env' \
+        --exclude 'storage/' \
+        --exclude 'bootstrap/cache/' \
+        --exclude 'node_modules/' \
+        "$SOURCE_DIR/" "$INSTALL_DIR/"
+
+    success "Application code synced"
 fi
 
 step "Setting Permissions"
@@ -185,7 +219,8 @@ echo ""
 echo "✓ HMS has been successfully updated!"
 echo ""
 echo "Summary:"
-echo "  - Updated code in   : $INSTALL_DIR (pulled manually)"
+echo "  - Source code from : $SOURCE_DIR"
+echo "  - Updated code in  : $INSTALL_DIR"
 echo "  - Migrations run"
 echo "  - Caches cleared"
 echo "  - Services restarted"
