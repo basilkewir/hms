@@ -412,6 +412,43 @@
                                 <span class="text-kotel-sky-blue/90 text-sm block">Total Room Charges</span>
                                 <p class="text-emerald-300 font-medium">{{ formatCurrency(selectedRoom.total_room_charges) }}</p>
                             </div>
+                            <div v-if="selectedRoom.service_charges" class="bg-kotel-black/50 border border-kotel-yellow/20 rounded-lg p-3">
+                                <span class="text-kotel-sky-blue/90 text-sm block">Service Charges</span>
+                                <p class="text-emerald-300 font-medium">{{ formatCurrency(selectedRoom.service_charges) }}</p>
+                            </div>
+                            <div v-if="selectedRoom.pos_charges" class="bg-kotel-black/50 border border-kotel-yellow/20 rounded-lg p-3">
+                                <span class="text-kotel-sky-blue/90 text-sm block">POS / Restaurant</span>
+                                <p class="text-emerald-300 font-medium">{{ formatCurrency(selectedRoom.pos_charges) }}</p>
+                            </div>
+                            <div v-if="selectedRoom.additional_room_charges" class="bg-kotel-black/50 border border-kotel-yellow/20 rounded-lg p-3">
+                                <span class="text-kotel-sky-blue/90 text-sm block">Room-Posted Charges</span>
+                                <p class="text-emerald-300 font-medium">{{ formatCurrency(selectedRoom.additional_room_charges) }}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div v-if="selectedRoom.room_posted_charges && selectedRoom.room_posted_charges.length > 0">
+                        <h3 class="text-kotel-yellow font-semibold mb-3 flex items-center gap-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8V7m0 1v8m0 0v1m0-1h.01"/></svg>
+                            Room-Posted Charges
+                        </h3>
+                        <div class="bg-kotel-black/50 border border-kotel-yellow/20 rounded-lg p-4 space-y-2">
+                            <div v-for="charge in selectedRoom.room_posted_charges" :key="charge.id"
+                                 class="flex items-start justify-between gap-3 rounded-lg border border-kotel-yellow/10 bg-kotel-black/40 p-3">
+                                <div>
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-white font-medium">{{ charge.description }}</span>
+                                        <span class="rounded-full border border-kotel-yellow/30 bg-kotel-yellow/10 px-2 py-0.5 text-xs text-kotel-yellow">
+                                            {{ charge.type === 'POS' ? 'POS / Restaurant' : 'Service' }}
+                                        </span>
+                                    </div>
+                                    <p class="mt-1 text-xs text-kotel-sky-blue/80">
+                                        {{ charge.charge_date }}<span v-if="charge.charge_time"> {{ charge.charge_time }}</span>
+                                        <span v-if="charge.department"> | {{ charge.department }}</span>
+                                    </p>
+                                </div>
+                                <span class="text-emerald-300 font-medium">{{ formatCurrency(charge.amount) }}</span>
+                            </div>
                         </div>
                     </div>
 
@@ -452,7 +489,19 @@
                             Add Service Charge
                         </h3>
                         <div class="bg-kotel-black/50 border border-blue-400/30 rounded-lg p-4">
-                            <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                            <div class="grid grid-cols-1 md:grid-cols-5 gap-3">
+                                <div>
+                                    <label class="text-kotel-sky-blue/90 text-sm block mb-1">POS Product</label>
+                                    <select v-model="serviceChargeForm.product_id"
+                                            @change="onServiceProductChange"
+                                            class="w-full bg-kotel-black border border-kotel-yellow/30 rounded-md px-3 py-2 text-white text-sm focus:outline-none focus:ring-1 focus:ring-kotel-yellow">
+                                        <option :value="null" class="bg-kotel-dark">Select product</option>
+                                        <option :value="customServiceOptionValue" class="bg-kotel-dark">Custom service</option>
+                                        <option v-for="product in posProducts" :key="product.id" :value="product.id" class="bg-kotel-dark">
+                                            {{ product.name }} <span v-if="product.code">({{ product.code }})</span>
+                                        </option>
+                                    </select>
+                                </div>
                                 <div class="md:col-span-2">
                                     <label class="text-kotel-sky-blue/90 text-sm block mb-1">Description</label>
                                     <input v-model="serviceChargeForm.description" type="text"
@@ -544,6 +593,7 @@ const props = defineProps({
     rooms: Array,
     roomStatus: Object,
     availableKeyCards: Array,
+    posProducts: { type: Array, default: () => [] },
 })
 
 const selectedRoom = ref(null)
@@ -794,20 +844,41 @@ const markRoomDirty = (room) => {
     })
 }
 
-const serviceChargeForm = ref({ description: '', amount: null, quantity: 1 })
+const serviceChargeForm = ref({ product_id: null, description: '', amount: null, quantity: 1 })
 const isAddingServiceCharge = ref(false)
+const customServiceOptionValue = 'custom'
+
+const onServiceProductChange = () => {
+    if (!serviceChargeForm.value.product_id) return
+    if (serviceChargeForm.value.product_id === customServiceOptionValue) return
+    const selectedProduct = (props.posProducts || []).find(product => Number(product.id) === Number(serviceChargeForm.value.product_id))
+    if (!selectedProduct) return
+
+    if (!serviceChargeForm.value.description) {
+        serviceChargeForm.value.description = selectedProduct.name
+    }
+
+    if (!serviceChargeForm.value.amount || Number(serviceChargeForm.value.amount) <= 0) {
+        serviceChargeForm.value.amount = Number(selectedProduct.price || 0)
+    }
+}
 
 const addServiceCharge = () => {
     if (!serviceChargeForm.value.description || !serviceChargeForm.value.amount || serviceChargeForm.value.amount <= 0) return
     isAddingServiceCharge.value = true
+    const selectedProductId = serviceChargeForm.value.product_id === customServiceOptionValue
+        ? null
+        : serviceChargeForm.value.product_id
+
     router.post(route('admin.checkout.service-charge'), {
         reservation_id: selectedRoom.value.reservation_id,
+        product_id: selectedProductId,
         description: serviceChargeForm.value.description,
         amount: parseFloat(serviceChargeForm.value.amount),
         quantity: parseInt(serviceChargeForm.value.quantity || 1, 10),
     }, {
         onSuccess: () => {
-            serviceChargeForm.value = { description: '', amount: null, quantity: 1 }
+            serviceChargeForm.value = { product_id: null, description: '', amount: null, quantity: 1 }
             isAddingServiceCharge.value = false
             statusType.value = 'success'
             statusMessage.value = 'Service charge added successfully.'

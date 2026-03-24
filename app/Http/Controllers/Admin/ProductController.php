@@ -135,6 +135,19 @@ class ProductController extends Controller
             ->with('success', 'All products deleted successfully.');
     }
 
+    public function destroyBulk(Request $request)
+    {
+        $validated = $request->validate([
+            'ids' => 'required|array|min:1',
+            'ids.*' => 'integer|exists:products,id',
+        ]);
+
+        $count = Product::whereIn('id', $validated['ids'])->delete();
+
+        return redirect()->back()
+            ->with('success', $count . ' product(s) deleted successfully.');
+    }
+
     private function generateProductCode($categoryId)
     {
         if ($categoryId) {

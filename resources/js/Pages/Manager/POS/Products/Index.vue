@@ -7,12 +7,27 @@
           <h1 class="text-2xl font-bold text-kotel-yellow">Products Management</h1>
           <p class="text-kotel-sky-blue mt-2">Manage your POS products and inventory</p>
         </div>
-        <button 
-          @click="showAddProduct = true"
-          class="bg-kotel-yellow hover:bg-kotel-yellow/80 text-kotel-black px-4 py-2 rounded-md text-sm font-medium transition-colors"
-        >
-          Add New Product
-        </button>
+        <div class="flex items-center gap-3">
+          <button 
+            v-if="selectedIds.length > 0"
+            @click="deleteSelected"
+            class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
+          >
+            Delete Selected ({{ selectedIds.length }})
+          </button>
+          <button 
+            @click="showAddProduct = true"
+            class="bg-kotel-yellow hover:bg-kotel-yellow/80 text-kotel-black px-4 py-2 rounded-md text-sm font-medium transition-colors"
+          >
+            Add New Product
+          </button>
+          <button 
+            @click="deleteAllProducts"
+            class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
+          >
+            Delete All
+          </button>
+        </div>
       </div>
     </div>
 
@@ -23,6 +38,9 @@
           <table class="min-w-full divide-y divide-kotel-yellow/30">
             <thead>
               <tr>
+                <th class="px-4 py-3 text-left">
+                  <input type="checkbox" :checked="allSelected" @change="toggleAll" class="rounded border-kotel-yellow/30 bg-kotel-black/50 text-kotel-yellow focus:ring-kotel-yellow" />
+                </th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-kotel-sky-blue uppercase tracking-wider">Product</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-kotel-sky-blue uppercase tracking-wider">Category</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-kotel-sky-blue uppercase tracking-wider">Price</th>
@@ -32,7 +50,10 @@
               </tr>
             </thead>
             <tbody class="divide-y divide-kotel-yellow/20">
-              <tr v-for="product in products" :key="product.id" class="hover:bg-kotel-yellow/10 transition-colors">
+              <tr v-for="product in products" :key="product.id" class="hover:bg-kotel-yellow/10 transition-colors" :class="{ 'bg-kotel-yellow/5': selectedIds.includes(product.id) }">
+                <td class="px-4 py-4 whitespace-nowrap">
+                  <input type="checkbox" :value="product.id" v-model="selectedIds" class="rounded border-kotel-yellow/30 bg-kotel-black/50 text-kotel-yellow focus:ring-kotel-yellow" />
+                </td>
                 <td class="px-6 py-4 whitespace-nowrap">
                   <div class="flex items-center">
                     <div class="text-2xl mr-3">{{ product.emoji || '🍽️' }}</div>
@@ -208,7 +229,12 @@ export default {
   setup(props) {
     const showAddProduct = ref(false)
     const editingProduct = ref(null)
+    const selectedIds = ref([])
     
+    const allSelected = computed(() => {
+      return props.products && props.products.length > 0 && selectedIds.value.length === props.products.length
+    })
+
     const navigation = computed(() => {
       const role = props.user.roles[0]?.name || 'staff'
       return getNavigationForRole(role)
@@ -242,8 +268,8 @@ export default {
 
     const saveProduct = () => {
       const url = editingProduct.value 
-        ? `/admin/pos/products/${editingProduct.value.id}` 
-        : '/admin/pos/products'
+        ? `/manager/pos/products/${editingProduct.value.id}` 
+        : '/manager/pos/products'
       
       const method = editingProduct.value ? 'put' : 'post'
       
@@ -258,7 +284,31 @@ export default {
 
     const deleteProduct = (id) => {
       if (confirm('Are you sure you want to delete this product?')) {
-        router.delete(`/admin/pos/products/${id}`)
+        router.delete(`/manager/pos/products/${id}`)
+      }
+    }
+
+    const deleteAllProducts = () => {
+      if (confirm('Are you sure you want to delete ALL products? This cannot be undone.')) {
+        router.delete('/manager/pos/products')
+      }
+    }
+
+    const toggleAll = () => {
+      if (allSelected.value) {
+        selectedIds.value = []
+      } else {
+        selectedIds.value = props.products.map(p => p.id)
+      }
+    }
+
+    const deleteSelected = () => {
+      if (selectedIds.value.length === 0) return
+      if (confirm(`Are you sure you want to delete ${selectedIds.value.length} selected product(s)?`)) {
+        router.delete('/manager/pos/products/bulk', {
+          data: { ids: selectedIds.value },
+          onSuccess: () => { selectedIds.value = [] }
+        })
       }
     }
 
@@ -280,9 +330,14 @@ export default {
       editingProduct,
       form,
       navigation,
+      selectedIds,
+      allSelected,
       editProduct,
       saveProduct,
       deleteProduct,
+      deleteAllProducts,
+      toggleAll,
+      deleteSelected,
       resetForm,
       formatCurrency,
       getCurrencySymbol

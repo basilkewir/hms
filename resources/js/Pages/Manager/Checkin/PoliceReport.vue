@@ -30,7 +30,8 @@ loadTheme()
 const props = defineProps({
     user: Object,
     navigation: Array,
-    checkedInGuests: Array,
+    checkedInTodayGuests: Array,
+    currentlyStayingGuests: Array,
     reportDate: String,
     hotelName: String,
     hotelAddress: String,
@@ -38,10 +39,11 @@ const props = defineProps({
 })
 
 const navigation = computed(() => props.navigation || getNavigationForRole(props.user?.roles?.[0]?.name || 'admin'))
+const allGuests = computed(() => [...(props.currentlyStayingGuests || []), ...(props.checkedInTodayGuests || [])])
 
 // Export as CSV
 const exportCSV = () => {
-    const guests = props.checkedInGuests || []
+    const guests = allGuests.value
     const headers = [
         'Room No', 'Room Type', 'Reservation No', 'Full Name', 'Gender',
         'Date of Birth', 'Nationality', 'ID Type', 'ID Number', 'ID Expiry',
@@ -108,11 +110,24 @@ const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').
 // Build a clean standalone HTML document and print from a new window.
 // This completely bypasses Vue / Tailwind / CSS-variable issues that cause
 // overflow-x-auto to clip the table body in print media.
+const buildRows = (guests) => guests.map((r, i) => {
+        const fmtD = (d) => d ? new Date(d).toLocaleDateString('en-GB') : '—'
+        const g = r.guest || {}
+        const bg = i % 2 === 0 ? '#ffffff' : '#f5f5f5'
+        const idPassport = [g.id_number ? `${esc(g.id_type||'ID')}: ${esc(g.id_number)}` : '', g.passport_number ? `Passport: ${esc(g.passport_number)}` : ''].filter(Boolean).join('<br>') || '—'
+        const visa = g.visa_number ? `${esc(g.visa_type||'Visa')}: ${esc(g.visa_number)}` : '—'
+        const arrivalFrom = g.arrival_from ? esc(g.arrival_from) + (g.departure_to ? `<br>→ ${esc(g.departure_to)}` : '') : '—'
+        const contact = esc(g.phone||'—') + (g.emergency_contact_name ? `<br><span style="font-size:6.5pt">Emergency: ${esc(g.emergency_contact_name)}</span>` : '')
+        return `<tr style="background:${bg}"><td>${i+1}</td><td><strong>${esc(r.room_number)}</strong></td><td><strong>${esc(g.full_name||'—')}</strong><br><span style="font-size:6.5pt">${esc(r.reservation_number||'')}</span></td><td>${fmtD(g.date_of_birth)}<br>${esc(g.gender||'—')}</td><td>${esc(g.nationality||'—')}</td><td>${idPassport}</td><td>${visa}</td><td>${arrivalFrom}</td><td>${esc(g.purpose_of_visit||'—')}</td><td>${fmtD(r.check_in_date)}${r.actual_check_in?`<br><span style="font-size:6.5pt">${esc(r.actual_check_in)}</span>`:''}</td><td>${fmtD(r.check_out_date)}<br>${esc(String(r.nights??''))} night${r.nights!==1?'s':''}</td><td>${contact}</td></tr>`
+    }).join('')
+
 const printReport = () => {
-    const guests = props.checkedInGuests || []
+    const todayGuests = props.checkedInTodayGuests || []
+    const stayingGuests = props.currentlyStayingGuests || []
+    const totalGuests = todayGuests.length + stayingGuests.length
     const fmtD = (d) => d ? new Date(d).toLocaleDateString('en-GB') : '—'
 
-    const rows = guests.map((r, i) => {
+    const rows = [...stayingGuests, ...todayGuests].map((r, i) => {
         const g = r.guest || {}
         const bg = i % 2 === 0 ? '#ffffff' : '#f5f5f5'
 
@@ -148,16 +163,16 @@ const printReport = () => {
         </tr>`
     }).join('')
 
-    const tableHtml = guests.length === 0
-        ? '<p style="text-align:center;padding:30px 0;color:#666">No guests currently checked in.</p>'
-        : `<table>
-            <thead><tr>
-              <th>#</th><th>Room</th><th>Guest Name</th><th>DOB / Gender</th>
-              <th>Nationality</th><th>ID / Passport</th><th>Visa</th>
-              <th>Arrival From</th><th>Purpose</th><th>Check-in</th><th>Check-out</th><th>Contact</th>
-            </tr></thead>
-            <tbody>${rows}</tbody>
-          </table>`
+    const thead = `<thead><tr><th>#</th><th>Room</th><th>Guest Name</th><th>DOB / Gender</th><th>Nationality</th><th>ID / Passport</th><th>Visa</th><th>Arrival From</th><th>Purpose</th><th>Check-in</th><th>Check-out</th><th>Contact</th></tr></thead>`
+
+    const tableHtml = totalGuests === 0
+        ? '<p style="text-align:center;padding:30px 0;color:#666">No guests on record.</p>'
+        : (() => {
+            const sections = []
+            if (stayingGuests.length > 0) sections.push(`<h3 style="margin:12px 0 4px;font-size:8.5pt;font-weight:bold;text-transform:uppercase;color:#333">Currently Staying — ${stayingGuests.length} guest${stayingGuests.length!==1?'s':''}</h3><table>${thead}<tbody>${buildRows(stayingGuests)}</tbody></table>`)
+            if (todayGuests.length > 0) sections.push(`<h3 style="margin:16px 0 4px;font-size:8.5pt;font-weight:bold;text-transform:uppercase;color:#333">Checked In Today — ${todayGuests.length} guest${todayGuests.length!==1?'s':''}</h3><table>${thead}<tbody>${buildRows(todayGuests)}</tbody></table>`)
+            return sections.join('')
+          })()
 
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
 <title>Police Report &mdash; ${esc(props.hotelName || 'Hotel')}</title>
@@ -166,6 +181,7 @@ const printReport = () => {
   body{font-family:Arial,Helvetica,sans-serif;font-size:9pt;color:#000;background:#fff;padding:8mm}
   h1{font-size:15pt;font-weight:bold;text-align:center;margin-bottom:3px}
   h2{font-size:9.5pt;font-weight:bold;text-align:center;text-transform:uppercase;letter-spacing:1.5px;margin-top:8px}
+  h3{font-size:8.5pt;font-weight:bold;text-transform:uppercase;color:#444;margin:14px 0 4px}
   .meta{text-align:center;font-size:8pt;color:#444;margin:2px 0}
   .header{border-bottom:2px solid #333;padding-bottom:10px;margin-bottom:12px}
   table{width:100%;border-collapse:collapse;font-size:7pt;margin-top:4px}
@@ -182,7 +198,7 @@ const printReport = () => {
   ${props.hotelPhone   ? `<p class="meta">${esc(props.hotelPhone)}</p>` : ''}
   <h2>Guest Register for Police / Immigration</h2>
   <p class="meta">Report generated: ${esc(props.reportDate || '')}</p>
-  <p class="meta"><strong>Total Guests Currently Checked In: ${guests.length}</strong></p>
+  <p class="meta"><strong>Currently Staying: ${stayingGuests.length} &nbsp;|&nbsp; Checked In Today: ${todayGuests.length} &nbsp;|&nbsp; Total: ${totalGuests}</strong></p>
 </div>
 ${tableHtml}
 <div class="sigs">
@@ -202,7 +218,7 @@ ${tableHtml}
 </script>
 
 <template>
-    <Head title="Police Report – Checked-In Guests" />
+    <Head title="Police Report – Today\'s Check-ins" />
     <DashboardLayout title="Police Report" :user="user" :navigation="navigation">
         <!-- Top action bar (hidden on print) -->
         <div class="flex flex-wrap items-center justify-between gap-4 mb-6 no-print">
@@ -215,7 +231,7 @@ ${tableHtml}
                 </Link>
                 <h1 class="text-xl font-semibold flex items-center gap-2" :style="{ color: themeColors.textPrimary }">
                     <ShieldCheckIcon class="h-6 w-6 text-blue-500" />
-                    Police Report — Currently Checked-In Guests
+                    Police Report — Guests Checked In Today
                 </h1>
             </div>
             <div class="flex gap-3">
@@ -246,91 +262,118 @@ ${tableHtml}
                 <div class="mt-4">
                     <h2 class="text-lg font-bold uppercase tracking-widest">Guest Register for Police / Immigration</h2>
                     <p class="text-sm text-gray-500 mt-1">Report generated: {{ reportDate }}</p>
-                    <p class="text-sm font-semibold mt-1" :style="{ color: themeColors.primary }">Total Guests Currently Checked In: {{ checkedInGuests?.length ?? 0 }}</p>
+                    <p class="text-sm font-semibold mt-1" :style="{ color: themeColors.primary }">
+                        Currently Staying: {{ currentlyStayingGuests?.length ?? 0 }}
+                        &nbsp;|&nbsp;
+                        Checked In Today: {{ checkedInTodayGuests?.length ?? 0 }}
+                        &nbsp;|&nbsp;
+                        Total: {{ (currentlyStayingGuests?.length ?? 0) + (checkedInTodayGuests?.length ?? 0) }}
+                    </p>
                 </div>
             </div>
 
             <!-- No guests -->
-            <div v-if="!checkedInGuests || checkedInGuests.length === 0" class="text-center py-16 text-gray-400">
+            <div v-if="(!currentlyStayingGuests || currentlyStayingGuests.length === 0) && (!checkedInTodayGuests || checkedInTodayGuests.length === 0)"
+                 class="text-center py-16 text-gray-400">
                 <ShieldCheckIcon class="h-16 w-16 mx-auto mb-4 opacity-40" />
-                <p class="text-lg font-medium">No guests currently checked in.</p>
+                <p class="text-lg font-medium">No guests on record.</p>
             </div>
 
-            <!-- Guest table -->
-            <div v-else class="overflow-x-auto">
-                <table class="w-full border-collapse text-xs print:text-[10px]">
-                    <thead>
-                        <tr class="border-b-2" style="border-color:#374151; background:#f9fafb;">
-                            <th class="text-left py-2 px-2 font-semibold text-gray-700">#</th>
-                            <th class="text-left py-2 px-2 font-semibold text-gray-700">Room</th>
-                            <th class="text-left py-2 px-2 font-semibold text-gray-700">Guest Name</th>
-                            <th class="text-left py-2 px-2 font-semibold text-gray-700">DOB / Gender</th>
-                            <th class="text-left py-2 px-2 font-semibold text-gray-700">Nationality</th>
-                            <th class="text-left py-2 px-2 font-semibold text-gray-700">ID / Passport</th>
-                            <th class="text-left py-2 px-2 font-semibold text-gray-700">Visa</th>
-                            <th class="text-left py-2 px-2 font-semibold text-gray-700">Arrival From</th>
-                            <th class="text-left py-2 px-2 font-semibold text-gray-700">Purpose</th>
-                            <th class="text-left py-2 px-2 font-semibold text-gray-700">Check-in</th>
-                            <th class="text-left py-2 px-2 font-semibold text-gray-700">Check-out</th>
-                            <th class="text-left py-2 px-2 font-semibold text-gray-700">Contact</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr v-for="(r, i) in checkedInGuests" :key="i"
-                            class="border-b"
-                            :style="{ borderColor: '#e5e7eb', backgroundColor: i % 2 === 0 ? '#ffffff' : '#f9fafb' }">
-                            <td class="py-2 px-2 text-gray-500">{{ i + 1 }}</td>
-                            <td class="py-2 px-2 font-mono font-semibold">{{ r.room_number }}</td>
-                            <td class="py-2 px-2">
-                                <div class="font-semibold">{{ r.guest?.full_name || '—' }}</div>
-                                <div class="text-gray-500 text-[10px]">{{ r.reservation_number }}</div>
-                            </td>
-                            <td class="py-2 px-2">
-                                <div>{{ formatDate(r.guest?.date_of_birth) }}</div>
-                                <div class="text-gray-500 capitalize">{{ r.guest?.gender || '—' }}</div>
-                            </td>
-                            <td class="py-2 px-2">{{ r.guest?.nationality || '—' }}</td>
-                            <td class="py-2 px-2">
-                                <div v-if="r.guest?.id_number">
-                                    <span class="text-gray-500">{{ r.guest?.id_type }}:</span> {{ r.guest?.id_number }}
-                                </div>
-                                <div v-if="r.guest?.passport_number" class="mt-0.5">
-                                    <span class="text-gray-500">Passport:</span> {{ r.guest?.passport_number }}
-                                    <span v-if="r.guest?.passport_expiry_date" class="text-[9px] text-gray-400 ml-1">(exp {{ formatDate(r.guest?.passport_expiry_date) }})</span>
-                                </div>
-                                <div v-if="!r.guest?.id_number && !r.guest?.passport_number" class="text-gray-400">—</div>
-                            </td>
-                            <td class="py-2 px-2">
-                                <div v-if="r.guest?.visa_number">
-                                    {{ r.guest?.visa_type || 'Visa' }}: {{ r.guest?.visa_number }}
-                                    <span v-if="r.guest?.visa_expiry_date" class="text-[9px] text-gray-400 ml-1">(exp {{ formatDate(r.guest?.visa_expiry_date) }})</span>
-                                </div>
-                                <span v-else class="text-gray-400">—</span>
-                            </td>
-                            <td class="py-2 px-2">
-                                <div>{{ r.guest?.arrival_from || '—' }}</div>
-                                <div v-if="r.guest?.departure_to" class="text-gray-500 text-[10px]">→ {{ r.guest?.departure_to }}</div>
-                            </td>
-                            <td class="py-2 px-2">{{ r.guest?.purpose_of_visit || '—' }}</td>
-                            <td class="py-2 px-2">
-                                <div>{{ formatDate(r.check_in_date) }}</div>
-                                <div v-if="r.actual_check_in" class="text-[10px] text-gray-500">{{ r.actual_check_in }}</div>
-                            </td>
-                            <td class="py-2 px-2">
-                                {{ formatDate(r.check_out_date) }}
-                                <div class="text-[10px] text-gray-500">{{ r.nights }} night{{ r.nights !== 1 ? 's' : '' }}</div>
-                            </td>
-                            <td class="py-2 px-2">
-                                <div>{{ r.guest?.phone || '—' }}</div>
-                                <div v-if="r.guest?.emergency_contact_name" class="text-[10px] text-gray-500 mt-0.5">
-                                    Emergency: {{ r.guest?.emergency_contact_name }}
-                                    <span v-if="r.guest?.emergency_contact_phone"> ({{ r.guest?.emergency_contact_phone }})</span>
-                                </div>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
+            <!-- Currently Staying section -->
+            <template v-if="currentlyStayingGuests && currentlyStayingGuests.length > 0">
+                <h3 class="text-sm font-bold uppercase tracking-wide mt-2 mb-2 px-1"
+                    :style="{ color: themeColors.textSecondary }">Currently Staying — {{ currentlyStayingGuests.length }} guest{{ currentlyStayingGuests.length !== 1 ? 's' : '' }}</h3>
+                <div class="overflow-x-auto mb-6">
+                    <table class="w-full border-collapse text-xs print:text-[10px]">
+                        <thead>
+                            <tr class="border-b-2" style="border-color:#374151; background:#f9fafb;">
+                                <th class="text-left py-2 px-2 font-semibold text-gray-700">#</th>
+                                <th class="text-left py-2 px-2 font-semibold text-gray-700">Room</th>
+                                <th class="text-left py-2 px-2 font-semibold text-gray-700">Guest Name</th>
+                                <th class="text-left py-2 px-2 font-semibold text-gray-700">DOB / Gender</th>
+                                <th class="text-left py-2 px-2 font-semibold text-gray-700">Nationality</th>
+                                <th class="text-left py-2 px-2 font-semibold text-gray-700">ID / Passport</th>
+                                <th class="text-left py-2 px-2 font-semibold text-gray-700">Visa</th>
+                                <th class="text-left py-2 px-2 font-semibold text-gray-700">Arrival From</th>
+                                <th class="text-left py-2 px-2 font-semibold text-gray-700">Purpose</th>
+                                <th class="text-left py-2 px-2 font-semibold text-gray-700">Check-in</th>
+                                <th class="text-left py-2 px-2 font-semibold text-gray-700">Check-out</th>
+                                <th class="text-left py-2 px-2 font-semibold text-gray-700">Contact</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="(r, i) in currentlyStayingGuests" :key="'s'+i"
+                                class="border-b"
+                                :style="{ borderColor: '#e5e7eb', backgroundColor: i % 2 === 0 ? '#ffffff' : '#f9fafb' }">
+                                <td class="py-2 px-2 text-gray-500">{{ i + 1 }}</td>
+                                <td class="py-2 px-2 font-mono font-semibold">{{ r.room_number }}</td>
+                                <td class="py-2 px-2"><div class="font-semibold">{{ r.guest?.full_name || '—' }}</div><div class="text-gray-500 text-[10px]">{{ r.reservation_number }}</div></td>
+                                <td class="py-2 px-2"><div>{{ formatDate(r.guest?.date_of_birth) }}</div><div class="text-gray-500 capitalize">{{ r.guest?.gender || '—' }}</div></td>
+                                <td class="py-2 px-2">{{ r.guest?.nationality || '—' }}</td>
+                                <td class="py-2 px-2">
+                                    <div v-if="r.guest?.id_number"><span class="text-gray-500">{{ r.guest?.id_type }}:</span> {{ r.guest?.id_number }}</div>
+                                    <div v-if="r.guest?.passport_number" class="mt-0.5"><span class="text-gray-500">Passport:</span> {{ r.guest?.passport_number }}</div>
+                                    <div v-if="!r.guest?.id_number && !r.guest?.passport_number" class="text-gray-400">—</div>
+                                </td>
+                                <td class="py-2 px-2"><div v-if="r.guest?.visa_number">{{ r.guest?.visa_type || 'Visa' }}: {{ r.guest?.visa_number }}</div><span v-else class="text-gray-400">—</span></td>
+                                <td class="py-2 px-2"><div>{{ r.guest?.arrival_from || '—' }}</div><div v-if="r.guest?.departure_to" class="text-gray-500 text-[10px]">→ {{ r.guest?.departure_to }}</div></td>
+                                <td class="py-2 px-2">{{ r.guest?.purpose_of_visit || '—' }}</td>
+                                <td class="py-2 px-2"><div>{{ formatDate(r.check_in_date) }}</div><div v-if="r.actual_check_in" class="text-[10px] text-gray-500">{{ r.actual_check_in }}</div></td>
+                                <td class="py-2 px-2">{{ formatDate(r.check_out_date) }}<div class="text-[10px] text-gray-500">{{ r.nights }} night{{ r.nights !== 1 ? 's' : '' }}</div></td>
+                                <td class="py-2 px-2"><div>{{ r.guest?.phone || '—' }}</div><div v-if="r.guest?.emergency_contact_name" class="text-[10px] text-gray-500 mt-0.5">Emergency: {{ r.guest?.emergency_contact_name }}</div></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </template>
+
+            <!-- Checked In Today section -->
+            <template v-if="checkedInTodayGuests && checkedInTodayGuests.length > 0">
+                <h3 class="text-sm font-bold uppercase tracking-wide mt-2 mb-2 px-1"
+                    :style="{ color: themeColors.textSecondary }">Checked In Today — {{ checkedInTodayGuests.length }} guest{{ checkedInTodayGuests.length !== 1 ? 's' : '' }}</h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full border-collapse text-xs print:text-[10px]">
+                        <thead>
+                            <tr class="border-b-2" style="border-color:#374151; background:#f9fafb;">
+                                <th class="text-left py-2 px-2 font-semibold text-gray-700">#</th>
+                                <th class="text-left py-2 px-2 font-semibold text-gray-700">Room</th>
+                                <th class="text-left py-2 px-2 font-semibold text-gray-700">Guest Name</th>
+                                <th class="text-left py-2 px-2 font-semibold text-gray-700">DOB / Gender</th>
+                                <th class="text-left py-2 px-2 font-semibold text-gray-700">Nationality</th>
+                                <th class="text-left py-2 px-2 font-semibold text-gray-700">ID / Passport</th>
+                                <th class="text-left py-2 px-2 font-semibold text-gray-700">Visa</th>
+                                <th class="text-left py-2 px-2 font-semibold text-gray-700">Arrival From</th>
+                                <th class="text-left py-2 px-2 font-semibold text-gray-700">Purpose</th>
+                                <th class="text-left py-2 px-2 font-semibold text-gray-700">Check-in</th>
+                                <th class="text-left py-2 px-2 font-semibold text-gray-700">Check-out</th>
+                                <th class="text-left py-2 px-2 font-semibold text-gray-700">Contact</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="(r, i) in checkedInTodayGuests" :key="'t'+i"
+                                class="border-b"
+                                :style="{ borderColor: '#e5e7eb', backgroundColor: i % 2 === 0 ? '#ffffff' : '#f9fafb' }">
+                                <td class="py-2 px-2 text-gray-500">{{ i + 1 }}</td>
+                                <td class="py-2 px-2 font-mono font-semibold">{{ r.room_number }}</td>
+                                <td class="py-2 px-2"><div class="font-semibold">{{ r.guest?.full_name || '—' }}</div><div class="text-gray-500 text-[10px]">{{ r.reservation_number }}</div></td>
+                                <td class="py-2 px-2"><div>{{ formatDate(r.guest?.date_of_birth) }}</div><div class="text-gray-500 capitalize">{{ r.guest?.gender || '—' }}</div></td>
+                                <td class="py-2 px-2">{{ r.guest?.nationality || '—' }}</td>
+                                <td class="py-2 px-2">
+                                    <div v-if="r.guest?.id_number"><span class="text-gray-500">{{ r.guest?.id_type }}:</span> {{ r.guest?.id_number }}</div>
+                                    <div v-if="r.guest?.passport_number" class="mt-0.5"><span class="text-gray-500">Passport:</span> {{ r.guest?.passport_number }}</div>
+                                    <div v-if="!r.guest?.id_number && !r.guest?.passport_number" class="text-gray-400">—</div>
+                                </td>
+                                <td class="py-2 px-2"><div v-if="r.guest?.visa_number">{{ r.guest?.visa_type || 'Visa' }}: {{ r.guest?.visa_number }}</div><span v-else class="text-gray-400">—</span></td>
+                                <td class="py-2 px-2"><div>{{ r.guest?.arrival_from || '—' }}</div><div v-if="r.guest?.departure_to" class="text-gray-500 text-[10px]">→ {{ r.guest?.departure_to }}</div></td>
+                                <td class="py-2 px-2">{{ r.guest?.purpose_of_visit || '—' }}</td>
+                                <td class="py-2 px-2"><div>{{ formatDate(r.check_in_date) }}</div><div v-if="r.actual_check_in" class="text-[10px] text-gray-500">{{ r.actual_check_in }}</div></td>
+                                <td class="py-2 px-2">{{ formatDate(r.check_out_date) }}<div class="text-[10px] text-gray-500">{{ r.nights }} night{{ r.nights !== 1 ? 's' : '' }}</div></td>
+                                <td class="py-2 px-2"><div>{{ r.guest?.phone || '—' }}</div><div v-if="r.guest?.emergency_contact_name" class="text-[10px] text-gray-500 mt-0.5">Emergency: {{ r.guest?.emergency_contact_name }}</div></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </template>
 
             <!-- Signature area -->
             <div class="mt-12 grid grid-cols-3 gap-8 text-xs print:grid-cols-3" :style="{ color: themeColors.textSecondary }">

@@ -396,6 +396,43 @@
                                 <span class="text-kotel-sky-blue/90 text-sm block">Total Room Charges</span>
                                 <p class="text-emerald-300 font-medium">{{ formatCurrency(selectedRoom.total_room_charges) }}</p>
                             </div>
+                            <div v-if="selectedRoom.service_charges" class="bg-kotel-black/50 border border-kotel-yellow/20 rounded-lg p-3">
+                                <span class="text-kotel-sky-blue/90 text-sm block">Service Charges</span>
+                                <p class="text-emerald-300 font-medium">{{ formatCurrency(selectedRoom.service_charges) }}</p>
+                            </div>
+                            <div v-if="selectedRoom.pos_charges" class="bg-kotel-black/50 border border-kotel-yellow/20 rounded-lg p-3">
+                                <span class="text-kotel-sky-blue/90 text-sm block">POS / Restaurant</span>
+                                <p class="text-emerald-300 font-medium">{{ formatCurrency(selectedRoom.pos_charges) }}</p>
+                            </div>
+                            <div v-if="selectedRoom.additional_room_charges" class="bg-kotel-black/50 border border-kotel-yellow/20 rounded-lg p-3">
+                                <span class="text-kotel-sky-blue/90 text-sm block">Room-Posted Charges</span>
+                                <p class="text-emerald-300 font-medium">{{ formatCurrency(selectedRoom.additional_room_charges) }}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div v-if="selectedRoom.room_posted_charges && selectedRoom.room_posted_charges.length > 0">
+                        <h3 class="text-kotel-yellow font-semibold mb-3 flex items-center gap-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8V7m0 1v8m0 0v1m0-1h.01"/></svg>
+                            Room-Posted Charges
+                        </h3>
+                        <div class="bg-kotel-black/50 border border-kotel-yellow/20 rounded-lg p-4 space-y-2">
+                            <div v-for="charge in selectedRoom.room_posted_charges" :key="charge.id"
+                                 class="flex items-start justify-between gap-3 rounded-lg border border-kotel-yellow/10 bg-kotel-black/40 p-3">
+                                <div>
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-white font-medium">{{ charge.description }}</span>
+                                        <span class="rounded-full border border-kotel-yellow/30 bg-kotel-yellow/10 px-2 py-0.5 text-xs text-kotel-yellow">
+                                            {{ charge.type === 'POS' ? 'POS / Restaurant' : 'Service' }}
+                                        </span>
+                                    </div>
+                                    <p class="mt-1 text-xs text-kotel-sky-blue/80">
+                                        {{ charge.charge_date }}<span v-if="charge.charge_time"> {{ charge.charge_time }}</span>
+                                        <span v-if="charge.department"> | {{ charge.department }}</span>
+                                    </p>
+                                </div>
+                                <span class="text-emerald-300 font-medium">{{ formatCurrency(charge.amount) }}</span>
+                            </div>
                         </div>
                     </div>
 

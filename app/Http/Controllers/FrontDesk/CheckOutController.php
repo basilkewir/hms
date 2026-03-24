@@ -402,7 +402,7 @@ class CheckOutController extends Controller
     {
         $validated = $request->validate([
             'reservation_id' => 'required|exists:reservations,id',
-            'description' => 'required|string|max:255',
+            'description' => 'required|string|max:1000',
             'amount' => 'required|numeric|min:0.01',
             'quantity' => 'nullable|integer|min:1|max:100',
             'department' => 'nullable|string|max:100',
@@ -493,7 +493,7 @@ class CheckOutController extends Controller
             'key_card_id' => 'nullable|exists:key_cards,id',
             'key_card_status' => 'nullable|in:returned,lost,damaged',
             'damages' => 'sometimes|array',
-            'damages.*.description' => 'required_with:damages|string|max:255',
+            'damages.*.description' => 'required_with:damages|string|max:1000',
             'damages.*.amount' => 'required_with:damages|numeric|min:0',
         ]);
 

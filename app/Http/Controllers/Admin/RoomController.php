@@ -9,7 +9,9 @@ use App\Models\RoomAmenity;
 use App\Models\Floor;
 use App\Models\BedType;
 use App\Models\Reservation;
+use App\Models\Product;
 use App\Models\User;
+use App\Models\GuestFolio;
 use App\Models\HousekeepingTask;
 use App\Models\MaintenanceRequest;
 use App\Services\LicenseValidationService;
@@ -586,8 +588,111 @@ class RoomController extends Controller
         // Get available key cards for check-in
         $availableKeyCards = \App\Models\KeyCard::available()->get();
 
+        $activeReservationIds = $rooms->map(function ($room) {
+            $activeReservation = $room->currentReservation
+                ?? ($room->status === 'occupied' && $room->reservations->isNotEmpty() ? $room->reservations->first() : null);
+
+            return $activeReservation?->id;
+        })->filter()->unique()->values();
+
+        $foliosByReservationId = GuestFolio::whereIn('reservation_id', $activeReservationIds)
+            ->with(['charges' => function ($query) {
+                $query->where('is_voided', false)
+                    ->orderByDesc('charge_date')
+                    ->orderByDesc('charge_time');
+            }])
+            ->get()
+            ->keyBy('reservation_id');
+
+        $mapRoomData = function ($room) use ($foliosByReservationId) {
+            $activeReservation = $room->currentReservation
+                ?? ($room->status === 'occupied' && $room->reservations->isNotEmpty() ? $room->reservations->first() : null);
+            $activeKeyCard = $activeReservation?->activeKeyCard;
+            $activeFolio = $activeReservation ? $foliosByReservationId->get($activeReservation->id) : null;
+            $folioCharges = $activeFolio?->charges ?? collect();
+            $serviceCharges = (float) $folioCharges->where('charge_code', 'SERVICE')->sum('net_amount');
+            $posCharges = (float) $folioCharges->where('charge_code', 'POS')->sum('net_amount');
+            $additionalRoomCharges = $serviceCharges + $posCharges;
+            $nights = $activeReservation
+                ? $activeReservation->check_in_date->diffInDays($activeReservation->check_out_date)
+                : 0;
+            $roomRate = (float) (($activeReservation?->room_rate
+                ?? ($room->status === 'occupied' && $room->reservations->isNotEmpty() ? $room->reservations->first()->room_rate : null))
+                ?? ($room->roomType->base_price ?? 0));
+            $totalRoomCharges = (float) ($activeFolio?->room_charges
+                ?? $activeReservation?->total_room_charges
+                ?? ($roomRate * $nights));
+
+            return [
+                'id' => $room->id,
+                'number' => $room->room_number,
+                'floor' => $room->floor ? ($room->floor->name ?? "Floor {$room->floor->floor_number}") : ($room->floor ?? 'Unknown'),
+                'floor_number' => $room->floor?->floor_number ?? $room->floor ?? 0,
+                'type' => $room->roomType->name ?? 'N/A',
+                'status' => $room->currentReservation ? 'occupied' : $room->status,
+                'housekeeping_status' => $room->housekeeping_status,
+                'price' => $roomRate,
+                'capacity' => $room->roomType->max_occupancy ?? 0,
+                'guest' => $activeReservation?->guest?->full_name,
+                'guest_phone' => $activeReservation?->guest?->phone,
+                'guest_email' => $activeReservation?->guest?->email,
+                'check_in' => $activeReservation?->check_in_date?->format('Y-m-d H:i'),
+                'check_out' => $activeReservation?->check_out_date?->format('Y-m-d H:i'),
+                'reservation_id' => $activeReservation?->id,
+                'pending_reservation' => $room->pendingReservations->isNotEmpty() ? [
+                    'id' => $room->pendingReservations->first()->id,
+                    'reservation_number' => $room->pendingReservations->first()->reservation_number,
+                    'guest_name' => $room->pendingReservations->first()->guest?->full_name ?? 'N/A',
+                    'check_in_date' => $room->pendingReservations->first()->check_in_date?->format('Y-m-d'),
+                    'check_out_date' => $room->pendingReservations->first()->check_out_date?->format('Y-m-d'),
+                ] : null,
+                'nights' => $nights,
+                'room_rate' => $roomRate,
+                'total_room_charges' => $totalRoomCharges,
+                'service_charges' => $serviceCharges,
+                'pos_charges' => $posCharges,
+                'additional_room_charges' => $additionalRoomCharges,
+                'room_posted_charges' => $folioCharges
+                    ->whereIn('charge_code', ['SERVICE', 'POS'])
+                    ->map(fn($charge) => [
+                        'id' => $charge->id,
+                        'type' => $charge->charge_code,
+                        'description' => $charge->description,
+                        'amount' => (float) $charge->net_amount,
+                        'charge_date' => $charge->charge_date?->format('Y-m-d'),
+                        'charge_time' => $charge->charge_time?->format('H:i'),
+                        'department' => $charge->department,
+                    ])->values(),
+                'total_amount' => (float) ($activeFolio?->total_amount ?? $activeReservation?->total_amount ?? 0),
+                'balance' => (float) ($activeFolio?->balance_amount ?? $activeReservation?->balance_amount ?? 0),
+                'amenities' => $room->roomType?->amenities ?? [],
+                'bed_type' => $room->roomType?->bed_type ?? 'N/A',
+                'view_type' => $room->roomType?->view_type ?? 'N/A',
+                'last_cleaned' => $room->last_cleaned_at?->diffForHumans(),
+                'key_card' => $activeKeyCard ? [
+                    'id' => $activeKeyCard->id,
+                    'card_number' => $activeKeyCard->card_number,
+                    'card_type' => $activeKeyCard->card_type,
+                ] : null,
+            ];
+        };
+
+        $posProducts = Product::query()
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name', 'code', 'price', 'stock_quantity', 'is_service'])
+            ->map(fn($product) => [
+                'id' => $product->id,
+                'name' => $product->name,
+                'code' => $product->code,
+                'price' => (float) ($product->price ?? 0),
+                'stock_quantity' => (int) ($product->stock_quantity ?? 0),
+                'is_service' => (bool) ($product->is_service ?? false),
+            ])
+            ->values();
+
         $routeName = request()->route()->getName() ?? '';
-        $viewPath = str_starts_with($routeName, 'manager.') ? 'Manager/Reservations/RoomStatus' : 'Admin/Rooms/Status';
+        $viewPath = str_starts_with($routeName, 'manager.') ? 'Manager/Rooms/Status' : 'Admin/Rooms/Status';
 
         return Inertia::render($viewPath, [
             'user' => auth()->user()->load('roles'),
@@ -596,44 +701,9 @@ class RoomController extends Controller
                 'card_number' => $card->card_number,
                 'card_type' => $card->card_type,
             ]),
-            'rooms' => $rooms->map(fn($room) => [
-                'id' => $room->id,
-                'number' => $room->room_number,
-                'floor' => $room->floor ? ($room->floor->name ?? "Floor {$room->floor->floor_number}") : ($room->floor ?? 'Unknown'),
-                'floor_number' => $room->floor?->floor_number ?? $room->floor ?? 0,
-                'type' => $room->roomType->name ?? 'N/A',
-                'status' => $room->currentReservation ? 'occupied' : $room->status,
-                'housekeeping_status' => $room->housekeeping_status,
-                // Use reservation's room_rate if available, otherwise fall back to room type base_price
-                'price' => ($room->currentReservation?->room_rate ?? ($room->status === 'occupied' && $room->reservations->isNotEmpty() ? $room->reservations->first()->room_rate : null)) ?? ($room->roomType->base_price ?? 0),
-                'capacity' => $room->roomType->max_occupancy ?? 0,
-                'guest' => $room->currentReservation?->guest?->full_name ?? ($room->status === 'occupied' && $room->reservations->isNotEmpty() ? $room->reservations->first()->guest?->full_name : null),
-                'guest_phone' => $room->currentReservation?->guest?->phone ?? ($room->status === 'occupied' && $room->reservations->isNotEmpty() ? $room->reservations->first()->guest?->phone : null),
-                'guest_email' => $room->currentReservation?->guest?->email ?? ($room->status === 'occupied' && $room->reservations->isNotEmpty() ? $room->reservations->first()->guest?->email : null),
-                'check_in' => $room->currentReservation?->check_in_date?->format('Y-m-d H:i') ?? ($room->status === 'occupied' && $room->reservations->isNotEmpty() ? $room->reservations->first()->check_in_date?->format('Y-m-d H:i') : null),
-                'check_out' => $room->currentReservation?->check_out_date?->format('Y-m-d H:i') ?? ($room->status === 'occupied' && $room->reservations->isNotEmpty() ? $room->reservations->first()->check_out_date?->format('Y-m-d H:i') : null),
-                'reservation_id' => $room->currentReservation?->id ?? ($room->status === 'occupied' && $room->reservations->isNotEmpty() ? $room->reservations->first()->id : null),
-                'pending_reservation' => $room->pendingReservations->isNotEmpty() ? [
-                    'id' => $room->pendingReservations->first()->id,
-                    'reservation_number' => $room->pendingReservations->first()->reservation_number,
-                    'guest_name' => $room->pendingReservations->first()->guest?->full_name ?? 'N/A',
-                    'check_in_date' => $room->pendingReservations->first()->check_in_date?->format('Y-m-d'),
-                    'check_out_date' => $room->pendingReservations->first()->check_out_date?->format('Y-m-d'),
-                ] : null,
-                'nights' => ($room->currentReservation ?? ($room->status === 'occupied' && $room->reservations->isNotEmpty() ? $room->reservations->first() : null)) ? (($room->currentReservation ?? $room->reservations->first())->check_in_date->diffInDays(($room->currentReservation ?? $room->reservations->first())->check_out_date)) : 0,
-                'total_amount' => $room->currentReservation?->total_amount ?? ($room->status === 'occupied' && $room->reservations->isNotEmpty() ? $room->reservations->first()->total_amount ?? 0 : 0),
-                'balance' => $room->currentReservation?->balance_amount ?? ($room->status === 'occupied' && $room->reservations->isNotEmpty() ? $room->reservations->first()->balance_amount ?? 0 : 0),
-                'amenities' => $room->roomType?->amenities ?? [],
-                'bed_type' => $room->roomType?->bed_type ?? 'N/A',
-                'view_type' => $room->roomType?->view_type ?? 'N/A',
-                'last_cleaned' => $room->last_cleaned_at?->diffForHumans(),
-                'key_card' => ($room->currentReservation?->activeKeyCard ?? ($room->status === 'occupied' && $room->reservations->isNotEmpty() ? $room->reservations->first()->activeKeyCard : null)) ? [
-                    'id' => ($room->currentReservation?->activeKeyCard ?? $room->reservations->first()->activeKeyCard)->id,
-                    'card_number' => ($room->currentReservation?->activeKeyCard ?? $room->reservations->first()->activeKeyCard)->card_number,
-                    'card_type' => ($room->currentReservation?->activeKeyCard ?? $room->reservations->first()->activeKeyCard)->card_type,
-                ] : null,
-            ]),
+            'rooms' => $rooms->map($mapRoomData),
             'roomStatus' => $roomStatus,
+            'posProducts' => $posProducts,
         ]);
     }
 

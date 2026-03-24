@@ -8,6 +8,8 @@ use App\Models\Guest;
 use App\Models\Room;
 use App\Models\RoomType;
 use App\Models\GroupBooking;
+use App\Models\GuestFolio;
+use App\Models\FolioCharge;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Str;
@@ -521,6 +523,42 @@ class ReservationController extends Controller
     {
         $reservation->load(['guest', 'room', 'roomType', 'groupBooking', 'createdBy', 'checkedInBy', 'checkedOutBy']);
 
+        $folio = \App\Models\GuestFolio::with(['charges' => function ($query) {
+            $query->whereIn('charge_code', ['SERVICE', 'POS'])
+                ->where('is_voided', false)
+                ->orderBy('charge_date', 'asc')
+                ->orderBy('created_at', 'asc');
+        }])->where('reservation_id', $reservation->id)->first();
+
+        $chargeItems = $folio
+            ? $folio->charges->map(fn ($charge) => [
+                'id' => $charge->id,
+                'charge_code' => $charge->charge_code,
+                'charge_type' => $charge->charge_code === 'POS' ? 'POS / Restaurant' : 'Service',
+                'description' => $charge->description,
+                'quantity' => (int) $charge->quantity,
+                'unit_price' => (float) $charge->unit_price,
+                'total_amount' => (float) $charge->total_amount,
+                'tax_amount' => (float) $charge->tax_amount,
+                'net_amount' => (float) $charge->net_amount,
+                'charge_date' => $charge->charge_date?->format('Y-m-d'),
+                'department' => $charge->department,
+            ])->values()->toArray()
+            : [];
+
+        $dynamicServiceCharges = $folio
+            ? (float) $folio->charges->where('charge_code', 'SERVICE')->sum('net_amount')
+            : (float) ($reservation->service_charges ?? 0);
+        $dynamicPosCharges = $folio
+            ? (float) $folio->charges->where('charge_code', 'POS')->sum('net_amount')
+            : 0.0;
+        $dynamicAdditionalRoomCharges = $dynamicServiceCharges + $dynamicPosCharges;
+        $dynamicRoomCharges = $folio ? (float) ($folio->room_charges ?? 0) : (float) ($reservation->total_room_charges ?? 0);
+        $dynamicTaxes = $folio ? (float) ($folio->tax_amount ?? 0) : (float) ($reservation->taxes ?? 0);
+        $dynamicTotalAmount = $folio ? (float) ($folio->total_amount ?? 0) : (float) ($reservation->total_amount ?? 0);
+        $dynamicPaidAmount = $folio ? (float) ($folio->paid_amount ?? 0) : (float) ($reservation->paid_amount ?? 0);
+        $dynamicBalanceAmount = $folio ? (float) ($folio->balance_amount ?? 0) : (float) ($reservation->balance_amount ?? 0);
+
         // Determine which view to render based on route name (prioritize route over role)
         $routeName = request()->route()->getName() ?? '';
         $user = auth()->user();
@@ -558,14 +596,17 @@ class ReservationController extends Controller
                 'booking_source' => $reservation->booking_source,
                 'booking_reference' => $reservation->booking_reference,
                 'room_rate' => $reservation->room_rate,
-                'total_room_charges' => $reservation->total_room_charges,
-                'taxes' => $reservation->taxes,
-                'service_charges' => $reservation->service_charges,
+                'total_room_charges' => $dynamicRoomCharges,
+                'taxes' => $dynamicTaxes,
+                'service_charges' => $dynamicServiceCharges,
+                'pos_charges' => $dynamicPosCharges,
+                'additional_room_charges' => $dynamicAdditionalRoomCharges,
+                'service_charge_items' => $chargeItems,
                 'discount_amount' => $reservation->discount_amount,
                 'discount_reason' => $reservation->discount_reason,
-                'total_amount' => $reservation->total_amount,
-                'paid_amount' => $reservation->paid_amount,
-                'balance_amount' => $reservation->balance_amount,
+                'total_amount' => $dynamicTotalAmount,
+                'paid_amount' => $dynamicPaidAmount,
+                'balance_amount' => $dynamicBalanceAmount,
                 'special_requests' => $reservation->special_requests,
                 'room_preferences' => $reservation->room_preferences,
                 'actual_check_in' => $reservation->actual_check_in?->format('Y-m-d H:i:s'),
@@ -658,6 +699,9 @@ class ReservationController extends Controller
                 'status' => $reservation->status,
                 'group_booking_id' => $reservation->group_booking_id,
                 'is_group_booking' => $reservation->is_group_booking,
+                'paid_amount' => $reservation->paid_amount,
+                'total_amount' => $reservation->total_amount,
+                'balance_amount' => $reservation->balance_amount,
             ],
             'guests' => $guests,
             'roomTypes' => $roomTypes,
@@ -674,12 +718,23 @@ class ReservationController extends Controller
                 'travel_agent' => 'Travel Agent',
                 'corporate' => 'Corporate',
             ],
+            'pricingSettings' => [
+                'auto_apply_guest_type_discount' => (bool) Setting::get('auto_apply_guest_type_discount', true),
+                'auto_apply_vip_discount' => (bool) Setting::get('auto_apply_vip_discount', true),
+                'vip_discount_percentage' => (float) Setting::get('vip_discount_percentage', 0),
+                'discount_combination_mode' => Setting::get('discount_combination_mode', 'add'),
+                'tax_rate' => (float) Setting::get('room_tax_rate', Setting::get('tax_rate', 0)),
+                'service_charge_rate' => (float) Setting::get('service_charge_rate', 0),
+            ],
         ]);
     }
 
     public function update(Request $request, Reservation $reservation)
     {
         $originalRoomId = $reservation->room_id;
+        $openFolio = GuestFolio::where('reservation_id', $reservation->id)
+            ->where('status', 'open')
+            ->first();
 
         $validated = $request->validate([
             'guest_id' => 'required|exists:guests,id',
@@ -687,6 +742,7 @@ class ReservationController extends Controller
             'room_id' => 'nullable|exists:rooms,id',
             'check_in_date' => 'required|date',
             'check_out_date' => 'required|date|after:check_in_date',
+            'extend_days' => 'nullable|integer|min:0|max:365',
             'number_of_adults' => 'required|integer|min:1',
             'number_of_children' => 'nullable|integer|min:0',
             'infants' => 'nullable|integer|min:0',
@@ -701,6 +757,15 @@ class ReservationController extends Controller
             'group_booking_id' => 'nullable|exists:group_bookings,id',
             'is_group_booking' => 'nullable|boolean',
         ]);
+
+        $extendDays = (int) ($validated['extend_days'] ?? 0);
+        if ($extendDays > 0) {
+            $validated['check_out_date'] = Carbon::parse($validated['check_out_date'])
+                ->addDays($extendDays)
+                ->toDateString();
+        }
+
+        unset($validated['extend_days']);
 
         // Recalculate if dates or rates changed
         $checkIn = Carbon::parse($validated['check_in_date']);
@@ -764,12 +829,15 @@ class ReservationController extends Controller
             $validated['discount_reason'] = $discountReason;
         }
 
+        $currentPaidAmount = (float) ($openFolio?->paid_amount ?? $reservation->paid_amount ?? 0);
+
         $validated['nights'] = $nights;
         $validated['total_room_charges'] = $totalRoomCharges;
         $validated['taxes'] = $taxes;
         $validated['service_charges'] = $serviceCharges;
         $validated['total_amount'] = $totalAmount;
-        $validated['balance_amount'] = $totalAmount - ($reservation->paid_amount ?? 0);
+        $validated['paid_amount'] = $currentPaidAmount;
+        $validated['balance_amount'] = max(0, $totalAmount - $currentPaidAmount);
         $validated['updated_by'] = auth()->id();
 
         if (($validated['status'] ?? null) === 'cancelled') {
@@ -791,6 +859,10 @@ class ReservationController extends Controller
 
         $reservation->update($validated);
 
+        if (($validated['status'] ?? null) !== 'cancelled') {
+            $this->syncOpenFolioFromReservation($reservation, $openFolio);
+        }
+
         $this->refreshRoomOccupancyStatus($originalRoomId);
         $this->refreshRoomOccupancyStatus($reservation->room_id);
 
@@ -806,6 +878,63 @@ class ReservationController extends Controller
 
         return redirect()->route('admin.reservations.show', $reservation->id)
             ->with('success', 'Reservation updated successfully!');
+    }
+
+    private function syncOpenFolioFromReservation(Reservation $reservation, ?GuestFolio $folio = null): void
+    {
+        $folio = $folio ?: GuestFolio::where('reservation_id', $reservation->id)
+            ->where('status', 'open')
+            ->first();
+
+        if (!$folio) {
+            return;
+        }
+
+        $serviceChargeTotal = (float) FolioCharge::where('guest_folio_id', $folio->id)
+            ->where('charge_code', 'SERVICE')
+            ->where('is_voided', false)
+            ->sum('net_amount');
+
+        $posChargeTotal = (float) FolioCharge::where('guest_folio_id', $folio->id)
+            ->where('charge_code', 'POS')
+            ->where('is_voided', false)
+            ->sum('net_amount');
+
+        $baseReservationTotal = (float) ($reservation->total_amount ?? 0);
+        $folioPaidAmount = (float) ($folio->paid_amount ?? $reservation->paid_amount ?? 0);
+        $folioTotalAmount = $baseReservationTotal + $serviceChargeTotal + $posChargeTotal;
+        $folioBalanceAmount = max(0, $folioTotalAmount - $folioPaidAmount);
+
+        $folio->update([
+            'guest_id' => $reservation->guest_id,
+            'room_id' => $reservation->room_id,
+            'room_charges' => (float) ($reservation->total_room_charges ?? 0),
+            'service_charges' => (float) ($reservation->service_charges ?? 0),
+            'tax_amount' => (float) ($reservation->taxes ?? 0),
+            'discount_amount' => (float) ($reservation->discount_amount ?? 0),
+            'total_amount' => $folioTotalAmount,
+            'paid_amount' => $folioPaidAmount,
+            'balance_amount' => $folioBalanceAmount,
+            'payment_status' => $folioBalanceAmount <= 0 ? 'paid' : ($folioPaidAmount > 0 ? 'partial' : 'pending'),
+        ]);
+
+        $roomCharge = FolioCharge::where('guest_folio_id', $folio->id)
+            ->where('charge_code', 'ROOM')
+            ->orderBy('id')
+            ->first();
+
+        if ($roomCharge) {
+            $roomCharge->update([
+                'description' => 'Room charges - ' . max(1, (int) ($reservation->nights ?? 1)) . ' night(s)',
+                'quantity' => max(1, (int) ($reservation->nights ?? 1)),
+                'unit_price' => (float) ($reservation->room_rate ?? 0),
+                'total_amount' => (float) ($reservation->total_room_charges ?? 0),
+                'tax_amount' => (float) ($reservation->taxes ?? 0),
+                'discount_amount' => (float) ($reservation->discount_amount ?? 0),
+                'net_amount' => $baseReservationTotal,
+                'reference_id' => $reservation->id,
+            ]);
+        }
     }
 
     public function confirm(Reservation $reservation)

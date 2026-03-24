@@ -1858,6 +1858,40 @@ class POSController extends Controller
             ];
         });
 
+        // Daily sales by staff (for employee daily performance)
+        $dailyStaffSales = $sales
+            ->groupBy(function($sale) {
+                return $sale->sale_date->format('Y-m-d');
+            })
+            ->map(function($dayGroup, $date) {
+                return $dayGroup->groupBy('user_id')->map(function($staffGroup, $staffId) use ($date) {
+                    $staffSales = $staffGroup->sum('total_amount');
+                    $staffCost = 0;
+                    foreach ($staffGroup as $sale) {
+                        foreach ($sale->items as $item) {
+                            $staffCost += ($item->unit_cost ?? 0) * $item->quantity;
+                        }
+                    }
+
+                    $firstSale = $staffGroup->first();
+                    return [
+                        'date' => $date,
+                        'user_id' => $staffId,
+                        'name' => $firstSale->user ? trim(($firstSale->user->first_name ?? '') . ' ' . ($firstSale->user->last_name ?? '')) : 'Unknown',
+                        'count' => $staffGroup->count(),
+                        'total' => $staffSales,
+                        'average_sale' => $staffGroup->count() > 0 ? ($staffSales / $staffGroup->count()) : 0,
+                        'profit' => $staffSales - $staffCost,
+                    ];
+                })->values();
+            })
+            ->flatten(1)
+            ->sortBy([
+                ['date', 'desc'],
+                ['total', 'desc'],
+            ])
+            ->values();
+
         // Update top products with profit
         $topProducts = collect($productSales)->map(function($product) {
             $product['profit'] = $product['revenue'] - ($product['cost'] ?? 0);
@@ -1907,6 +1941,7 @@ class POSController extends Controller
             'byPaymentMethod' => $byPaymentMethod,
             'byDay' => $byDay,
             'byStaff' => $byStaff,
+            'dailyStaffSales' => $dailyStaffSales,
             'topProducts' => $topProducts,
             'topCustomers' => $topCustomers,
             'customers' => Customer::active()->orderBy('first_name')->get(['id', 'first_name', 'last_name', 'customer_code']),

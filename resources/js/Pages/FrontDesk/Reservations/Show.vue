@@ -36,6 +36,12 @@
                           :style="{ backgroundColor: themeColors.warning }">
                         Edit
                     </Link>
+                                        <Link v-if="reservation.status === 'checked_in'"
+                                                    :href="route('front-desk.reservations.edit', reservation.id)"
+                                                    class="px-4 py-2 rounded-md transition-colors font-medium text-white"
+                                                    :style="{ backgroundColor: themeColors.secondary }">
+                                                Extend Stay
+                                        </Link>
                     <Link :href="route('front-desk.reservations.index')"
                           class="px-4 py-2 rounded-md transition-colors font-medium text-white"
                           :style="{ backgroundColor: themeColors.primary }">
@@ -161,6 +167,10 @@
                                 <span :style="{ color: themeColors.textSecondary }">Service Charges:</span>
                                 <span class="font-medium" :style="{ color: themeColors.textPrimary }">{{ formatCurrency(reservation.service_charges) }}</span>
                             </div>
+                            <div v-if="(reservation.pos_charges || 0) > 0" class="flex justify-between text-sm">
+                                <span :style="{ color: themeColors.textSecondary }">POS / Restaurant Charges:</span>
+                                <span class="font-medium" :style="{ color: themeColors.textPrimary }">{{ formatCurrency(reservation.pos_charges) }}</span>
+                            </div>
                             <div class="flex justify-between text-sm font-semibold pt-2 border-t"
                                  :style="{ borderTopColor: themeColors.border, borderTopWidth: '1px' }">
                                 <span :style="{ color: themeColors.textSecondary }">Total Amount:</span>
@@ -266,16 +276,17 @@
             </div>
         </div>
 
-        <!-- Service Charge Items (dynamic, from folio) -->
+        <!-- Room-posted Service and POS Charges -->
         <div v-if="reservation.service_charge_items && reservation.service_charge_items.length > 0"
              class="shadow rounded-lg p-6 mt-6"
              :style="{ backgroundColor: themeColors.card }">
-            <h3 class="text-lg font-medium mb-4" :style="{ color: themeColors.textPrimary }">Service Charges</h3>
+            <h3 class="text-lg font-medium mb-4" :style="{ color: themeColors.textPrimary }">Room-Posted Charges</h3>
             <div class="overflow-x-auto">
                 <table class="w-full text-sm">
                     <thead>
                         <tr class="border-b" :style="{ borderColor: themeColors.border }">
                             <th class="text-left py-2 pr-4 font-medium" :style="{ color: themeColors.textSecondary }">Date</th>
+                            <th class="text-left py-2 pr-4 font-medium" :style="{ color: themeColors.textSecondary }">Type</th>
                             <th class="text-left py-2 pr-4 font-medium" :style="{ color: themeColors.textSecondary }">Description</th>
                             <th class="text-left py-2 pr-4 font-medium" :style="{ color: themeColors.textSecondary }">Department</th>
                             <th class="text-right py-2 pr-4 font-medium" :style="{ color: themeColors.textSecondary }">Qty</th>
@@ -287,6 +298,7 @@
                         <tr v-for="item in reservation.service_charge_items" :key="item.id"
                             class="border-b" :style="{ borderColor: themeColors.border }">
                             <td class="py-2 pr-4" :style="{ color: themeColors.textSecondary }">{{ item.charge_date }}</td>
+                            <td class="py-2 pr-4" :style="{ color: themeColors.textSecondary }">{{ item.charge_type }}</td>
                             <td class="py-2 pr-4" :style="{ color: themeColors.textPrimary }">{{ item.description }}</td>
                             <td class="py-2 pr-4" :style="{ color: themeColors.textSecondary }">{{ item.department || '—' }}</td>
                             <td class="py-2 pr-4 text-right" :style="{ color: themeColors.textPrimary }">{{ item.quantity }}</td>
@@ -296,8 +308,8 @@
                     </tbody>
                     <tfoot>
                         <tr>
-                            <td colspan="5" class="pt-3 text-right font-semibold" :style="{ color: themeColors.textSecondary }">Total Service Charges:</td>
-                            <td class="pt-3 text-right font-bold" :style="{ color: themeColors.primary }">{{ formatCurrency(reservation.service_charges) }}</td>
+                            <td colspan="6" class="pt-3 text-right font-semibold" :style="{ color: themeColors.textSecondary }">Total Additional Room Charges:</td>
+                            <td class="pt-3 text-right font-bold" :style="{ color: themeColors.primary }">{{ formatCurrency(reservation.additional_room_charges || reservation.service_charges) }}</td>
                         </tr>
                     </tfoot>
                 </table>

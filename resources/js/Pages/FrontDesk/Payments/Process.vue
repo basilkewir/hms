@@ -29,7 +29,7 @@
                                     :style="{ backgroundColor: themeColors.background, borderColor: themeColors.border, color: themeColors.textPrimary }">
                                 <option value="">Select Guest</option>
                                 <option v-for="guest in currentGuests" :key="guest.id" :value="guest.id">
-                                    {{ guest.name }} — Room {{ guest.room }} (Balance: {{ formatCurrency(guest.balance) }})
+                                    {{ guest.name }} — Room {{ guest.room }} (Remaining: {{ formatCurrency(guest.balance) }})
                                 </option>
                             </select>
                         </div>
@@ -58,8 +58,11 @@
                             <span :style="{ color: themeColors.textSecondary }">Amount Paid</span>
                             <span :style="{ color: themeColors.success }">{{ formatCurrency(selectedGuest.paid) }}</span>
                         </div>
+                        <div v-if="selectedGuest.paid > 0" class="text-sm pt-1" :style="{ color: themeColors.success }">
+                            Advance payment already applied. Only the remaining balance is due.
+                        </div>
                         <div class="flex items-center justify-between border-t pt-2" :style="{ borderColor: themeColors.border }">
-                            <span class="font-semibold" :style="{ color: themeColors.textPrimary }">Outstanding Balance</span>
+                            <span class="font-semibold" :style="{ color: themeColors.textPrimary }">Remaining Balance</span>
                             <span class="font-bold text-lg" :style="{ color: themeColors.danger }">{{ formatCurrency(totalAmount) }}</span>
                         </div>
                     </div>
@@ -149,7 +152,7 @@
 
         <!-- Recent Payments -->
         <div class="shadow rounded-lg p-6 mt-8 border" :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }">
-            <h3 class="text-lg font-medium mb-4" :style="{ color: themeColors.textPrimary }">Recent Payments</h3>
+            <h3 class="text-lg font-medium mb-4" :style="{ color: themeColors.textPrimary }">Your Recent Payments</h3>
             <div class="overflow-x-auto">
                 <table class="min-w-full">
                     <thead :style="{ backgroundColor: themeColors.background }">
@@ -397,18 +400,9 @@ const selectedGuest = computed(() => {
 const loadGuestBill = () => {
     if (!selectedGuest.value) return
 
-    // Calculate current balance by subtracting all payments from total amount
-    // We need to fetch the actual reservation data to get accurate payment information
-    // For now, we'll use the balance from the guest data, but in a real implementation
-    // this should be calculated server-side
+    const remainingBalance = parseFloat(selectedGuest.value.balance || 0)
 
-    const totalAmountValue = parseFloat(selectedGuest.value.total || 0)
-    const paidAmount = parseFloat(selectedGuest.value.paid || 0)
-
-    // Calculate remaining balance
-    const remainingBalance = totalAmountValue - paidAmount
-
-    totalAmount.value = Number.isFinite(remainingBalance) ? remainingBalance : 0
+    totalAmount.value = Number.isFinite(remainingBalance) ? Math.max(remainingBalance, 0) : 0
     form.value.amount = totalAmount.value ? totalAmount.value.toFixed(2) : ''
 }
 

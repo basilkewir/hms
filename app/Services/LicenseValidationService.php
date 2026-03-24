@@ -298,55 +298,54 @@ class LicenseValidationService
     /**
      * Determine whether the system is licensed to operate.
      *
-     * - TRIAL license: checked locally (no network, 14-day window)
-     * - Real license:  validated online against kewirdev.com
-     *                  No offline fallback — if the server is unreachable the
-     *                  CheckLicense middleware's 10-minute cache provides a
-     *                  brief grace window for transient connectivity issues.
+     * Requires an active real license that validates online.
+     * No offline fallback and no trial bypass.
      */
     public function isSystemLicensed(): bool
     {
-        // Prefer a real active license over a trial
         $real = \App\Models\License::whereNotNull('license_key')
             ->where('status', 'active')
             ->whereNotIn('license_type', ['TRIAL'])
             ->latest('id')
             ->first();
 
-        if ($real) {
-            try {
-                if ($this->validateOnline($real)) {
-                    return true;
-                }
-            } catch (\RuntimeException $e) {
-                // Allow middleware grace handling, but still try valid trial fallback first.
-                if (!$this->hasValidTrial()) {
-                    throw $e;
-                }
-                return true;
-            }
-
-            // Real license is not valid right now — allow access if trial is still valid.
-            if ($this->hasValidTrial()) {
-                return true;
-            }
-
+        if (!$real) {
             return false;
         }
 
-        // Fall back to trial license
-        return $this->hasValidTrial();
+        return $this->validateOnline($real);
     }
 
-    private function hasValidTrial(): bool
+    private function persistOnlineVerification(\App\Models\License $license, array $serverData = []): void
     {
-        $trial = \App\Models\License::where('status', 'trial')->latest('id')->first();
+        $currentData = $license->license_data ?? [];
+        $status = strtoupper($serverData['status'] ?? $currentData['status'] ?? 'ACTIVE');
+        $expiresRaw = $serverData['expires_at'] ?? ($currentData['token_expires_at'] ?? null);
+        $formattedExpires = $expiresRaw
+            ? ($expiresRaw === 'Never' ? 'Never' : date('n/j/Y', strtotime((string) $expiresRaw)))
+            : ($currentData['expires_at'] ?? null);
 
-        if (!$trial || !$trial->expires_at) {
-            return false;
-        }
+        $mergedData = array_merge($currentData, [
+            'hotel_name' => $serverData['hotel_name'] ?? ($currentData['hotel_name'] ?? config('app.name')),
+            'license_type' => strtoupper($serverData['license_type'] ?? ($currentData['license_type'] ?? $license->license_type ?? 'BASIC')),
+            'status' => $status,
+            'expires_at' => $formattedExpires,
+            'features' => $serverData['features'] ?? ($currentData['features'] ?? []),
+            'is_valid' => $status === 'ACTIVE',
+            'online_verified' => true,
+            'validated_at' => now()->toISOString(),
+        ]);
 
-        return Carbon::now()->lt(Carbon::parse($trial->expires_at));
+        $license->update([
+            'status' => $status === 'ACTIVE' ? 'active' : 'inactive',
+            'license_data' => $mergedData,
+            'license_type' => $mergedData['license_type'] ?? $license->license_type,
+            'customer_name' => $mergedData['hotel_name'] ?? $license->customer_name,
+            'expires_at' => ($expiresRaw && $expiresRaw !== 'Never') ? $expiresRaw : $license->expires_at,
+            'last_validated_at' => now(),
+        ]);
+
+        Cache::forget('license_valid');
     }
 
     /**
@@ -393,8 +392,7 @@ class LicenseValidationService
                         return false;
                     }
 
-                    $license->update(['status' => 'active', 'last_validated_at' => now()]);
-                    Cache::put('license_last_known_valid', now()->timestamp, 86400);
+                    $this->persistOnlineVerification($license, $data['data'] ?? []);
                     return true;
                 }
 
@@ -445,8 +443,12 @@ class LicenseValidationService
                 if (!empty($data['token'])) {
                     $this->storeToken($data['token'], $deviceId, $data['expires_at'] ?? null);
                 }
-                $license->update(['status' => 'active', 'last_validated_at' => now()]);
-                Cache::put('license_last_known_valid', now()->timestamp, 86400);
+                $this->persistOnlineVerification($license, [
+                    'status' => 'ACTIVE',
+                    'expires_at' => $data['expires_at'] ?? null,
+                    'features' => $data['features'] ?? null,
+                    'license_type' => $data['license_type'] ?? null,
+                ]);
                 return true;
             }
 

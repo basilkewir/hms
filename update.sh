@@ -17,9 +17,6 @@ INSTALL_DIR="/opt/hms"
 BACKUP_DIR="/root/hms_backups"
 DATE=$(date +%Y%m%d_%H%M%S)
 
-# Resolve the directory where this script lives (the source)
-SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
 # Helper functions
 info()    { echo -e "${BLUE}[INFO]${NC} $1"; }
 success() { echo -e "${GREEN}[✓]${NC} $1"; }
@@ -43,21 +40,11 @@ fi
 
 step "HMS Update Script"
 
-info "Source directory : $SOURCE_DIR"
 info "Install directory: $INSTALL_DIR"
 info ""
-info "Your database and .env file will NOT be modified."
+info "Code sync is MANUAL: push to git, pull on server, then run this script."
+info "Your database and .env file will NOT be modified by this script."
 info ""
-
-step "Pulling Latest Code from GitHub"
-
-if git -C "$SOURCE_DIR" rev-parse --is-inside-work-tree &>/dev/null; then
-    info "Running git pull origin master in $SOURCE_DIR..."
-    git -C "$SOURCE_DIR" pull origin master || error "git pull failed. Fix any conflicts or connectivity issues and re-run."
-    success "Source code up to date"
-else
-    warning "$SOURCE_DIR is not a git repository — skipping git pull. Files will be copied as-is."
-fi
 
 mkdir -p "$BACKUP_DIR"
 
@@ -90,32 +77,17 @@ if [[ $BACKUP_DB == "y" || $BACKUP_DB == "Y" ]]; then
     fi
 fi
 
-step "Copying Updated Application Files"
+step "Verifying Pulled Code"
 
-info "Copying from: $SOURCE_DIR"
-info "Copying to  : $INSTALL_DIR"
-
-# Directories to sync (never touch storage/ or .env)
-for dir in app bootstrap config database resources routes tests public/build; do
-    if [ -d "$SOURCE_DIR/$dir" ]; then
-        info "  → $dir"
-        rm -rf "$INSTALL_DIR/$dir"
-        cp -r "$SOURCE_DIR/$dir" "$INSTALL_DIR/$dir"
-    fi
-done
-
-# Root-level files to copy
-for file in artisan package.json package-lock.json composer.json composer.lock vite.config.js; do
-    if [ -f "$SOURCE_DIR/$file" ]; then
-        info "  → $file"
-        cp "$SOURCE_DIR/$file" "$INSTALL_DIR/$file"
-    fi
-done
-
-# Copy .env.example but never overwrite .env
-[ -f "$SOURCE_DIR/.env.example" ] && cp "$SOURCE_DIR/.env.example" "$INSTALL_DIR/.env.example"
-
-success "Application files copied"
+if ! git -C "$INSTALL_DIR" rev-parse --is-inside-work-tree &>/dev/null; then
+    warning "$INSTALL_DIR is not a git repository. Ensure updated code is already present before continuing."
+else
+    CURRENT_BRANCH=$(git -C "$INSTALL_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+    CURRENT_COMMIT=$(git -C "$INSTALL_DIR" rev-parse --short HEAD 2>/dev/null || echo "unknown")
+    info "Detected git repo in $INSTALL_DIR"
+    info "Current branch: $CURRENT_BRANCH"
+    info "Current commit: $CURRENT_COMMIT"
+fi
 
 step "Setting Permissions"
 
@@ -213,8 +185,7 @@ echo ""
 echo "✓ HMS has been successfully updated!"
 echo ""
 echo "Summary:"
-echo "  - Files copied from : $SOURCE_DIR"
-echo "  - Files updated in  : $INSTALL_DIR"
+echo "  - Updated code in   : $INSTALL_DIR (pulled manually)"
 echo "  - Migrations run"
 echo "  - Caches cleared"
 echo "  - Services restarted"

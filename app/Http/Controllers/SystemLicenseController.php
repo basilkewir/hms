@@ -75,63 +75,26 @@ class SystemLicenseController extends Controller
             ]);
         }
 
-        // Get license key from database and verify online
-        $licenseKey = $license->license_key;
-        $verifiedData = $this->verifyLicenseOnline($licenseKey);
-        
-        if ($verifiedData) {
-            // Check if license is revoked, expired, or inactive
-            if (strtoupper($verifiedData['status']) !== 'ACTIVE') {
-                // Mark license as inactive in database
-                $license->update(['status' => 'inactive']);
-                
-                return response()->json([
-                    'licensed' => false,
-                    'status' => null,
-                    'message' => 'License is ' . strtolower($verifiedData['status'])
-                ]);
-            }
-            
-            // Check expiry date
-            if (isset($verifiedData['expires_at']) && $verifiedData['expires_at'] !== 'Never') {
-                $expiryDate = strtotime($verifiedData['expires_at']);
-                if ($expiryDate && $expiryDate < time()) {
-                    $license->update(['status' => 'expired']);
-                    
-                    return response()->json([
-                        'licensed' => false,
-                        'status' => null,
-                        'message' => 'License has expired'
-                    ]);
-                }
-            }
-            
-            // Update database with latest info
-            $license->update([
-                'license_data' => $verifiedData,
-                'last_validated_at' => now()
-            ]);
-            
-            return response()->json([
-                'licensed' => true,
-                'status' => $verifiedData
-            ]);
+        try {
+            $licensed = $this->licenseService->isSystemLicensed();
+        } catch (\Throwable $e) {
+            Log::warning('License status verification failed (online check required): ' . $e->getMessage());
+            $licensed = false;
         }
-        
-        // If online verification fails, check stored data status
-        $storedData = $license->license_data;
-        if ($storedData && isset($storedData['status']) && strtoupper($storedData['status']) !== 'ACTIVE') {
+
+        if (!$licensed) {
             return response()->json([
                 'licensed' => false,
                 'status' => null,
-                'message' => 'License is ' . strtolower($storedData['status'])
+                'message' => 'Online license verification failed'
             ]);
         }
-        
-        // Return stored data if online check fails but license appears active
+
+        $licenseStatus = $this->licenseService->getLicenseStatus();
+
         return response()->json([
             'licensed' => true,
-            'status' => $license->license_data
+            'status' => $licenseStatus['status'] ?? $license->license_data,
         ]);
     }
 

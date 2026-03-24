@@ -239,75 +239,63 @@
         </div>
 
         <!-- Requests Table -->
-        <div class="shadow rounded-lg overflow-hidden"
-             :style="{
-                 backgroundColor: themeColors.card,
-                 borderColor: themeColors.border
-             }">
-            <div class="px-6 py-4 border-b"
-                 :style="{ borderColor: themeColors.border }">
-                <h3 class="text-lg font-medium"
-                    :style="{ color: themeColors.textPrimary }">Recent Maintenance Requests</h3>
+        <div class="shadow rounded-lg overflow-hidden mb-8"
+             :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }">
+            <div class="px-6 py-4 border-b" :style="{ borderColor: themeColors.border }">
+                <h3 class="text-lg font-medium" :style="{ color: themeColors.textPrimary }">Recent Maintenance Requests</h3>
             </div>
             <div class="overflow-x-auto">
-                <table class="min-w-full">
-                    <thead>
-                        <tr :style="{ backgroundColor: 'rgba(249, 250, 251, 0.5)' }">
-                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider"
-                                :style="{ color: themeColors.textTertiary }">Request #</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider"
-                                :style="{ color: themeColors.textTertiary }">Title</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider"
-                                :style="{ color: themeColors.textTertiary }">Room/Location</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider"
-                                :style="{ color: themeColors.textTertiary }">Category</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider"
-                                :style="{ color: themeColors.textTertiary }">Priority</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider"
-                                :style="{ color: themeColors.textTertiary }">Status</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider"
-                                :style="{ color: themeColors.textTertiary }">Assigned To</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider"
-                                :style="{ color: themeColors.textTertiary }">Reported</th>
+                <table class="min-w-full divide-y" :style="{ borderColor: themeColors.border }">
+                    <thead :style="{ backgroundColor: themeColors.background }">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" :style="{ color: themeColors.textSecondary }">Request #</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" :style="{ color: themeColors.textSecondary }">Title / Photos</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" :style="{ color: themeColors.textSecondary }">Room/Location</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" :style="{ color: themeColors.textSecondary }">Category</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" :style="{ color: themeColors.textSecondary }">Priority</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" :style="{ color: themeColors.textSecondary }">Status</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" :style="{ color: themeColors.textSecondary }">Assigned To</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" :style="{ color: themeColors.textSecondary }">Reported</th>
                         </tr>
                     </thead>
-                    <tbody :style="{ backgroundColor: themeColors.card }">
+                    <tbody class="divide-y" :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }">
                         <tr v-if="requests.data.length === 0">
-                            <td colspan="8" class="px-6 py-4 text-center"
-                                :style="{ color: themeColors.textTertiary }">No maintenance requests found.</td>
+                            <td colspan="8" class="px-6 py-4 text-center" :style="{ color: themeColors.textTertiary }">No maintenance requests found.</td>
                         </tr>
                         <tr v-for="request in requests.data" :key="request.id"
-                            class="hover:bg-opacity-50 transition-colors"
-                            :style="{
-                                '&:hover': { backgroundColor: themeColors.hover }
-                            }">
-                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium"
-                                :style="{ color: themeColors.textPrimary }">{{ request.request_number }}</td>
-                            <td class="px-6 py-4 text-sm"
-                                :style="{ color: themeColors.textPrimary }">{{ request.title }}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm"
-                                :style="{ color: themeColors.textSecondary }">
+                            class="transition-colors"
+                            :style="{ backgroundColor: themeColors.card }">
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium" :style="{ color: themeColors.textPrimary }">{{ request.request_number }}</td>
+                            <td class="px-6 py-4 text-sm" style="max-width: 260px;">
+                                <div class="font-medium" :style="{ color: themeColors.textPrimary }">{{ request.title }}</div>
+                                <div v-if="request.photos && request.photos.length > 0" class="flex gap-1 flex-wrap mt-1">
+                                    <img v-for="(photo, idx) in request.photos" :key="idx"
+                                         :src="photo"
+                                         @click="openLightbox(photo)"
+                                         class="h-10 w-10 object-cover rounded cursor-pointer border hover:opacity-80 transition-opacity"
+                                         :style="{ borderColor: themeColors.border }"
+                                         title="Click to view full image" />
+                                </div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm" :style="{ color: themeColors.textSecondary }">
                                 <span v-if="request.room">{{ request.room.room_number }}</span>
                                 <span v-else>{{ request.location || 'N/A' }}</span>
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm"
-                                :style="{ color: themeColors.textSecondary }">{{ formatCategory(request.category) }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm capitalize" :style="{ color: themeColors.textSecondary }">{{ formatCategory(request.category) }}</td>
                             <td class="px-6 py-4 whitespace-nowrap">
-                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
-                                      :class="getPriorityColor(request.priority)">
-                                    {{ request.priority }}
+                                <span class="px-2 py-0.5 inline-flex text-xs font-semibold rounded-full"
+                                      :style="getMaintenancePriorityStyle(request.priority)">
+                                    {{ formatStatus(request.priority) }}
                                 </span>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
-                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
-                                      :class="getStatusColor(request.status)">
+                                <span class="px-2 py-0.5 inline-flex text-xs font-semibold rounded-full"
+                                      :style="getMaintenanceStatusStyle(request.status)">
                                     {{ formatStatus(request.status) }}
                                 </span>
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm"
-                                :style="{ color: themeColors.textSecondary }">{{ request.assigned_to?.name || 'Unassigned' }}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm"
-                                :style="{ color: themeColors.textSecondary }">{{ formatDateTime(request.reported_at) }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm" :style="{ color: themeColors.textSecondary }">{{ request.assigned_to?.name || 'Unassigned' }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm" :style="{ color: themeColors.textSecondary }">{{ formatDateTime(request.reported_at) }}</td>
                         </tr>
                     </tbody>
                 </table>
@@ -420,6 +408,26 @@
                                 </div>
                             </div>
                         </div>
+                        <div>
+                            <h3 class="text-base font-semibold mb-3" :style="{ color: themeColors.textPrimary }">Photos</h3>
+                            <div>
+                                <label class="block text-sm font-medium mb-1" :style="{ color: themeColors.textSecondary }">Upload Photos</label>
+                                <input @change="handlePhotoUpload" type="file" multiple accept="image/*"
+                                       class="w-full rounded-md px-3 py-2 transition-colors"
+                                       :style="{ backgroundColor: themeColors.background, borderColor: themeColors.border, borderStyle: 'solid', borderWidth: '1px', color: themeColors.textPrimary }">
+                                <p class="text-xs mt-1" :style="{ color: themeColors.textTertiary }">You can select multiple photos to document the issue (max 5 MB each)</p>
+                                <div v-if="photoFiles.length > 0" class="mt-3 flex flex-wrap gap-2">
+                                    <div v-for="(file, idx) in photoFiles" :key="idx"
+                                         class="text-sm px-2 py-1 rounded-md flex items-center gap-1"
+                                         :style="{ backgroundColor: themeColors.primary + '20', color: themeColors.primary }">
+                                        <span>{{ file.name }}</span>
+                                        <button @click="removePhoto(idx)" type="button"
+                                                class="ml-1 font-bold"
+                                                :style="{ color: themeColors.danger }">&#x00D7;</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     <div class="flex gap-2 mt-6 pt-4 border-t" :style="{ borderColor: themeColors.border }">
                         <button type="submit"
@@ -436,6 +444,37 @@
                 </form>
             </div>
         </div>
+
+        <teleport to="body">
+            <div v-if="lightboxImage"
+                 @click="closeLightbox"
+                 class="fixed inset-0 z-[200] flex items-center justify-center"
+                 style="background: rgba(0,0,0,0.92);">
+                <button @click.stop="closeLightbox"
+                        class="absolute top-5 right-6 text-white text-3xl font-bold leading-none opacity-80 hover:opacity-100 transition-opacity z-[201]"
+                        style="line-height:1;"
+                        title="Close">&#x2715;</button>
+                <div class="absolute bottom-6 flex items-center gap-4 z-[201]"
+                     style="left:50%; transform:translateX(-50%);">
+                    <button @click.stop="zoomOut"
+                            class="w-9 h-9 rounded-full flex items-center justify-center text-white text-xl font-bold"
+                            style="background: rgba(255,255,255,0.2);"
+                            title="Zoom out">&#x2212;</button>
+                    <span class="text-white text-sm font-semibold min-w-[3.5rem] text-center">
+                        {{ Math.round(lightboxZoom * 100) }}%
+                    </span>
+                    <button @click.stop="zoomIn"
+                            class="w-9 h-9 rounded-full flex items-center justify-center text-white text-xl font-bold"
+                            style="background: rgba(255,255,255,0.2);"
+                            title="Zoom in">+</button>
+                </div>
+                <div @click.stop class="overflow-auto rounded" style="max-width: 90vw; max-height: 82vh;">
+                    <img :src="lightboxImage"
+                         :style="{ transform: 'scale(' + lightboxZoom + ')', transformOrigin: 'top left', transition: 'transform 0.2s ease', display: 'block' }"
+                         class="rounded shadow-2xl" />
+                </div>
+            </div>
+        </teleport>
     </DashboardLayout>
 </template>
 
@@ -508,6 +547,36 @@ const newRequest = ref({
     location_details: '',
     department_id: null,
 })
+const photoFiles = ref([])
+
+const lightboxImage = ref(null)
+const lightboxZoom = ref(1.0)
+
+const openLightbox = (url) => {
+    lightboxImage.value = url
+    lightboxZoom.value = 1.0
+}
+
+const closeLightbox = () => {
+    lightboxImage.value = null
+    lightboxZoom.value = 1.0
+}
+
+const zoomIn = () => {
+    lightboxZoom.value = Math.min(lightboxZoom.value + 0.25, 4.0)
+}
+
+const zoomOut = () => {
+    lightboxZoom.value = Math.max(lightboxZoom.value - 0.25, 0.25)
+}
+
+const handlePhotoUpload = (event) => {
+    photoFiles.value = Array.from(event.target.files || [])
+}
+
+const removePhoto = (index) => {
+    photoFiles.value.splice(index, 1)
+}
 
 const formatDateTime = (dateString) => {
     if (!dateString) return 'N/A'
@@ -525,30 +594,7 @@ const formatCategory = (category) => {
 }
 
 const formatStatus = (status) => {
-    return status ? status.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'N/A'
-}
-
-const getStatusColor = (status) => {
-    const colors = {
-        open: 'bg-yellow-100 text-black',
-        assigned: 'bg-blue-100 text-black',
-        in_progress: 'bg-purple-100 text-black',
-        on_hold: 'bg-gray-100 text-black',
-        resolved: 'bg-green-100 text-black',
-        closed: 'bg-gray-100 text-black',
-        cancelled: 'bg-red-100 text-black',
-    }
-    return colors[status] || 'bg-gray-100 text-black'
-}
-
-const getPriorityColor = (priority) => {
-    const colors = {
-        low: 'bg-gray-100 text-black',
-        normal: 'bg-blue-100 text-black',
-        high: 'bg-orange-100 text-black',
-        urgent: 'bg-red-100 text-black',
-    }
-    return colors[priority] || 'bg-gray-100 text-black'
+    return status ? status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'N/A'
 }
 
 const getMaintenanceStatusStyle = (status) => {
@@ -622,10 +668,15 @@ const exportRequests = () => {
 }
 
 const submitRequest = () => {
-    router.post(route('front-desk.services.maintenance.store'), newRequest.value, {
+    router.post(route('front-desk.services.maintenance.store'), {
+        ...newRequest.value,
+        photos: photoFiles.value,
+    }, {
+        forceFormData: true,
         preserveScroll: true,
         onSuccess: () => {
             showNewRequest.value = false
+            photoFiles.value = []
             newRequest.value = {
                 room_id: null,
                 title: '',

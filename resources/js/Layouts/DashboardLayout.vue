@@ -232,6 +232,8 @@ const initializeActiveSubmenu = () => {
     else if (currentPath?.includes('/front-desk/payments')) openSubmenus.value = ['frontdesk-payments']
     else if (currentPath?.includes('/front-desk/key-cards')) openSubmenus.value = ['frontdesk-keycards']
     else if (currentPath?.includes('/front-desk/services')) openSubmenus.value = ['frontdesk-services']
+    else if (currentPath?.includes('/front-desk/reports')) openSubmenus.value = ['frontdesk-reports']
+    else if (currentPath?.includes('/server/reports')) openSubmenus.value = ['server-operations']
     else if (currentPath?.includes('/front-desk')) openSubmenus.value = ['frontdesk-operations']
     else if (currentPath?.includes('/maintenance')) openSubmenus.value = ['maintenance']
     else if (currentPath?.includes('/housekeeping')) openSubmenus.value = ['housekeeping']
@@ -274,6 +276,8 @@ const getSubmenuForCurrentRoute = () => {
     if (currentPath?.includes('/front-desk/payments')) return 'frontdesk-payments'
     if (currentPath?.includes('/front-desk/key-cards')) return 'frontdesk-keycards'
     if (currentPath?.includes('/front-desk/services')) return 'frontdesk-services'
+    if (currentPath?.includes('/front-desk/reports')) return 'frontdesk-reports'
+    if (currentPath?.includes('/server/reports')) return 'server-operations'
     if (currentPath?.includes('/front-desk')) return 'frontdesk-operations'
     if (currentPath?.includes('/maintenance')) return 'maintenance'
     if (currentPath?.includes('/housekeeping')) return 'housekeeping'
@@ -356,27 +360,34 @@ const resolveHref = (item) => {
 }
 
 const getIconPath = (iconName) => iconPaths[iconName] || iconPaths.home
+
+const statusDate = computed(() => new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }))
+
+const roleLabel = computed(() => {
+    const map = { admin: 'Admin', manager: 'Manager', accountant: 'Accountant', front_desk: 'Front Desk', housekeeping: 'Housekeeping', maintenance: 'Maintenance', bartender: 'Bartender', server: 'Server', hr: 'HR' }
+    return map[primaryRole.value] || (primaryRole.value.charAt(0).toUpperCase() + primaryRole.value.slice(1))
+})
 </script>
 
 <template>
     <div class="min-h-screen" :style="{ backgroundColor: themeColors.background }">
-        <aside class="fixed left-0 top-0 z-40 flex h-screen w-[290px] flex-col transition-all duration-300 ease-in-out xl:translate-x-0" :class="{ 'translate-x-0': sidebarOpen, '-translate-x-full': !sidebarOpen, 'xl:w-[290px]': sidebarExpanded || sidebarHovered, 'xl:w-[90px]': !sidebarExpanded && !sidebarHovered }" @mouseenter="handleMouseEnter" @mouseleave="handleMouseLeave">
+        <aside class="fixed left-0 top-0 z-40 flex h-screen w-[240px] flex-col transition-all duration-200 ease-in-out xl:translate-x-0" :class="{ 'translate-x-0': sidebarOpen, '-translate-x-full': !sidebarOpen, 'xl:w-[240px]': sidebarExpanded || sidebarHovered, 'xl:w-[52px]': !sidebarExpanded && !sidebarHovered }" @mouseenter="handleMouseEnter" @mouseleave="handleMouseLeave">
             <div class="flex flex-col h-full border-r" :style="{ backgroundColor: themeColors.sidebar, borderColor: themeColors.border }">
-                <div class="flex items-center justify-between px-6 py-5 border-b" :style="{ borderColor: themeColors.border }">
-                    <a href="/" class="flex items-center gap-3">
-                        <img class="w-8 h-8" src="/images/logo/logo-icon.svg" alt="Logo" />
-                        <span v-show="sidebarExpanded || sidebarHovered" class="text-xl font-semibold" :style="{ color: themeColors.textPrimary }">Hotel Management</span>
+                <div class="flex items-center justify-between px-3 py-2.5 border-b" :style="{ borderColor: themeColors.border }">
+                    <a href="/" class="flex items-center gap-2.5 min-w-0">
+                        <img class="w-6 h-6 flex-shrink-0" src="/images/logo/logo-icon.svg" alt="Logo" />
+                        <span v-show="sidebarExpanded || sidebarHovered" class="text-[11px] font-bold tracking-widest uppercase whitespace-nowrap overflow-hidden" :style="{ color: themeColors.textPrimary }">Hotel Management</span>
                     </a>
-                    <button v-show="sidebarExpanded || sidebarHovered" @click="sidebarExpanded = false" class="hidden xl:flex items-center justify-center w-8 h-8 rounded-lg transition-colors" :style="{ color: themeColors.textTertiary }"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7"></path></svg></button>
+                    <button v-show="sidebarExpanded || sidebarHovered" @click="sidebarExpanded = false" class="hidden xl:flex items-center justify-center w-6 h-6 rounded transition-colors flex-shrink-0" :style="{ color: themeColors.textTertiary }"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7"></path></svg></button>
                 </div>
-                <nav class="flex-1 px-4 py-4 space-y-6 overflow-y-auto">
+                <nav class="flex-1 px-2 py-2 space-y-0 overflow-y-auto overflow-x-hidden">
                     <template v-for="section in roleNavigation" :key="section.section">
                         <div v-if="checkCondition(section.condition)">
-                            <h3 class="mb-2 text-xs font-semibold uppercase tracking-wider"
+                            <h3 class="mt-3 mb-0.5 text-[9px] font-bold uppercase tracking-widest px-2"
                                 v-show="sidebarExpanded || sidebarHovered"
                                 :style="{ color: themeColors.textTertiary }">{{ translateLabel(section.section) }}</h3>
                             <!-- Flat direct-link items -->
-                            <ul v-if="section.flat" class="space-y-1">
+                            <ul v-if="section.flat" class="space-y-0">
                                 <li v-for="item in section.items" :key="item.label">
                                     <!-- Tutorial trigger item -->
                                     <button v-if="item.tutorial"
@@ -384,7 +395,7 @@ const getIconPath = (iconName) => iconPaths[iconName] || iconPaths.home
                                         class="sidebar-menu-item sidebar-menu-item-inactive w-full text-left"
                                     >
                                         <span class="sidebar-menu-icon">
-                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <svg class="w-[15px] h-[15px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="getIconPath(item.icon || 'help')"/>
                                             </svg>
                                         </span>
@@ -395,7 +406,7 @@ const getIconPath = (iconName) => iconPaths[iconName] || iconPaths.home
                                           class="sidebar-menu-item"
                                           :class="isActive(resolveHref(item)) ? 'sidebar-menu-item-active' : 'sidebar-menu-item-inactive'">
                                         <span class="sidebar-menu-icon">
-                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <svg class="w-[15px] h-[15px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="getIconPath(item.icon || 'home')"/>
                                             </svg>
                                         </span>
@@ -404,13 +415,13 @@ const getIconPath = (iconName) => iconPaths[iconName] || iconPaths.home
                                 </li>
                             </ul>
                             <!-- Collapsible submenu groups -->
-                            <ul v-else class="space-y-1">
+                            <ul v-else class="space-y-0">
                                 <li v-for="group in section.groups" :key="group.id">
                                     <button @click="toggleSubmenu(group.id)"
                                             class="sidebar-menu-item group w-full"
                                             :class="[isSubmenuOpen(group.id) ? 'sidebar-menu-item-active' : 'sidebar-menu-item-inactive']">
                                         <span class="sidebar-menu-icon">
-                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <svg class="w-[15px] h-[15px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="getIconPath(group.icon || 'home')"/>
                                             </svg>
                                         </span>
@@ -418,7 +429,7 @@ const getIconPath = (iconName) => iconPaths[iconName] || iconPaths.home
                                         <span v-show="sidebarExpanded || sidebarHovered"
                                               class="sidebar-menu-arrow"
                                               :class="{ 'rotate-180': isSubmenuOpen(group.id) }">
-                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <svg class="w-[11px] h-[11px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
                                             </svg>
                                         </span>
@@ -443,14 +454,14 @@ const getIconPath = (iconName) => iconPaths[iconName] || iconPaths.home
                 </nav>
 
                 <!-- Help & Tutorial button pinned to sidebar bottom -->
-                <div class="flex-shrink-0 border-t px-3 py-3" :style="{ borderColor: themeColors.border }">
+                <div class="flex-shrink-0 border-t px-2 py-2" :style="{ borderColor: themeColors.border }">
                     <button
                         @click="showTutorial = true"
-                        class="flex items-center gap-3 w-full px-3 py-2 rounded-lg transition-colors text-sm font-medium hover:opacity-80"
+                        class="flex items-center gap-2.5 w-full px-2 py-1.5 rounded-[3px] transition-colors text-[12px] font-medium hover:opacity-80"
                         :style="{ color: themeColors.textSecondary }"
                         title="Help & Tutorial"
                     >
-                        <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke-width="2"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3m0 4h.01"/></svg>
+                        <svg class="w-[15px] h-[15px] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke-width="2"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3m0 4h.01"/></svg>
                         <span v-show="sidebarExpanded || sidebarHovered" class="whitespace-nowrap">Help &amp; Tutorial</span>
                     </button>
                 </div>
@@ -458,50 +469,75 @@ const getIconPath = (iconName) => iconPaths[iconName] || iconPaths.home
         </aside>
 
         <TutorialModal :show="showTutorial" @close="showTutorial = false" />
-        <div class="flex-1 xl:ml-[290px]" :class="{ 'xl:ml-[90px]': !sidebarExpanded && !sidebarHovered, 'ml-0': !sidebarOpen && windowWidth < 1280 }">
-            <header class="sticky top-0 z-30 border-b" :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }">
-                <div class="flex items-center justify-between px-4 py-4">
-                    <button @click="sidebarOpen = !sidebarOpen" class="xl:hidden p-2 rounded-lg" :style="{ color: themeColors.textTertiary }"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg></button>
-                    <div class="flex-1 max-w-xl mx-4">
-                        <div class="relative"><input type="text" placeholder="Search..." class="w-full pl-10 pr-4 py-2 border rounded-lg" :style="{ backgroundColor: themeColors.background, borderColor: themeColors.border, color: themeColors.textPrimary }" /><svg class="absolute left-3 top-2.5 w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" :style="{ color: themeColors.textTertiary }"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg></div>
-                    </div>
-                    <div class="flex items-center gap-4">
-                        <!-- Help & Tutorial button – always visible in header -->
-                        <button
-                            @click="showTutorial = true"
-                            class="p-2 rounded-lg transition-colors hover:opacity-80"
-                            :style="{ color: themeColors.textTertiary }"
-                            title="Help & Tutorial"
-                        >
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <circle cx="12" cy="12" r="10" stroke-width="2"/>
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3m0 4h.01"/>
-                            </svg>
+        <div class="flex-1 xl:ml-[240px]" :class="{ 'xl:ml-[52px]': !sidebarExpanded && !sidebarHovered, 'ml-0': !sidebarOpen && windowWidth < 1280 }">
+            <header class="sticky top-0 z-30 border-b flex items-center h-10" :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }">
+                <div class="flex items-center justify-between px-3 w-full h-full gap-2">
+                    <!-- Mobile hamburger -->
+                    <button @click="sidebarOpen = !sidebarOpen" class="xl:hidden p-1.5 rounded" :style="{ color: themeColors.textTertiary }">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+                    </button>
+                    <!-- Expand sidebar button (desktop collapsed only) -->
+                    <button v-if="!sidebarExpanded && !sidebarHovered" @click="sidebarExpanded = true" class="hidden xl:flex p-1.5 rounded" :style="{ color: themeColors.textTertiary }">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"></path></svg>
+                    </button>
+                    <!-- Command palette trigger -->
+                    <button class="hidden sm:flex items-center gap-2 px-2.5 py-1 rounded text-[11px] border transition-colors"
+                            :style="{ backgroundColor: themeColors.background, borderColor: themeColors.border, color: themeColors.textTertiary }">
+                        <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                        <span>Search...</span>
+                        <span class="ml-2 px-1 rounded text-[9px] border opacity-60" :style="{ borderColor: themeColors.border }">⌘K</span>
+                    </button>
+                    <div class="flex-1"></div>
+                    <!-- Action toolbar -->
+                    <div class="flex items-center gap-1">
+                        <button @click="showTutorial = true" class="p-1.5 rounded transition-colors hover:opacity-80" :style="{ color: themeColors.textTertiary }" title="Help">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke-width="2"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3m0 4h.01"/></svg>
                         </button>
-                        <Link href="/pos" class="p-2 rounded-lg" :style="{ color: themeColors.textTertiary }" title="POS Terminal">
-                        <!-- New POS Terminal Icon - Cash Register -->
-                        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M3 21h18M5 21V7l8-4 8 4v14M9 21v-4h6v4M8 9h.01M16 9h.01M10 9h.01M8 13h.01M16 13h.01M10 13h.01M8 17h.01M16 17h.01M10 17h.01"/>
-                            <path d="M9 5h6a1 1 0 011 1v2h-8V6a1 1 0 011-1z"/>
-                        </svg>
-                    </Link>
-                        <button @click="toggleTheme" class="p-2 rounded-lg" :style="{ color: themeColors.textTertiary }"><svg v-if="!isDark" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg><svg v-else class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg></button>
+                        <Link href="/pos" class="p-1.5 rounded" :style="{ color: themeColors.textTertiary }" title="POS Terminal">
+                            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8m-4-4v4"/></svg>
+                        </Link>
+                        <button @click="toggleTheme" class="p-1.5 rounded" :style="{ color: themeColors.textTertiary }" :title="isDark ? 'Light mode' : 'Dark mode'">
+                            <svg v-if="!isDark" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
+                            <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                        </button>
                         <LanguageSwitcher :style="{ color: themeColors.textPrimary }" />
-                        <button class="p-2 rounded-lg" :style="{ color: themeColors.textTertiary }"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg></button>
+                        <button class="p-1.5 rounded" :style="{ color: themeColors.textTertiary }" title="Notifications">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>
+                        </button>
+                        <!-- Thin divider -->
+                        <span class="w-px h-5 mx-1" :style="{ backgroundColor: themeColors.border }"></span>
                         <div id="profile-menu-container" class="relative">
-                            <button @click="profileMenuOpen = !profileMenuOpen" class="flex items-center gap-2 p-2 rounded-lg">
-                                <div class="w-8 h-8 rounded-full flex items-center justify-center font-semibold" :style="{ backgroundColor: themeColors.primary, color: themeColors.background }">{{ userInitial }}</div>
+                            <button @click="profileMenuOpen = !profileMenuOpen" class="flex items-center gap-1.5 px-1.5 py-1 rounded transition-colors">
+                                <div class="w-6 h-6 rounded flex items-center justify-center text-[11px] font-bold" :style="{ backgroundColor: themeColors.primary, color: themeColors.background }">{{ userInitial }}</div>
+                                <span class="hidden sm:block text-[11px] font-medium max-w-[100px] truncate" :style="{ color: themeColors.textSecondary }">{{ user.name }}</span>
+                                <svg class="w-3 h-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24" :style="{ color: themeColors.textTertiary }"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                             </button>
-
-                            <div v-show="profileMenuOpen" class="absolute right-0 mt-2 w-48 rounded-lg border shadow-lg overflow-hidden" :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }">
-                                <Link href="/user/profile" class="block px-4 py-2 text-sm transition-colors" :style="{ color: themeColors.textPrimary }">{{ $t('nav.profile') }}</Link>
-                                <Link href="/logout" method="post" as="button" class="w-full text-left px-4 py-2 text-sm transition-colors" :style="{ color: themeColors.textPrimary }">{{ $t('auth.logout') }}</Link>
+                            <div v-show="profileMenuOpen" class="absolute right-0 mt-1 w-44 rounded border shadow-lg overflow-hidden z-50" :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }">
+                                <div class="px-3 py-2 border-b" :style="{ borderColor: themeColors.border }">
+                                    <p class="text-[11px] font-semibold truncate" :style="{ color: themeColors.textPrimary }">{{ user.name }}</p>
+                                    <p class="text-[10px] truncate" :style="{ color: themeColors.textTertiary }">{{ roleLabel }}</p>
+                                </div>
+                                <Link href="/user/profile" class="block px-3 py-1.5 text-[12px] transition-colors hover:opacity-80" :style="{ color: themeColors.textPrimary }">{{ $t('nav.profile') }}</Link>
+                                <Link href="/logout" method="post" as="button" class="w-full text-left px-3 py-1.5 text-[12px] transition-colors hover:opacity-80" :style="{ color: themeColors.textPrimary }">{{ $t('auth.logout') }}</Link>
                             </div>
                         </div>
                     </div>
                 </div>
             </header>
-            <main class="p-6"><slot /></main>
+            <main class="p-4 pb-10"><slot /></main>
+        </div>
+        <!-- Status Bar -->
+        <div class="fixed bottom-0 left-0 right-0 z-20 h-6 border-t flex items-center text-[10px] select-none"
+             :style="{ backgroundColor: themeColors.sidebar, borderColor: themeColors.border, paddingLeft: (sidebarExpanded || sidebarHovered) ? '248px' : '56px', paddingRight: '12px' }">
+            <span class="flex items-center gap-1.5" :style="{ color: themeColors.textTertiary }">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block flex-shrink-0"></span>
+                Online
+            </span>
+            <span class="mx-2 opacity-30" :style="{ color: themeColors.textTertiary }">|</span>
+            <span :style="{ color: themeColors.textTertiary }">{{ roleLabel }}</span>
+            <span class="mx-2 opacity-30" :style="{ color: themeColors.textTertiary }">|</span>
+            <span :style="{ color: themeColors.textTertiary }">{{ user.name }}</span>
+            <span class="ml-auto" :style="{ color: themeColors.textTertiary }">{{ statusDate }}</span>
         </div>
         <div v-if="sidebarOpen" @click="sidebarOpen = false" class="fixed inset-0 z-30 xl:hidden" :style="{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }"></div>
     </div>

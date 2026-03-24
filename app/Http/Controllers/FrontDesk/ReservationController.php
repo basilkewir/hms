@@ -141,9 +141,9 @@ class ReservationController extends Controller
             $viewPath = 'Manager/Reservations/Show';
         }
 
-        // Load folio and its individual SERVICE charges dynamically
+        // Load folio and its individual room-posted charges dynamically
         $folio = \App\Models\GuestFolio::with(['charges' => function ($q) {
-            $q->where('charge_code', 'SERVICE')
+            $q->whereIn('charge_code', ['SERVICE', 'POS'])
               ->where('is_voided', false)
               ->orderBy('charge_date', 'asc')
               ->orderBy('created_at', 'asc');
@@ -152,6 +152,8 @@ class ReservationController extends Controller
         $serviceChargeItems = $folio
             ? $folio->charges->map(fn($c) => [
                 'id'          => $c->id,
+                'charge_code' => $c->charge_code,
+                'charge_type' => $c->charge_code === 'POS' ? 'POS / Restaurant' : 'Service',
                 'description' => $c->description,
                 'quantity'    => (int) $c->quantity,
                 'unit_price'  => (float) $c->unit_price,
@@ -163,10 +165,18 @@ class ReservationController extends Controller
               ])->values()->toArray()
             : [];
 
-        // Use folio's service_charges total if available; fallback to reservation field
         $dynamicServiceCharges = $folio
-            ? (float) ($folio->service_charges ?? 0)
+            ? (float) $folio->charges->where('charge_code', 'SERVICE')->sum('net_amount')
             : (float) ($reservation->service_charges ?? 0);
+        $dynamicPosCharges = $folio
+            ? (float) $folio->charges->where('charge_code', 'POS')->sum('net_amount')
+            : 0.0;
+        $dynamicAdditionalRoomCharges = $dynamicServiceCharges + $dynamicPosCharges;
+        $dynamicRoomCharges = $folio ? (float) ($folio->room_charges ?? 0) : (float) ($reservation->total_room_charges ?? 0);
+        $dynamicTaxes = $folio ? (float) ($folio->tax_amount ?? 0) : (float) ($reservation->taxes ?? 0);
+        $dynamicTotalAmount = $folio ? (float) ($folio->total_amount ?? 0) : (float) ($reservation->total_amount ?? 0);
+        $dynamicPaidAmount = $folio ? (float) ($folio->paid_amount ?? 0) : (float) ($reservation->paid_amount ?? 0);
+        $dynamicBalanceAmount = $folio ? (float) ($folio->balance_amount ?? 0) : (float) ($reservation->balance_amount ?? 0);
 
         return Inertia::render($viewPath, [
             'user' => auth()->user()->load('roles'),
@@ -182,17 +192,19 @@ class ReservationController extends Controller
                 'adults' => $reservation->adults,
                 'children' => $reservation->children,
                 'room_rate' => $reservation->room_rate,
-                'total_room_charges' => $reservation->total_room_charges,
-                'taxes' => $reservation->taxes,
+                'total_room_charges' => $dynamicRoomCharges,
+                'taxes' => $dynamicTaxes,
                 'service_charges' => $dynamicServiceCharges,
+                'pos_charges' => $dynamicPosCharges,
+                'additional_room_charges' => $dynamicAdditionalRoomCharges,
                 'service_charge_items' => $serviceChargeItems,
                 'discount_amount' => $reservation->discount_amount,
                 'discount_reason' => $reservation->discount_reason,
                 'booking_source' => $reservation->booking_source,
                 'booking_reference' => $reservation->booking_reference,
-                'total_amount' => $reservation->total_amount,
-                'paid_amount' => $reservation->paid_amount,
-                'balance_amount' => $reservation->balance_amount,
+                'total_amount' => $dynamicTotalAmount,
+                'paid_amount' => $dynamicPaidAmount,
+                'balance_amount' => $dynamicBalanceAmount,
                 'special_requests' => $reservation->special_requests,
                 'actual_check_in' => $reservation->actual_check_in?->format('Y-m-d H:i:s'),
                 'actual_check_out' => $reservation->actual_check_out?->format('Y-m-d H:i:s'),

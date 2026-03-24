@@ -410,10 +410,11 @@
                     <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
                         <div class="md:col-span-2">
                             <label class="block text-xs text-gray-300 mb-1">Description</label>
-                            <input v-model="serviceChargeForm.description"
-                                   type="text"
-                                   class="w-full bg-kotel-black/50 border border-kotel-yellow/30 text-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-kotel-yellow focus:border-kotel-yellow"
-                                   placeholder="e.g. Laundry service, Room service">
+                            <textarea v-model="serviceChargeForm.description"
+                                   rows="2"
+                                   maxlength="1000"
+                                   class="w-full resize-y bg-kotel-black/50 border border-kotel-yellow/30 text-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-kotel-yellow focus:border-kotel-yellow"
+                                   placeholder="e.g. Laundry service, Room service"></textarea>
                         </div>
                         <div>
                             <label class="block text-xs text-gray-300 mb-1">Amount</label>
@@ -459,10 +460,11 @@
                              class="flex flex-col md:flex-row md:items-center gap-2 bg-kotel-black/50 border border-kotel-yellow/20 rounded-lg p-3">
                             <div class="flex-1">
                                 <label class="block text-xs text-gray-300 mb-1">Description</label>
-                                <input v-model="damage.description"
-                                       type="text"
-                                       class="w-full bg-kotel-black/50 border border-kotel-yellow/30 text-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-kotel-yellow focus:border-kotel-yellow"
-                                       placeholder="e.g. Broken glass, damaged linen">
+                                    <textarea v-model="damage.description"
+                                        rows="3"
+                                        maxlength="1000"
+                                        class="w-full resize-y bg-kotel-black/50 border border-kotel-yellow/30 text-white rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-kotel-yellow focus:border-kotel-yellow"
+                                        placeholder="Describe the damage or incidental charge in full"></textarea>
                             </div>
                             <div class="w-full md:w-40">
                                 <label class="block text-xs text-gray-300 mb-1">Amount</label>

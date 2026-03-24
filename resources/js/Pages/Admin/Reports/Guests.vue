@@ -68,7 +68,10 @@
                     <div v-for="c in recentGuests" :key="c.id" class="flex items-center justify-between pb-3 border-b" :style="{ borderColor: themeColors.border }">
                         <div>
                             <p class="text-sm font-medium" :style="{ color: themeColors.textPrimary }">{{ c.first_name }} {{ c.last_name }}</p>
-                            <p class="text-xs" :style="{ color: themeColors.textSecondary }">{{ c.customer_code }} • {{ c.email || c.phone }}</p>
+                            <p class="text-xs" :style="{ color: themeColors.textSecondary }">
+                                <span v-if="c.customer_code">{{ c.customer_code }} • </span>{{ c.email || c.phone }}
+                                <span v-if="c.reservation_count != null"> • {{ c.reservation_count }} stay{{ c.reservation_count !== 1 ? 's' : '' }}</span>
+                            </p>
                         </div>
                         <p class="text-xs" :style="{ color: themeColors.textSecondary }">{{ formatDate(c.created_at) }}</p>
                     </div>

@@ -120,7 +120,7 @@
 
         <!-- Filters -->
         <div class="bg-kotel-bg-card shadow-kotel-card rounded-lg p-6 mb-8 border border-kotel-border">
-            <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <div class="grid grid-cols-1 md:grid-cols-6 gap-4">
                 <div>
                     <label class="block text-sm font-medium text-kotel-text-secondary mb-2">Search</label>
                     <input type="text" v-model="searchQuery" placeholder="Search transactions..."
@@ -157,6 +157,16 @@
                         <option value="debit_card">Debit Card</option>
                         <option value="cash">Cash</option>
                         <option value="bank_transfer">Bank Transfer</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-kotel-text-secondary mb-2">Employee</label>
+                    <select v-model="selectedEmployee"
+                            class="w-full border border-kotel-border rounded-md px-3 py-2 bg-kotel-black text-kotel-text-primary focus:outline-none focus:ring-2 focus:ring-kotel-yellow">
+                        <option value="">All Employees</option>
+                        <option v-for="employee in employeeOptions" :key="employee.id" :value="String(employee.id)">
+                            {{ employee.name }}
+                        </option>
                     </select>
                 </div>
                 <div class="flex items-end">
@@ -356,6 +366,14 @@ const props = defineProps({
     settings: Object,
     transactions: Array,
     transactionStats: Object,
+    employeeOptions: {
+        type: Array,
+        default: () => []
+    },
+    filters: {
+        type: Object,
+        default: () => ({})
+    }
 })
 
 const navigation = computed(() => getNavigationForRole('admin'))
@@ -369,6 +387,7 @@ const searchQuery = ref('')
 const selectedType = ref('')
 const selectedStatus = ref('')
 const selectedPaymentMethod = ref('')
+const selectedEmployee = ref(props.filters?.employee_id ? String(props.filters.employee_id) : '')
 const selectedTransaction = ref(null)
 
 const closeModal = () => { selectedTransaction.value = null }
@@ -383,8 +402,9 @@ const filteredTransactions = computed(() => {
         const matchesType = !selectedType.value || transaction.type === selectedType.value
         const matchesStatus = !selectedStatus.value || transaction.status === selectedStatus.value
         const matchesPaymentMethod = !selectedPaymentMethod.value || transaction.payment_method === selectedPaymentMethod.value
+        const matchesEmployee = !selectedEmployee.value || String(transaction.user_id || '') === selectedEmployee.value
 
-        return matchesSearch && matchesType && matchesStatus && matchesPaymentMethod
+        return matchesSearch && matchesType && matchesStatus && matchesPaymentMethod && matchesEmployee
     })
 })
 
@@ -447,10 +467,14 @@ const clearFilters = () => {
     selectedType.value = ''
     selectedStatus.value = ''
     selectedPaymentMethod.value = ''
+    selectedEmployee.value = ''
 }
 
 const exportTransactions = () => {
-    window.location.href = route('admin.transactions.export', { format: 'csv' })
+    window.location.href = route('admin.transactions.export', {
+        format: 'csv',
+        employee_id: selectedEmployee.value || undefined,
+    })
 }
 
 const viewTransaction = (transaction) => {

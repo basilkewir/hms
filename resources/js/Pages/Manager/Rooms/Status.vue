@@ -452,7 +452,19 @@
                             Add Service Charge
                         </h3>
                         <div class="bg-kotel-black/50 border border-blue-400/30 rounded-lg p-4">
-                            <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                            <div class="grid grid-cols-1 md:grid-cols-5 gap-3">
+                                <div>
+                                    <label class="text-kotel-sky-blue/90 text-sm block mb-1">POS Product</label>
+                                    <select v-model="serviceChargeForm.product_id"
+                                            @change="onServiceProductChange"
+                                            class="w-full bg-kotel-black border border-kotel-yellow/30 rounded-md px-3 py-2 text-white text-sm focus:outline-none focus:ring-1 focus:ring-kotel-yellow">
+                                        <option :value="null" class="bg-kotel-dark">Select product</option>
+                                        <option :value="customServiceOptionValue" class="bg-kotel-dark">Custom service</option>
+                                        <option v-for="product in posProducts" :key="product.id" :value="product.id" class="bg-kotel-dark">
+                                            {{ product.name }} <span v-if="product.code">({{ product.code }})</span>
+                                        </option>
+                                    </select>
+                                </div>
                                 <div class="md:col-span-2">
                                     <label class="text-kotel-sky-blue/90 text-sm block mb-1">Description</label>
                                     <input v-model="serviceChargeForm.description" type="text"
@@ -544,6 +556,7 @@ const props = defineProps({
     rooms: Array,
     roomStatus: Object,
     availableKeyCards: Array,
+    posProducts: { type: Array, default: () => [] },
 })
 
 const selectedRoom = ref(null)
@@ -794,20 +807,41 @@ const markRoomDirty = (room) => {
     })
 }
 
-const serviceChargeForm = ref({ description: '', amount: null, quantity: 1 })
+const serviceChargeForm = ref({ product_id: null, description: '', amount: null, quantity: 1 })
 const isAddingServiceCharge = ref(false)
+const customServiceOptionValue = 'custom'
+
+const onServiceProductChange = () => {
+    if (!serviceChargeForm.value.product_id) return
+    if (serviceChargeForm.value.product_id === customServiceOptionValue) return
+    const selectedProduct = (props.posProducts || []).find(product => Number(product.id) === Number(serviceChargeForm.value.product_id))
+    if (!selectedProduct) return
+
+    if (!serviceChargeForm.value.description) {
+        serviceChargeForm.value.description = selectedProduct.name
+    }
+
+    if (!serviceChargeForm.value.amount || Number(serviceChargeForm.value.amount) <= 0) {
+        serviceChargeForm.value.amount = Number(selectedProduct.price || 0)
+    }
+}
 
 const addServiceCharge = () => {
     if (!serviceChargeForm.value.description || !serviceChargeForm.value.amount || serviceChargeForm.value.amount <= 0) return
     isAddingServiceCharge.value = true
+    const selectedProductId = serviceChargeForm.value.product_id === customServiceOptionValue
+        ? null
+        : serviceChargeForm.value.product_id
+
     router.post(route('manager.checkout.service-charge'), {
         reservation_id: selectedRoom.value.reservation_id,
+        product_id: selectedProductId,
         description: serviceChargeForm.value.description,
         amount: parseFloat(serviceChargeForm.value.amount),
         quantity: parseInt(serviceChargeForm.value.quantity || 1, 10),
     }, {
         onSuccess: () => {
-            serviceChargeForm.value = { description: '', amount: null, quantity: 1 }
+            serviceChargeForm.value = { product_id: null, description: '', amount: null, quantity: 1 }
             isAddingServiceCharge.value = false
             statusType.value = 'success'
             statusMessage.value = 'Service charge added successfully.'

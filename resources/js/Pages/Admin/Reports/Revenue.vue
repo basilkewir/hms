@@ -35,7 +35,7 @@
                      borderWidth: '1px',
                      borderStyle: 'solid'
                  }">
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div>
                         <label class="block text-sm font-medium mb-2"
                                :style="{ color: themeColors.textSecondary }">Start Date</label>
@@ -82,6 +82,24 @@
                             <option value="month">This Month</option>
                             <option value="quarter">This Quarter</option>
                             <option value="year">This Year</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-2"
+                               :style="{ color: themeColors.textSecondary }">Employee</label>
+                        <select v-model="filters.employeeId" @change="applyFilters"
+                                class="w-full rounded-md px-3 py-2 focus:outline-none transition-colors"
+                                :style="{
+                                    backgroundColor: themeColors.background,
+                                    borderColor: themeColors.border,
+                                    color: themeColors.textPrimary,
+                                    borderWidth: '1px',
+                                    borderStyle: 'solid'
+                                }">
+                            <option value="">All Employees</option>
+                            <option v-for="employee in employeeOptions" :key="employee.id" :value="String(employee.id)">
+                                {{ employee.name }}
+                            </option>
                         </select>
                     </div>
                 </div>
@@ -334,6 +352,7 @@
                             <tr :style="{ backgroundColor: themeColors.background }">
                                 <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" :style="{ color: themeColors.textSecondary }">#</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" :style="{ color: themeColors.textSecondary }">Date</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" :style="{ color: themeColors.textSecondary }">Employee</th>
                                 <th class="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider" :style="{ color: themeColors.textSecondary }">Amount</th>
                             </tr>
                         </thead>
@@ -341,6 +360,7 @@
                             <tr v-for="s in recentSales" :key="s.id" class="hover:opacity-80 transition-opacity">
                                 <td class="px-6 py-3 text-sm font-medium" :style="{ color: themeColors.textPrimary }">{{ s.sale_number }}</td>
                                 <td class="px-6 py-3 text-sm" :style="{ color: themeColors.textSecondary }">{{ formatDate(s.sale_date) }}</td>
+                                <td class="px-6 py-3 text-sm" :style="{ color: themeColors.textPrimary }">{{ s.user_name || '—' }}</td>
                                 <td class="px-6 py-3 text-sm text-right font-medium" :style="{ color: themeColors.success }">{{ formatCurrency(s.total_amount) }}</td>
                             </tr>
                         </tbody>
@@ -602,6 +622,14 @@ const props = defineProps({
     stats: Object,
     daily: Array,
     recentSales: Array,
+    employeeOptions: {
+        type: Array,
+        default: () => []
+    },
+    filters: {
+        type: Object,
+        default: () => ({})
+    },
 })
 
 const page = usePage()
@@ -643,7 +671,8 @@ const formatDate = (d) => {
 
 const filters = ref({
     startDate: (props.stats?.start_date || props.dateRange?.start) || '',
-    endDate: (props.stats?.end_date || props.dateRange?.end) || ''
+    endDate: (props.stats?.end_date || props.dateRange?.end) || '',
+    employeeId: props.filters?.employeeId ? String(props.filters.employeeId) : ''
 })
 
 const quickPeriod = ref('')
@@ -703,6 +732,7 @@ const applyFilters = () => {
     const params = {
         start_date: filters.value.startDate,
         end_date: filters.value.endDate,
+        employee_id: filters.value.employeeId || undefined,
     }
     router.get(route('admin.reports.revenue'), params, {
         preserveScroll: true,

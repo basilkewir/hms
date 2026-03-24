@@ -480,15 +480,16 @@
                     <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
                         <div class="md:col-span-2">
                             <label class="block text-xs mb-1" :style="{ color: themeColors.textSecondary }">Description</label>
-                            <input v-model="serviceChargeForm.description"
-                                   type="text"
-                                   class="w-full rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2"
-                                   :style="{
-                                       backgroundColor: themeColors.card,
-                                       borderColor: themeColors.border,
-                                       color: themeColors.textPrimary
-                                   }"
-                                   placeholder="e.g. Laundry service, Room service">
+                            <textarea v-model="serviceChargeForm.description"
+                                      rows="2"
+                                      maxlength="1000"
+                                      class="w-full resize-y rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2"
+                                      :style="{
+                                          backgroundColor: themeColors.card,
+                                          borderColor: themeColors.border,
+                                          color: themeColors.textPrimary
+                                      }"
+                                      placeholder="e.g. Laundry service, Room service"></textarea>
                         </div>
                         <div>
                             <label class="block text-xs mb-1" :style="{ color: themeColors.textSecondary }">Amount</label>
@@ -556,15 +557,16 @@
                             <div class="flex-1">
                                 <label class="block text-xs mb-1"
                                        :style="{ color: themeColors.textSecondary }">Description</label>
-                                <input v-model="damage.description"
-                                       type="text"
-                                       class="w-full rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2"
-                                       :style="{
-                                           backgroundColor: themeColors.card,
-                                           borderColor: themeColors.border,
-                                           color: themeColors.textPrimary
-                                       }"
-                                       placeholder="e.g. Broken glass, damaged linen">
+                                <textarea v-model="damage.description"
+                                          rows="3"
+                                          maxlength="1000"
+                                          class="w-full resize-y rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2"
+                                          :style="{
+                                              backgroundColor: themeColors.card,
+                                              borderColor: themeColors.border,
+                                              color: themeColors.textPrimary
+                                          }"
+                                          placeholder="Describe the damage or incidental charge in full"></textarea>
                             </div>
                             <div class="w-full md:w-40">
                                 <label class="block text-xs mb-1"

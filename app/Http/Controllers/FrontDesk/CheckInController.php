@@ -235,6 +235,11 @@ class CheckInController extends Controller
                 'payment_status' => $newBalance <= 0 ? 'paid' : 'partial',
             ]);
 
+            $reservation->update([
+                'paid_amount' => $newPaid,
+                'balance_amount' => $newBalance,
+            ]);
+
             // Record a folio charge/payment entry for audit trail
             \App\Models\FolioCharge::create([
                 'guest_folio_id'  => $folio->id,
@@ -399,16 +404,21 @@ class CheckInController extends Controller
         // Calculate room charges
         $roomCharges = $roomRate * $nights;
 
+        // Calculate discounts at check-in (same rule set used at checkout)
+        $discountData = $this->calculateReservationDiscount($reservation, $roomCharges);
+        $discountAmount = (float) ($discountData['amount'] ?? 0);
+        $taxableRoomCharges = max(0, $roomCharges - $discountAmount);
+
         // Get tax and service charge rates — always use room_tax_rate for room charges
         $taxRate = Setting::get('room_tax_rate', Setting::get('tax_rate', 0));
         $serviceChargeRate = Setting::get('service_charge_rate', 0);
 
         // Calculate taxes and service charges
-        $taxAmount = ($roomCharges * $taxRate) / 100;
-        $serviceChargeAmount = ($roomCharges * $serviceChargeRate) / 100;
+        $taxAmount = ($taxableRoomCharges * $taxRate) / 100;
+        $serviceChargeAmount = ($taxableRoomCharges * $serviceChargeRate) / 100;
 
         // Calculate total
-        $totalAmount = $roomCharges + $taxAmount + $serviceChargeAmount;
+        $totalAmount = $taxableRoomCharges + $taxAmount + $serviceChargeAmount;
 
         // Create guest folio
         $folio = GuestFolio::create([
@@ -421,7 +431,7 @@ class CheckInController extends Controller
             'room_charges' => $roomCharges,
             'service_charges' => $serviceChargeAmount,
             'tax_amount' => $taxAmount,
-            'discount_amount' => 0,
+            'discount_amount' => $discountAmount,
             'total_amount' => $totalAmount,
             'paid_amount' => 0,
             'balance_amount' => $totalAmount,
@@ -442,8 +452,8 @@ class CheckInController extends Controller
             'tax_rate' => $taxRate,
             'tax_amount' => $taxAmount,
             'discount_rate' => 0,
-            'discount_amount' => 0,
-            'net_amount' => $roomCharges + $taxAmount + $serviceChargeAmount,
+            'discount_amount' => $discountAmount,
+            'net_amount' => $totalAmount,
             'reference_type' => 'reservation',
             'reference_id' => $reservation->id,
             'department' => 'Front Desk',
@@ -452,5 +462,52 @@ class CheckInController extends Controller
         ]);
 
         return $folio;
+    }
+
+    private function calculateReservationDiscount(Reservation $reservation, float $roomCharges): array
+    {
+        $reservation->loadMissing('guest.guestType');
+
+        $totalDiscountAmount = 0;
+        $discountReason = '';
+
+        $guest = $reservation->guest;
+
+        $autoApplyGuestTypeDiscount = Setting::get('auto_apply_guest_type_discount', true);
+        if ($autoApplyGuestTypeDiscount && $guest && $guest->guestType && $guest->guestType->is_active) {
+            $discountPercentage = (float) ($guest->guestType->discount_percentage ?? 0);
+            if ($discountPercentage > 0) {
+                $guestTypeDiscountAmount = ($roomCharges * $discountPercentage) / 100;
+                $totalDiscountAmount += $guestTypeDiscountAmount;
+                $discountReason = $guest->guestType->name . ' discount (' . $discountPercentage . '%)';
+            }
+        }
+
+        $autoApplyVipDiscount = Setting::get('auto_apply_vip_discount', true);
+        $vipDiscountPercentage = (float) Setting::get('vip_discount_percentage', 0);
+        if ($autoApplyVipDiscount && $guest && $guest->is_vip && $vipDiscountPercentage > 0) {
+            $vipDiscountAmount = ($roomCharges * $vipDiscountPercentage) / 100;
+            $totalDiscountAmount += $vipDiscountAmount;
+            if ($discountReason) {
+                $discountReason .= ' + VIP discount (' . $vipDiscountPercentage . '%)';
+            } else {
+                $discountReason = 'VIP discount (' . $vipDiscountPercentage . '%)';
+            }
+        }
+
+        $manualDiscount = (float) ($reservation->discount_amount ?? 0);
+        $discountCombinationMode = Setting::get('discount_combination_mode', 'add');
+
+        if ($discountCombinationMode === 'override' && $manualDiscount > 0) {
+            $totalDiscountAmount = $manualDiscount;
+            $discountReason = $reservation->discount_reason ?? 'Manual discount';
+        } else {
+            $totalDiscountAmount += $manualDiscount;
+        }
+
+        return [
+            'amount' => max(0, min($totalDiscountAmount, $roomCharges)),
+            'reason' => $discountReason,
+        ];
     }
 }

@@ -36,7 +36,7 @@
             <!-- Filters -->
             <div class="rounded-lg border p-4 shadow-sm"
                  :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border, borderWidth: '1px', borderStyle: 'solid' }">
-                <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <div class="grid grid-cols-2 md:grid-cols-6 gap-4">
                     <div>
                         <label class="block text-xs font-medium mb-1" :style="{ color: themeColors.textSecondary }">Search</label>
                         <input v-model="filters.search" type="text" placeholder="Transaction ID, guest name..."
@@ -80,6 +80,17 @@
                                class="w-full px-3 py-2 border rounded-md text-sm focus:outline-none"
                                :style="{ backgroundColor: themeColors.background, borderColor: themeColors.border, borderWidth: '1px', borderStyle: 'solid', color: themeColors.textPrimary }" />
                     </div>
+                    <div>
+                        <label class="block text-xs font-medium mb-1" :style="{ color: themeColors.textSecondary }">Employee</label>
+                        <select v-model="filters.employee_id"
+                                class="w-full px-3 py-2 border rounded-md text-sm focus:outline-none"
+                                :style="{ backgroundColor: themeColors.background, borderColor: themeColors.border, borderWidth: '1px', borderStyle: 'solid', color: themeColors.textPrimary }">
+                            <option value="">All Employees</option>
+                            <option v-for="employee in employeeOptions" :key="employee.id" :value="String(employee.id)">
+                                {{ employee.name }}
+                            </option>
+                        </select>
+                    </div>
                 </div>
                 <div class="flex gap-2 mt-4">
                     <button @click="applyFilters"
@@ -105,6 +116,7 @@
                                 <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider" :style="{ color: themeColors.textSecondary }">Transaction ID</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider" :style="{ color: themeColors.textSecondary }">Guest Name</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider" :style="{ color: themeColors.textSecondary }">Reference</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider" :style="{ color: themeColors.textSecondary }">Employee</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider" :style="{ color: themeColors.textSecondary }">Type</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider" :style="{ color: themeColors.textSecondary }">Amount</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider" :style="{ color: themeColors.textSecondary }">Status</th>
@@ -123,6 +135,9 @@
                                 </td>
                                 <td class="px-4 py-3 text-sm" :style="{ color: themeColors.textPrimary }">
                                     {{ transaction.reference }}
+                                </td>
+                                <td class="px-4 py-3 text-sm" :style="{ color: themeColors.textPrimary }">
+                                    {{ transaction.user_name || '—' }}
                                 </td>
                                 <td class="px-4 py-3 text-sm">
                                     <span class="px-2 py-1 rounded-full text-xs font-medium"
@@ -253,7 +268,11 @@ export default {
         navigation: Array,
         transactionStats: Object,
         recentTransactions: Array,
-        filters: Object
+        filters: Object,
+        employeeOptions: {
+            type: Array,
+            default: () => []
+        }
     },
     setup(props) {
         const page = usePage();
@@ -274,7 +293,8 @@ export default {
             type: props.filters.type || '',
             status: props.filters.status || '',
             start_date: props.filters.start_date || '',
-            end_date: props.filters.end_date || ''
+            end_date: props.filters.end_date || '',
+            employee_id: props.filters.employee_id ? String(props.filters.employee_id) : ''
         });
 
         const statData = computed(() => [
@@ -354,7 +374,8 @@ export default {
                 type: '',
                 status: '',
                 start_date: '',
-                end_date: ''
+                end_date: '',
+                employee_id: ''
             };
             applyFilters();
         };
@@ -374,6 +395,7 @@ export default {
             themeColors,
             filters,
             transactionStats: statData,
+            employeeOptions: props.employeeOptions || [],
             getTypeStyle,
             getStatusStyle,
             formatCurrency,

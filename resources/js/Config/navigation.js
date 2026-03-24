@@ -719,6 +719,14 @@ export const navigationConfig = {
           ],
         },
         {
+          id: 'frontdesk-reports',
+          label: 'Reports',
+          icon: 'chart',
+          items: [
+            { label: 'Revenue Reports', routeName: 'front-desk.reports.revenue' },
+          ],
+        },
+        {
           id: 'frontdesk-keycards',
           label: 'Key Cards',
           icon: 'key',
@@ -877,6 +885,7 @@ export const navigationConfig = {
           icon: 'shopping',
           items: [
             { label: '📊 Sales Reports',    href: '/server/sales' },
+            { label: 'Revenue Reports',     routeName: 'server.reports.revenue' },
           ],
         },
       ],

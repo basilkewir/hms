@@ -66,6 +66,12 @@
                             <input type="date" v-model="form.check_out_date" required class="w-full rounded-md px-3 py-2 focus:outline-none transition-colors" :style="inputStyle" />
                             <div v-if="form.errors.check_out_date" class="mt-1 text-sm" :style="{ color: themeColors.danger }">{{ form.errors.check_out_date }}</div>
                         </div>
+                        <div v-if="form.status === 'checked_in'">
+                            <label class="block text-sm font-medium mb-2" :style="{ color: themeColors.textSecondary }">Extend Stay (Days)</label>
+                            <input type="number" v-model.number="form.extend_days" min="0" class="w-full rounded-md px-3 py-2 focus:outline-none transition-colors" :style="inputStyle" placeholder="0" />
+                            <p class="mt-1 text-xs" :style="{ color: themeColors.textTertiary }">Add extra days to current check-out date for checked-in guest.</p>
+                            <div v-if="form.errors.extend_days" class="mt-1 text-sm" :style="{ color: themeColors.danger }">{{ form.errors.extend_days }}</div>
+                        </div>
                         <div>
                             <label class="block text-sm font-medium mb-2" :style="{ color: themeColors.textSecondary }">Adults *</label>
                             <input type="number" v-model.number="form.number_of_adults" min="1" required class="w-full rounded-md px-3 py-2 focus:outline-none transition-colors" :style="inputStyle" />
@@ -118,6 +124,38 @@
                         <div>
                             <label class="block text-sm font-medium mb-2" :style="{ color: themeColors.textSecondary }">Discount Reason</label>
                             <input type="text" v-model="form.discount_reason" class="w-full rounded-md px-3 py-2 focus:outline-none transition-colors" :style="inputStyle" />
+                        </div>
+                    </div>
+                    <div class="mt-6 rounded-lg p-4" :style="{ backgroundColor: themeColors.background, borderColor: themeColors.border, borderWidth: '1px', borderStyle: 'solid' }">
+                        <div class="flex items-center justify-between mb-3">
+                            <h4 class="text-sm font-semibold" :style="{ color: themeColors.textPrimary }">Updated Reservation Price</h4>
+                            <span class="text-xs" :style="{ color: themeColors.textSecondary }">{{ pricingSummary.nights }} night(s)</span>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                            <div class="flex justify-between">
+                                <span :style="{ color: themeColors.textSecondary }">Room Charges</span>
+                                <span :style="{ color: themeColors.textPrimary }">{{ formatCurrency(pricingSummary.roomCharges) }}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span :style="{ color: themeColors.textSecondary }">Discount</span>
+                                <span :style="{ color: pricingSummary.totalDiscount > 0 ? themeColors.danger : themeColors.textPrimary }">-{{ formatCurrency(pricingSummary.totalDiscount) }}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span :style="{ color: themeColors.textSecondary }">Taxes</span>
+                                <span :style="{ color: themeColors.textPrimary }">{{ formatCurrency(pricingSummary.taxes) }}</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span :style="{ color: themeColors.textSecondary }">Service Charges</span>
+                                <span :style="{ color: themeColors.textPrimary }">{{ formatCurrency(pricingSummary.serviceCharges) }}</span>
+                            </div>
+                            <div class="flex justify-between font-semibold md:col-span-2 pt-2" :style="{ borderTop: `1px solid ${themeColors.border}` }">
+                                <span :style="{ color: themeColors.textPrimary }">Total Price</span>
+                                <span :style="{ color: themeColors.primary }">{{ formatCurrency(pricingSummary.totalAmount) }}</span>
+                            </div>
+                            <div class="flex justify-between md:col-span-2">
+                                <span :style="{ color: themeColors.textSecondary }">Balance After Paid Amount</span>
+                                <span :style="{ color: pricingSummary.balanceAmount > 0 ? themeColors.danger : themeColors.primary }">{{ formatCurrency(pricingSummary.balanceAmount) }}</span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -198,6 +236,7 @@ const props = defineProps({
     rooms: { type: Array, default: () => [] },
     groupBookings: { type: Array, default: () => [] },
     bookingSources: { type: Object, default: () => ({}) },
+    pricingSettings: { type: Object, default: () => ({}) },
 })
 
 const navigation = computed(() => getNavigationForRole('admin'))
@@ -208,6 +247,7 @@ const form = useForm({
     room_id: props.reservation.room_id || '',
     check_in_date: props.reservation.check_in_date,
     check_out_date: props.reservation.check_out_date,
+    extend_days: 0,
     number_of_adults: props.reservation.number_of_adults,
     number_of_children: props.reservation.number_of_children || 0,
     infants: props.reservation.infants || 0,
@@ -226,6 +266,58 @@ const form = useForm({
 const filteredRooms = computed(() => {
     if (!form.room_type_id) return props.rooms || []
     return (props.rooms || []).filter(room => String(room.room_type_id) === String(form.room_type_id))
+})
+
+const selectedGuest = computed(() => {
+    return (props.guests || []).find(guest => String(guest.id) === String(form.guest_id)) || null
+})
+
+const pricingSummary = computed(() => {
+    const checkInDate = form.check_in_date ? new Date(`${form.check_in_date}T00:00:00`) : null
+    const checkOutDate = form.check_out_date ? new Date(`${form.check_out_date}T00:00:00`) : null
+
+    let nights = 0
+    if (checkInDate && checkOutDate && checkOutDate > checkInDate) {
+        nights = Math.round((checkOutDate - checkInDate) / 86400000)
+    }
+
+    const roomRate = Number(form.room_rate) || 0
+    const roomCharges = roomRate * nights
+
+    let guestTypeDiscount = 0
+    if (props.pricingSettings?.auto_apply_guest_type_discount && selectedGuest.value?.guest_type?.discount_percentage) {
+        guestTypeDiscount = roomCharges * (Number(selectedGuest.value.guest_type.discount_percentage) || 0) / 100
+    }
+
+    let vipDiscount = 0
+    if (props.pricingSettings?.auto_apply_vip_discount && selectedGuest.value?.is_vip) {
+        vipDiscount = roomCharges * (Number(props.pricingSettings?.vip_discount_percentage) || 0) / 100
+    }
+
+    const manualDiscount = Number(form.discount_amount) || 0
+    let totalDiscount = guestTypeDiscount + vipDiscount + manualDiscount
+    if (props.pricingSettings?.discount_combination_mode === 'override' && manualDiscount > 0) {
+        totalDiscount = manualDiscount
+    }
+
+    totalDiscount = Math.max(0, Math.min(totalDiscount, roomCharges))
+
+    const taxableAmount = Math.max(0, roomCharges - totalDiscount)
+    const taxes = taxableAmount * ((Number(props.pricingSettings?.tax_rate) || 0) / 100)
+    const serviceCharges = taxableAmount * ((Number(props.pricingSettings?.service_charge_rate) || 0) / 100)
+    const totalAmount = taxableAmount + taxes + serviceCharges
+    const paidAmount = Number(props.reservation?.paid_amount) || 0
+    const balanceAmount = Math.max(0, totalAmount - paidAmount)
+
+    return {
+        nights,
+        roomCharges,
+        totalDiscount,
+        taxes,
+        serviceCharges,
+        totalAmount,
+        balanceAmount,
+    }
 })
 
 const onRoomTypeChange = () => {

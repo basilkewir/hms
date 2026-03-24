@@ -325,6 +325,39 @@
         </div>
       </div>
 
+      <!-- Daily Staff Sales -->
+      <div v-if="dailyStaffSales && dailyStaffSales.length > 0" class="report-section">
+        <h2>
+          <i class="fa-solid fa-calendar-day"></i> Daily Sales by Employee
+        </h2>
+        <div class="staff-performance-table">
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Staff Member</th>
+                <th>Sales Count</th>
+                <th>Total Revenue</th>
+                <th>Average Sale</th>
+                <th>Total Profit</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(data, index) in dailyStaffSales" :key="`${data.date}-${data.user_id}-${index}`">
+                <td>{{ formatDate(data.date) }}</td>
+                <td class="staff-name">{{ data.name || 'Unknown' }}</td>
+                <td>{{ data.count || 0 }}</td>
+                <td class="revenue">{{ formatCurrency(data.total || 0) }}</td>
+                <td>{{ formatCurrency(data.average_sale || 0) }}</td>
+                <td :class="(data.profit || 0) >= 0 ? 'profit-positive' : 'profit-negative'">
+                  {{ formatCurrency(data.profit || 0) }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       <!-- Customer Analysis -->
       <div v-if="byCustomer && Object.keys(byCustomer).length > 0" class="report-section">
         <h2>
@@ -381,6 +414,10 @@ const props = defineProps({
   byStaff: {
     type: Object,
     default: () => ({})
+  },
+  dailyStaffSales: {
+    type: Array,
+    default: () => []
   },
   topProducts: {
     type: Array,
