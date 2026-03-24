@@ -4358,13 +4358,23 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
 
         $stats       = ['start_date' => $start, 'end_date' => $end, 'total_revenue' => 0.0, 'total_sales' => 0, 'avg_order_value' => 0.0];
         $daily       = [];
-        $recentSales = [];
+        $dailyByDate = [];
+        $appendDaily = function ($date, $orders, $revenue) use (&$dailyByDate) {
+            if (!isset($dailyByDate[$date])) {
+                $dailyByDate[$date] = ['date' => (string) $date, 'orders' => 0, 'revenue' => 0.0];
+            }
+            $dailyByDate[$date]['orders'] += (int) $orders;
+            $dailyByDate[$date]['revenue'] += (float) $revenue;
+        };
+        $recentSales = collect();
 
         // revenueData structure expected by Revenue.vue
         $posRevenue  = 0.0;
         $roomRevenue = 0.0;
+        $paymentRevenue = 0.0;
         $hallRevenue = 0.0;
         $revByCategory = [];
+        $discountTotal = 0.0;
 
         // expenseData
         $totalExpenses   = 0.0;
@@ -4381,28 +4391,44 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
             // ── Sales (POS) ───────────────────────────────────────────
             if (class_exists(\App\Models\Sale::class)) {
                 $dateCol = \Schema::hasColumn('sales', 'sale_date') ? 'sale_date' : 'created_at';
+                $saleTaxColumn = \Schema::hasColumn('sales', 'tax_amount') ? 'tax_amount' : null;
+                $saleDiscountColumn = \Schema::hasColumn('sales', 'discount_amount')
+                    ? 'discount_amount'
+                    : (\Schema::hasColumn('sales', 'discount') ? 'discount' : null);
                 $base = \App\Models\Sale::query()
                     ->when($employeeId, fn($query) => $query->where('user_id', $employeeId));
                 if ($dateCol === 'sale_date') $base->whereBetween('sale_date', [$start, $end]);
                 else                          $base->whereBetween('created_at', [$start.' 00:00:00', $end.' 23:59:59']);
 
                 $stats['total_sales']     = (int)   $base->count();
-                // Pre-tax: subtract tax_amount from total_amount
+                $saleTaxExpr = $saleTaxColumn ? "COALESCE({$saleTaxColumn}, 0)" : '0';
+                $saleDiscountExpr = $saleDiscountColumn ? "COALESCE({$saleDiscountColumn}, 0)" : '0';
+
                 $posRevenue               = (float) (\App\Models\Sale::query()
                     ->when($employeeId, fn($query) => $query->where('user_id', $employeeId))
                     ->when($dateCol === 'sale_date',  fn($q) => $q->whereBetween('sale_date',  [$start, $end]))
                     ->when($dateCol === 'created_at', fn($q) => $q->whereBetween('created_at', [$start.' 00:00:00', $end.' 23:59:59']))
-                    ->selectRaw('COALESCE(SUM(total_amount - COALESCE(tax_amount, 0)), 0) as pre_tax')->value('pre_tax') ?? 0);
+                    ->selectRaw("COALESCE(SUM(total_amount - {$saleTaxExpr} - {$saleDiscountExpr}), 0) as net_total")->value('net_total') ?? 0);
+                $discountTotal += $saleDiscountColumn
+                    ? (float) (\App\Models\Sale::query()
+                        ->when($employeeId, fn($query) => $query->where('user_id', $employeeId))
+                        ->when($dateCol === 'sale_date',  fn($q) => $q->whereBetween('sale_date',  [$start, $end]))
+                        ->when($dateCol === 'created_at', fn($q) => $q->whereBetween('created_at', [$start.' 00:00:00', $end.' 23:59:59']))
+                        ->sum($saleDiscountColumn) ?? 0)
+                    : 0.0;
                 $stats['total_revenue']   = $posRevenue;
                 $stats['avg_order_value'] = $stats['total_sales'] > 0 ? round($posRevenue / $stats['total_sales'], 2) : 0.0;
 
                 $rawDate = $dateCol === 'created_at' ? 'DATE(created_at)' : $dateCol;
-                $daily = \App\Models\Sale::selectRaw("$rawDate as d, COUNT(*) as orders, SUM(total_amount - COALESCE(tax_amount, 0)) as revenue")
+                $dailySales = \App\Models\Sale::selectRaw("$rawDate as d, COUNT(*) as orders, SUM(total_amount - {$saleTaxExpr} - {$saleDiscountExpr}) as revenue")
                     ->when($employeeId, fn($query) => $query->where('user_id', $employeeId))
                     ->when($dateCol === 'sale_date',  fn($q) => $q->whereBetween('sale_date',  [$start, $end]))
                     ->when($dateCol === 'created_at', fn($q) => $q->whereBetween('created_at', [$start.' 00:00:00', $end.' 23:59:59']))
-                    ->groupBy('d')->orderBy('d')->get()
-                    ->map(fn($r) => ['date' => (string)$r->d, 'orders' => (int)$r->orders, 'revenue' => (float)$r->revenue])->toArray();
+                    ->groupBy('d')->orderBy('d')->get();
+
+                foreach ($dailySales as $saleDay) {
+                    $appendDaily($saleDay->d, $saleDay->orders, $saleDay->revenue);
+                }
 
                 $recentSales = \App\Models\Sale::with('user')
                     ->when($employeeId, fn($query) => $query->where('user_id', $employeeId))
@@ -4411,10 +4437,10 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
                     ->orderByDesc($dateCol)->limit(10)
                     ->get(['id','sale_number','sale_date','total_amount','tax_amount','created_at','user_id'])
                     ->map(fn($s) => [
-                        'id' => $s->id,
+                        'id' => 'sale-' . $s->id,
                         'sale_number' => $s->sale_number,
                         'sale_date' => $s->sale_date ?? $s->created_at,
-                        'total_amount' => (float)($s->total_amount - ($s->tax_amount ?? 0)),
+                        'total_amount' => (float)($s->total_amount - ($s->tax_amount ?? 0) - ($saleDiscountColumn ? ($s->{$saleDiscountColumn} ?? 0) : 0)),
                         'user_id' => $s->user_id,
                         'user_name' => $s->user
                             ? trim(($s->user->first_name ?? '') . ' ' . ($s->user->last_name ?? ''))
@@ -4426,17 +4452,114 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
             if (class_exists(\App\Models\Reservation::class) && \Schema::hasColumn('reservations', 'total_amount')) {
                 // Pre-tax revenue: subtract taxes column from total_amount
                 if ($employeeId) {
-                    $roomRevenue = (float) (\App\Models\Payment::where('status', 'completed')
+                    $paymentCount = (int) \App\Models\Payment::where('status', 'completed')
+                        ->where('processed_by', $employeeId)
+                        ->whereHas('reservation')
+                        ->whereBetween('processed_at', [$start.' 00:00:00', $end.' 23:59:59'])
+                        ->count();
+                    $paymentRevenue = (float) (\App\Models\Payment::where('status', 'completed')
                         ->where('processed_by', $employeeId)
                         ->whereHas('reservation')
                         ->whereBetween('processed_at', [$start.' 00:00:00', $end.' 23:59:59'])
                         ->sum('amount') ?? 0);
+                    $stats['total_sales'] += $paymentCount;
+
+                    $dailyPayments = \App\Models\Payment::selectRaw('DATE(processed_at) as d, COUNT(*) as orders, SUM(amount) as revenue')
+                        ->where('status', 'completed')
+                        ->where('processed_by', $employeeId)
+                        ->whereHas('reservation')
+                        ->whereBetween('processed_at', [$start.' 00:00:00', $end.' 23:59:59'])
+                        ->groupBy('d')
+                        ->orderBy('d')
+                        ->get();
+
+                    foreach ($dailyPayments as $paymentDay) {
+                        $appendDaily($paymentDay->d, $paymentDay->orders, $paymentDay->revenue);
+                    }
+
+                    $recentSales = $recentSales->merge(
+                        \App\Models\Payment::with('processedBy')
+                            ->where('status', 'completed')
+                            ->where('processed_by', $employeeId)
+                            ->whereHas('reservation')
+                            ->whereBetween('processed_at', [$start.' 00:00:00', $end.' 23:59:59'])
+                            ->orderByDesc('processed_at')
+                            ->limit(10)
+                            ->get(['id', 'payment_number', 'amount', 'processed_at', 'processed_by'])
+                            ->map(fn($payment) => [
+                                'id' => 'payment-' . $payment->id,
+                                'sale_number' => $payment->payment_number ?? ('PAY-' . $payment->id),
+                                'sale_date' => $payment->processed_at,
+                                'total_amount' => (float) $payment->amount,
+                                'user_id' => $payment->processed_by,
+                                'user_name' => $payment->processedBy
+                                    ? trim(($payment->processedBy->first_name ?? '') . ' ' . ($payment->processedBy->last_name ?? ''))
+                                    : 'N/A',
+                            ])
+                    );
+
+                    $roomRevenue = $paymentRevenue;
                 } else {
                     $roomRevenue = (float) (\App\Models\Reservation::whereBetween('created_at', [$start.' 00:00:00', $end.' 23:59:59'])
                         ->when(\Schema::hasColumn('reservations','status'), fn($q) => $q->whereNotIn('status', ['cancelled','canceled']))
                         ->selectRaw('COALESCE(SUM(total_amount - COALESCE(taxes, 0)), 0) as pre_tax')->value('pre_tax') ?? 0);
                 }
                 $stats['total_revenue'] += $roomRevenue;
+            }
+
+            if ($employeeId && class_exists(\App\Models\FolioCharge::class)) {
+                $folioUserColumn = \Schema::hasColumn('folio_charges', 'posted_by')
+                    ? 'posted_by'
+                    : (\Schema::hasColumn('folio_charges', 'created_by') ? 'created_by' : null);
+
+                if ($folioUserColumn) {
+                    $folioBase = \App\Models\FolioCharge::whereBetween('created_at', [$start . ' 00:00:00', $end . ' 23:59:59'])
+                        ->where($folioUserColumn, $employeeId)
+                        ->when(\Schema::hasColumn('folio_charges', 'is_voided'), fn($query) => $query->where('is_voided', false));
+
+                    $folioCount = (int) $folioBase->count();
+                    $folioRevenue = (float) ($folioBase->sum('net_amount') ?? 0);
+                    $folioDiscount = \Schema::hasColumn('folio_charges', 'discount_amount')
+                        ? (float) ($folioBase->sum('discount_amount') ?? 0)
+                        : 0.0;
+
+                    $discountTotal += $folioDiscount;
+                    $stats['total_sales'] += $folioCount;
+                    $roomRevenue += $folioRevenue;
+                    $stats['total_revenue'] += $folioRevenue;
+
+                    $dailyFolio = \App\Models\FolioCharge::selectRaw('DATE(created_at) as d, COUNT(*) as orders, SUM(net_amount) as revenue')
+                        ->whereBetween('created_at', [$start . ' 00:00:00', $end . ' 23:59:59'])
+                        ->where($folioUserColumn, $employeeId)
+                        ->when(\Schema::hasColumn('folio_charges', 'is_voided'), fn($query) => $query->where('is_voided', false))
+                        ->groupBy('d')
+                        ->orderBy('d')
+                        ->get();
+
+                    foreach ($dailyFolio as $folioDay) {
+                        $appendDaily($folioDay->d, $folioDay->orders, $folioDay->revenue);
+                    }
+
+                    $recentSales = $recentSales->merge(
+                        \App\Models\FolioCharge::with('postedBy')
+                            ->whereBetween('created_at', [$start . ' 00:00:00', $end . ' 23:59:59'])
+                            ->where($folioUserColumn, $employeeId)
+                            ->when(\Schema::hasColumn('folio_charges', 'is_voided'), fn($query) => $query->where('is_voided', false))
+                            ->orderByDesc('created_at')
+                            ->limit(10)
+                            ->get(['id', 'charge_date', 'net_amount', 'created_at'])
+                            ->map(fn($charge) => [
+                                'id' => 'folio-' . $charge->id,
+                                'sale_number' => 'FOLIO-' . $charge->id,
+                                'sale_date' => $charge->charge_date ?? $charge->created_at,
+                                'total_amount' => (float) $charge->net_amount,
+                                'user_id' => $employeeId,
+                                'user_name' => $user->id == $employeeId
+                                    ? (trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? '')) ?: ($user->name ?? 'N/A'))
+                                    : ($employeeOptions->firstWhere('id', (int) $employeeId)['name'] ?? 'N/A'),
+                            ])
+                    );
+                }
             }
 
             // ── Hall Booking Revenue ──────────────────────────────────
@@ -4455,6 +4578,7 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
                 $roomRevenue > 0 ? ['category' => 'Room Revenue', 'amount' => $roomRevenue, 'formatted_amount' => $fmt($roomRevenue)] : null,
                 $hallRevenue > 0 ? ['category' => 'Hall Revenue', 'amount' => $hallRevenue, 'formatted_amount' => $fmt($hallRevenue)] : null,
                 $posRevenue  > 0 ? ['category' => 'POS / F&B',    'amount' => $posRevenue,  'formatted_amount' => $fmt($posRevenue)]  : null,
+                $discountTotal > 0 ? ['category' => 'Discounts Applied', 'amount' => -$discountTotal, 'formatted_amount' => $fmt(-$discountTotal)] : null,
             ]);
 
             // ── Expenses ──────────────────────────────────────────────
@@ -4474,6 +4598,21 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
                     ])->toArray();
             }
         } catch (\Throwable $e) {}
+
+        if ($employeeId) {
+            $daily = collect($dailyByDate)
+                ->sortKeys()
+                ->values()
+                ->map(fn($row) => [
+                    'date' => $row['date'],
+                    'orders' => (int) $row['orders'],
+                    'revenue' => (float) $row['revenue'],
+                ])
+                ->toArray();
+
+            $recentSales = $recentSales->sortByDesc('sale_date')->values()->take(10);
+            $stats['avg_order_value'] = $stats['total_sales'] > 0 ? round($stats['total_revenue'] / $stats['total_sales'], 2) : 0.0;
+        }
 
         $netProfit = $stats['total_revenue'] - $totalExpenses;
         $netMargin = $stats['total_revenue'] > 0 ? round(($netProfit / $stats['total_revenue']) * 100, 1) : 0.0;
