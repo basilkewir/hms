@@ -87,8 +87,9 @@ For the app to connect to your local server:
    # Or
    hostname -I
    ```
-3. Enter the IP in the app: `http://192.168.1.XXX:8000`
-4. Ensure Laravel server allows connections from your network:
+3. Enter the IP in the app: `http://10.0.0.10` (replace with your actual server IP)
+4. If HMS runs via Nginx on port 80, no extra port is needed.
+5. If you run Laravel directly for testing, allow network connections:
    ```bash
    php artisan serve --host=0.0.0.0 --port=8000
    ```

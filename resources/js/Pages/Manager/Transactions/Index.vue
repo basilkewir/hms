@@ -36,7 +36,7 @@
             <!-- Filters -->
             <div class="rounded-lg border p-4 shadow-sm"
                  :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border, borderWidth: '1px', borderStyle: 'solid' }">
-                <div class="grid grid-cols-2 md:grid-cols-6 gap-4">
+                <div class="grid grid-cols-2 md:grid-cols-7 gap-4">
                     <div>
                         <label class="block text-xs font-medium mb-1" :style="{ color: themeColors.textSecondary }">Search</label>
                         <input v-model="filters.search" type="text" placeholder="Transaction ID, guest name..."
@@ -49,11 +49,20 @@
                                 class="w-full px-3 py-2 border rounded-md text-sm focus:outline-none"
                                 :style="{ backgroundColor: themeColors.background, borderColor: themeColors.border, borderWidth: '1px', borderStyle: 'solid', color: themeColors.textPrimary }">
                             <option value="">All Types</option>
-                            <option value="payment">Payments</option>
-                            <option value="sale">Sales</option>
-                            <option value="pos_transaction">POS Transactions</option>
-                            <option value="folio_charge">Room Charges</option>
-                            <option value="expense">Expenses</option>
+                            <option v-for="type in transactionTypeOptions" :key="type" :value="type">
+                                {{ formatType(type) }}
+                            </option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium mb-1" :style="{ color: themeColors.textSecondary }">Revenue Type</label>
+                        <select v-model="filters.revenue_type"
+                                class="w-full px-3 py-2 border rounded-md text-sm focus:outline-none"
+                                :style="{ backgroundColor: themeColors.background, borderColor: themeColors.border, borderWidth: '1px', borderStyle: 'solid', color: themeColors.textPrimary }">
+                            <option value="">All Revenue Types</option>
+                            <option v-for="option in revenueTypeOptions" :key="option.value" :value="option.value">
+                                {{ option.label }}
+                            </option>
                         </select>
                     </div>
                     <div>
@@ -118,6 +127,7 @@
                                 <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider" :style="{ color: themeColors.textSecondary }">Reference</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider" :style="{ color: themeColors.textSecondary }">Employee</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider" :style="{ color: themeColors.textSecondary }">Type</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider" :style="{ color: themeColors.textSecondary }">Revenue Type</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider" :style="{ color: themeColors.textSecondary }">Amount</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider" :style="{ color: themeColors.textSecondary }">Status</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider" :style="{ color: themeColors.textSecondary }">Payment Method</th>
@@ -126,7 +136,7 @@
                             </tr>
                         </thead>
                         <tbody class="divide-y" :style="{ borderColor: themeColors.border }">
-                            <tr v-for="transaction in recentTransactions" :key="transaction.transaction_id">
+                            <tr v-for="transaction in filteredTransactions" :key="transaction.transaction_id">
                                 <td class="px-4 py-3 text-sm font-medium" :style="{ color: themeColors.textPrimary }">
                                     {{ transaction.transaction_id }}
                                 </td>
@@ -144,6 +154,9 @@
                                           :style="getTypeStyle(transaction.type)">
                                         {{ transaction.type }}
                                     </span>
+                                </td>
+                                <td class="px-4 py-3 text-sm" :style="{ color: themeColors.textPrimary }">
+                                    {{ transaction.source_label || formatType(transaction.type) }}
                                 </td>
                                 <td class="px-4 py-3 text-sm font-medium" :style="{ color: themeColors.textPrimary }">
                                     {{ formatCurrency(transaction.amount) }}
@@ -174,7 +187,7 @@
             </div>
 
             <!-- Empty State -->
-            <div v-if="recentTransactions.length === 0" class="text-center py-12">
+            <div v-if="filteredTransactions.length === 0" class="text-center py-12">
                 <div class="text-4xl mb-4">💳</div>
                 <h3 class="text-lg font-medium mb-2" :style="{ color: themeColors.textPrimary }">No transactions found</h3>
                 <p :style="{ color: themeColors.textSecondary }">No transactions match your current filters.</p>
@@ -291,10 +304,27 @@ export default {
         const filters = ref({
             search: props.filters.search || '',
             type: props.filters.type || '',
+            revenue_type: props.filters.revenue_type || '',
             status: props.filters.status || '',
             start_date: props.filters.start_date || '',
             end_date: props.filters.end_date || '',
             employee_id: props.filters.employee_id ? String(props.filters.employee_id) : ''
+        });
+
+        const transactionTypeOptions = computed(() => {
+            return [...new Set((props.recentTransactions || []).map(transaction => transaction.type).filter(Boolean))].sort();
+        });
+
+        const revenueTypeOptions = computed(() => {
+            return [...new Map((props.recentTransactions || [])
+                .filter(transaction => transaction.source_key || transaction.source_label)
+                .map(transaction => [
+                    transaction.source_key || transaction.source_label,
+                    {
+                        value: transaction.source_key || transaction.source_label,
+                        label: transaction.source_label || formatType(transaction.type),
+                    }
+                ])).values()].sort((left, right) => left.label.localeCompare(right.label));
         });
 
         const statData = computed(() => [
@@ -361,6 +391,38 @@ export default {
             });
         };
 
+        const formatType = (type) => {
+            if (!type) return 'Unknown';
+            return type.replace(/_/g, ' ').replace(/\b\w/g, letter => letter.toUpperCase());
+        };
+
+        const filteredTransactions = computed(() => {
+            return (props.recentTransactions || []).filter(transaction => {
+                const search = filters.value.search?.toLowerCase() || '';
+                const matchesSearch = !search || [
+                    transaction.transaction_id,
+                    transaction.guest_name,
+                    transaction.reference,
+                    transaction.user_name,
+                    transaction.source_label,
+                ].filter(Boolean).join(' ').toLowerCase().includes(search);
+
+                const matchesType = !filters.value.type || transaction.type === filters.value.type;
+                const matchesRevenueType = !filters.value.revenue_type || (transaction.source_key || transaction.source_label) === filters.value.revenue_type;
+                const matchesStatus = !filters.value.status || transaction.status === filters.value.status;
+                const matchesEmployee = !filters.value.employee_id || String(transaction.user_id || '') === filters.value.employee_id;
+
+                const transactionDate = transaction.date ? new Date(transaction.date) : null;
+                const transactionDay = transactionDate && !Number.isNaN(transactionDate.getTime())
+                    ? transactionDate.toISOString().slice(0, 10)
+                    : '';
+                const matchesStart = !filters.value.start_date || (transactionDay && transactionDay >= filters.value.start_date);
+                const matchesEnd = !filters.value.end_date || (transactionDay && transactionDay <= filters.value.end_date);
+
+                return matchesSearch && matchesType && matchesRevenueType && matchesStatus && matchesEmployee && matchesStart && matchesEnd;
+            });
+        });
+
         const applyFilters = () => {
             router.get(route('manager.transactions.index'), filters.value, {
                 preserveState: true,
@@ -372,6 +434,7 @@ export default {
             filters.value = {
                 search: '',
                 type: '',
+                revenue_type: '',
                 status: '',
                 start_date: '',
                 end_date: '',
@@ -396,10 +459,14 @@ export default {
             filters,
             transactionStats: statData,
             employeeOptions: props.employeeOptions || [],
+            transactionTypeOptions,
+            revenueTypeOptions,
+            filteredTransactions,
             getTypeStyle,
             getStatusStyle,
             formatCurrency,
             formatDate,
+            formatType,
             applyFilters,
             clearFilters,
             exportTransactions,

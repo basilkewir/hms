@@ -220,6 +220,77 @@
             </button>
         </div>
 
+        <div class="shadow rounded-lg p-6 mb-8"
+             :style="{
+                 backgroundColor: themeColors.card,
+                 borderColor: themeColors.border
+             }">
+            <div class="grid grid-cols-1 md:grid-cols-6 gap-4">
+                <div>
+                    <label class="block text-sm font-medium mb-2"
+                           :style="{ color: themeColors.textSecondary }">Search</label>
+                    <input v-model="filters.search" type="text" placeholder="Search transactions..."
+                           class="w-full rounded-md px-3 py-2 focus:outline-none transition-colors"
+                           :style="{ backgroundColor: themeColors.background, borderColor: themeColors.border, color: themeColors.textPrimary }">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-2"
+                           :style="{ color: themeColors.textSecondary }">Type</label>
+                    <select v-model="filters.type"
+                            class="w-full rounded-md px-3 py-2 focus:outline-none transition-colors"
+                            :style="{ backgroundColor: themeColors.background, borderColor: themeColors.border, color: themeColors.textPrimary }">
+                        <option value="">All Types</option>
+                        <option v-for="type in transactionTypeOptions" :key="type" :value="type">
+                            {{ formatType(type) }}
+                        </option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-2"
+                           :style="{ color: themeColors.textSecondary }">Revenue Type</label>
+                    <select v-model="filters.revenue_type"
+                            class="w-full rounded-md px-3 py-2 focus:outline-none transition-colors"
+                            :style="{ backgroundColor: themeColors.background, borderColor: themeColors.border, color: themeColors.textPrimary }">
+                        <option value="">All Revenue Types</option>
+                        <option v-for="option in revenueTypeOptions" :key="option.value" :value="option.value">
+                            {{ option.label }}
+                        </option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-2"
+                           :style="{ color: themeColors.textSecondary }">Status</label>
+                    <select v-model="filters.status"
+                            class="w-full rounded-md px-3 py-2 focus:outline-none transition-colors"
+                            :style="{ backgroundColor: themeColors.background, borderColor: themeColors.border, color: themeColors.textPrimary }">
+                        <option value="">All Status</option>
+                        <option v-for="status in statusOptions" :key="status" :value="status">
+                            {{ formatStatus(status) }}
+                        </option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-2"
+                           :style="{ color: themeColors.textSecondary }">Payment Method</label>
+                    <select v-model="filters.payment_method"
+                            class="w-full rounded-md px-3 py-2 focus:outline-none transition-colors"
+                            :style="{ backgroundColor: themeColors.background, borderColor: themeColors.border, color: themeColors.textPrimary }">
+                        <option value="">All Methods</option>
+                        <option v-for="method in paymentMethodOptions" :key="method" :value="method">
+                            {{ formatPaymentMethod(method) }}
+                        </option>
+                    </select>
+                </div>
+                <div class="flex items-end">
+                    <button @click="clearFilters"
+                            class="w-full px-4 py-2 rounded-md transition-colors"
+                            :style="{ backgroundColor: themeColors.background, borderColor: themeColors.border, color: themeColors.textPrimary, border: '1px solid ' + themeColors.border }">
+                        Clear Filters
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <!-- Transactions Table -->
         <div class="shadow rounded-lg overflow-hidden"
              :style="{
@@ -250,6 +321,10 @@
                             </th>
                             <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider"
                                 :style="{ color: themeColors.textSecondary }">
+                                Revenue Type
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider"
+                                :style="{ color: themeColors.textSecondary }">
                                 Amount
                             </th>
                             <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider"
@@ -272,7 +347,7 @@
                     </thead>
                     <tbody class="divide-y"
                            :style="{ borderColor: themeColors.border }">
-                        <tr v-for="transaction in recentTransactions" :key="transaction.id"
+                        <tr v-for="transaction in filteredTransactions" :key="transaction.id"
                             class="hover:bg-opacity-50 transition-colors"
                             :style="{ hover: { backgroundColor: themeColors.hover } }">
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium"
@@ -290,6 +365,10 @@
                                       :class="getTypeColor(transaction.type)">
                                     {{ formatType(transaction.type) }}
                                 </span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm"
+                                :style="{ color: themeColors.textPrimary }">
+                                {{ transaction.source_label || formatType(transaction.type) }}
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium"
                                 :class="transaction.type === 'refund' ? 'text-red-600' : 'text-green-600'">
@@ -474,8 +553,58 @@ const pagination = computed(() => ({
     from: props.recentTransactions?.from || 0,
     to: props.recentTransactions?.to || 0,
 }))
+const filters = ref({
+    search: '',
+    type: props.filters?.type || '',
+    revenue_type: props.filters?.revenue_type || '',
+    status: props.filters?.status || '',
+    payment_method: '',
+})
 const selectedFormat = ref('xlsx')
 const selectedTransaction = ref(null)
+
+const transactionTypeOptions = computed(() => {
+    return [...new Set(recentTransactions.value.map(transaction => transaction.type).filter(Boolean))].sort()
+})
+
+const revenueTypeOptions = computed(() => {
+    return [...new Map(recentTransactions.value
+        .filter(transaction => transaction.source_key || transaction.source_label)
+        .map(transaction => [
+            transaction.source_key || transaction.source_label,
+            {
+                value: transaction.source_key || transaction.source_label,
+                label: transaction.source_label || formatType(transaction.type),
+            }
+        ])).values()].sort((left, right) => left.label.localeCompare(right.label))
+})
+
+const statusOptions = computed(() => {
+    return [...new Set(recentTransactions.value.map(transaction => transaction.status).filter(Boolean))].sort()
+})
+
+const paymentMethodOptions = computed(() => {
+    return [...new Set(recentTransactions.value.map(transaction => transaction.payment_method).filter(Boolean))].sort()
+})
+
+const filteredTransactions = computed(() => {
+    return recentTransactions.value.filter(transaction => {
+        const search = filters.value.search?.toLowerCase() || ''
+        const matchesSearch = !search || [
+            transaction.transaction_id,
+            transaction.guest_name,
+            transaction.reference,
+            transaction.source_label,
+        ].filter(Boolean).join(' ').toLowerCase().includes(search)
+
+        const matchesType = !filters.value.type || transaction.type === filters.value.type
+        const matchesRevenueType = !filters.value.revenue_type || (transaction.source_key || transaction.source_label) === filters.value.revenue_type
+        const matchesStatus = !filters.value.status || transaction.status === filters.value.status
+        const matchesPaymentMethod = !filters.value.payment_method || transaction.payment_method === filters.value.payment_method
+
+        return matchesSearch && matchesType && matchesRevenueType && matchesStatus && matchesPaymentMethod
+    })
+})
 
 const openModal = (transaction) => {
     selectedTransaction.value = transaction
@@ -523,6 +652,16 @@ const getStatusColor = (status) => {
 const formatType = (type) => {
     if (!type) return 'Unknown'
     return type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+}
+
+const clearFilters = () => {
+    filters.value = {
+        search: '',
+        type: '',
+        revenue_type: '',
+        status: '',
+        payment_method: '',
+    }
 }
 
 const formatStatus = (status) => {

@@ -23,6 +23,7 @@
         "foregroundImage": "./assets/kotelcleaner.png",
         "backgroundColor": "#0f172a"
       },
+      "usesCleartextTraffic": true,
       "package": "com.hotel.cleaner",
       "versionCode": 2
     },

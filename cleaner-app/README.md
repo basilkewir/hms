@@ -37,7 +37,7 @@ npm run ios
 
 On first launch, the app will prompt for the server URL. Enter the IP address of your Ubuntu server where the hotel management system is running.
 
-Example: `http://192.168.1.100:8000`
+Example: `http://10.0.0.10`
 
 ## API Endpoints
 

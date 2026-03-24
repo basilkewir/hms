@@ -73,14 +73,14 @@ export default function ServerConfigScreen({ navigation }) {
           <Text style={styles.title}>Server Setup</Text>
           <Text style={styles.subtitle}>
             Enter the URL of your hotel management server.{'\n\n'}
-            Example: http://192.168.1.100:8000
+            Example: http://10.0.0.10
           </Text>
 
           <View style={styles.inputContainer}>
             <Text style={styles.label}>Server URL</Text>
             <TextInput
               style={styles.input}
-              placeholder="http://192.168.1.100:8000"
+              placeholder="http://10.0.0.10"
               value={serverUrl}
               onChangeText={setServerUrl}
               autoCapitalize="none"

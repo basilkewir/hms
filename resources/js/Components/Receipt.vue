@@ -3,6 +3,7 @@
     <div class="receipt-content">
       <!-- Receipt Header -->
       <div class="receipt-header">
+        <img v-if="normalizedHotelLogo" :src="normalizedHotelLogo" alt="Hotel Logo" class="receipt-logo">
         <h1 class="receipt-hotel-name">{{ hotelName }}</h1>
         <div v-if="hotelAddress" class="receipt-address">{{ hotelAddress }}</div>
         <div v-if="hotelPhone" class="receipt-phone">Tel: {{ hotelPhone }}</div>
@@ -94,6 +95,7 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import { formatCurrency } from '@/Utils/currency.js'
 
 const props = defineProps({
@@ -125,6 +127,14 @@ const props = defineProps({
     type: String,
     default: ''
   }
+})
+
+const normalizedHotelLogo = computed(() => {
+  const logo = props.hotelLogo
+  if (!logo) return ''
+  if (/^(https?:)?\/\//i.test(logo) || logo.startsWith('data:')) return logo
+  if (logo.startsWith('/storage/') || logo.startsWith('/images/') || logo.startsWith('/img/')) return logo
+  return `/storage/${logo.replace(/^\/+/, '')}`
 })
 
 const formatDate = (dateString) => {
@@ -179,6 +189,13 @@ const formatPaymentMethod = (method) => {
 .receipt-header {
   text-align: center;
   margin-bottom: 16px;
+}
+
+.receipt-logo {
+  max-width: 96px;
+  max-height: 72px;
+  margin: 0 auto 10px;
+  object-fit: contain;
 }
 
 .receipt-hotel-name {

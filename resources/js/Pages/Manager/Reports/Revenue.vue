@@ -35,7 +35,7 @@
                      borderWidth: '1px',
                      borderStyle: 'solid'
                  }">
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
                     <div>
                         <label class="block text-sm font-medium mb-2"
                                :style="{ color: themeColors.textSecondary }">Start Date</label>
@@ -84,7 +84,25 @@
                             <option value="year">This Year</option>
                         </select>
                     </div>
-                          <div v-if="canSelectEmployee">
+                    <div>
+                        <label class="block text-sm font-medium mb-2"
+                               :style="{ color: themeColors.textSecondary }">Revenue Type</label>
+                        <select v-model="filters.revenueType"
+                                class="w-full rounded-md px-3 py-2 focus:outline-none transition-colors"
+                                :style="{
+                                    backgroundColor: themeColors.background,
+                                    borderColor: themeColors.border,
+                                    color: themeColors.textPrimary,
+                                    borderWidth: '1px',
+                                    borderStyle: 'solid'
+                                }">
+                            <option value="">All Revenue Types</option>
+                            <option v-for="option in revenueTypeOptions" :key="option.value" :value="option.value">
+                                {{ option.label }}
+                            </option>
+                        </select>
+                    </div>
+                    <div v-if="canSelectEmployee">
                         <label class="block text-sm font-medium mb-2"
                                :style="{ color: themeColors.textSecondary }">Employee</label>
                         <select v-model="filters.employeeId" @change="applyFilters"
@@ -240,7 +258,7 @@
                         Revenue by Category
                     </h3>
                     <div class="space-y-3">
-                        <div v-for="category in revenueData?.revenue_by_category || []" :key="category.category" 
+                            <div v-for="category in filteredRevenueCategories" :key="category.category" 
                              class="flex items-center justify-between p-3 rounded-md"
                              :style="{ backgroundColor: themeColors.background }">
                             <div class="flex items-center space-x-3">
@@ -258,7 +276,7 @@
                                 </p>
                             </div>
                         </div>
-                        <p v-if="!revenueData?.revenue_by_category?.length" class="text-sm" :style="{ color: themeColors.textSecondary }">No revenue data for this period</p>
+                        <p v-if="!filteredRevenueCategories.length" class="text-sm" :style="{ color: themeColors.textSecondary }">No revenue data for this period</p>
                     </div>
                 </div>
 
@@ -399,52 +417,7 @@
                         </thead>
                         <tbody class="divide-y"
                               :style="{ borderColor: themeColors.border }">
-                            <!-- Room Revenue (only show if non-zero) -->
-                            <tr v-if="(revenueData?.room_revenue || 0) > 0" class="hover:opacity-80 transition-opacity">
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium"
-                                    :style="{ color: themeColors.textPrimary }">Room Revenue</td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm"
-                                    :style="{ color: themeColors.textPrimary }">
-                                    {{ formatCurrency(revenueData.room_revenue) }}
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm"
-                                    :style="{ color: themeColors.textPrimary }">-</td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium"
-                                    :style="{ color: themeColors.success }">
-                                    {{ formatCurrency(revenueData.room_revenue) }}
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm">
-                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
-                                          :style="{ backgroundColor: `${themeColors.success}20`, color: themeColors.success }">
-                                        {{ getPercentage(revenueData.room_revenue, revenueData?.total_revenue) }}%
-                                    </span>
-                                </td>
-                            </tr>
-
-                            <!-- Hall Revenue (only show if non-zero) -->
-                            <tr v-if="(revenueData?.hall_revenue || 0) > 0" class="hover:opacity-80 transition-opacity">
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium"
-                                    :style="{ color: themeColors.textPrimary }">Hall Revenue</td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm"
-                                    :style="{ color: themeColors.textPrimary }">
-                                    {{ formatCurrency(revenueData.hall_revenue) }}
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm"
-                                    :style="{ color: themeColors.textPrimary }">-</td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium"
-                                    :style="{ color: themeColors.success }">
-                                    {{ formatCurrency(revenueData.hall_revenue) }}
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm">
-                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
-                                          :style="{ backgroundColor: `${themeColors.success}20`, color: themeColors.success }">
-                                        {{ getPercentage(revenueData.hall_revenue, revenueData?.total_revenue) }}%
-                                    </span>
-                                </td>
-                            </tr>
-                            
-                            <!-- Other Revenue Categories -->
-                            <tr v-for="category in revenueData?.revenue_by_category?.filter(c => c.category !== 'Room Revenue' && c.category !== 'Hall Revenue') || []" 
+                            <tr v-for="category in filteredRevenueCategories"
                                 :key="category.category" class="hover:opacity-80 transition-opacity">
                                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium"
                                     :style="{ color: themeColors.textPrimary }">{{ category.category }}</td>
@@ -455,15 +428,15 @@
                                 <td class="px-6 py-4 whitespace-nowrap text-sm"
                                     :style="{ color: themeColors.textPrimary }">-</td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium"
-                                    :style="{ color: themeColors.success }">
+                                    :style="{ color: category.amount >= 0 ? themeColors.success : themeColors.danger }">
                                     {{ category.formatted_amount }}
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm">
                                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
                                           :style="{ 
-                                              backgroundColor: `${themeColors.success}20`,
-                                              color: themeColors.success
-                                          }">100%</span>
+                                              backgroundColor: `${(category.amount >= 0 ? themeColors.success : themeColors.danger)}20`,
+                                              color: category.amount >= 0 ? themeColors.success : themeColors.danger
+                                          }">{{ getPercentage(category.amount, revenueData?.total_revenue) }}%</span>
                                 </td>
                             </tr>
 
@@ -680,6 +653,7 @@ const formatDate = (d) => {
 const filters = ref({
     startDate: (props.stats?.start_date || props.dateRange?.start) || '',
     endDate: (props.stats?.end_date || props.dateRange?.end) || '',
+    revenueType: props.filters?.revenueType || props.filters?.revenue_type || '',
     employeeId: props.filters?.employeeId ? String(props.filters.employeeId) : ''
 })
 
@@ -701,6 +675,30 @@ const getCategoryColor = (category) => {
     const index = category?.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) || 0
     return colors[index % colors.length]
 }
+
+const getRevenueCategoryKey = (category) => {
+    return (category || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'other'
+}
+
+const revenueTypeOptions = computed(() => {
+    return (props.revenueData?.revenue_by_category || [])
+        .map(category => ({
+            value: getRevenueCategoryKey(category.category),
+            label: category.category,
+        }))
+        .filter((option, index, items) => items.findIndex(item => item.value === option.value) === index)
+        .sort((left, right) => left.label.localeCompare(right.label))
+})
+
+const filteredRevenueCategories = computed(() => {
+    const categories = props.revenueData?.revenue_by_category || []
+
+    if (!filters.value.revenueType) {
+        return categories
+    }
+
+    return categories.filter(category => getRevenueCategoryKey(category.category) === filters.value.revenueType)
+})
 
 const setQuickPeriod = () => {
     const now = new Date()

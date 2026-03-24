@@ -31,6 +31,7 @@ body{padding:4mm;}
 /* ── receipt layout ── */
 .receipt-container{width:100%;max-width:100%;padding:0;box-shadow:none;border-radius:0;background:#fff;color:#000;}
 .receipt-header{text-align:center;margin-bottom:10px;}
+.receipt-logo{display:block;max-width:96px;max-height:72px;margin:0 auto 8px;object-fit:contain;}
 .receipt-hotel-name{font-size:16px;font-weight:bold;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;}
 .receipt-address,.receipt-phone,.receipt-email{font-size:11px;margin:2px 0;}
 .receipt-divider{border-top:1px dashed #000;margin:8px 0;}

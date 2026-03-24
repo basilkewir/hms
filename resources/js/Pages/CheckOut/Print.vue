@@ -30,7 +30,7 @@
             <div id="checkout-bill-print" class="rounded-lg shadow-xl p-8 print:p-6 print:shadow-none" :style="{ backgroundColor: '#ffffff', color: '#000000' }">
                 <!-- Header -->
                 <div class="text-center border-b pb-4 mb-6" :style="{ borderColor: '#d1d5db' }">
-                    <img v-if="hotelLogo" :src="hotelLogo" alt="Hotel Logo" class="h-16 max-w-xs object-contain mx-auto mb-3">
+                    <img v-if="normalizedHotelLogo" :src="normalizedHotelLogo" alt="Hotel Logo" class="h-16 max-w-xs object-contain mx-auto mb-3">
                     <h1 class="text-2xl font-bold mb-1">{{ hotelName }}</h1>
                     <div class="text-xs leading-5" :style="{ color: '#4b5563' }">
                         <div v-if="hotelAddress">{{ hotelAddress }}</div>
@@ -282,6 +282,14 @@ const props = defineProps({
 })
 
 const navigation = computed(() => getNavigationForRole(props.role))
+
+const normalizedHotelLogo = computed(() => {
+    const logo = props.hotelLogo
+    if (!logo) return ''
+    if (/^(https?:)?\/\//i.test(logo) || logo.startsWith('data:')) return logo
+    if (logo.startsWith('/storage/') || logo.startsWith('/images/') || logo.startsWith('/img/')) return logo
+    return `/storage/${logo.replace(/^\/+/, '')}`
+})
 
 const checkoutRoute = computed(() => {
     const r = props.role

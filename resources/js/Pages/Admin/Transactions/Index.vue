@@ -120,7 +120,7 @@
 
         <!-- Filters -->
         <div class="bg-kotel-bg-card shadow-kotel-card rounded-lg p-6 mb-8 border border-kotel-border">
-            <div class="grid grid-cols-1 md:grid-cols-6 gap-4">
+            <div class="grid grid-cols-1 md:grid-cols-7 gap-4">
                 <div>
                     <label class="block text-sm font-medium text-kotel-text-secondary mb-2">Search</label>
                     <input type="text" v-model="searchQuery" placeholder="Search transactions..."
@@ -131,10 +131,19 @@
                     <select v-model="selectedType"
                             class="w-full border border-kotel-border rounded-md px-3 py-2 bg-kotel-black text-kotel-text-primary focus:outline-none focus:ring-2 focus:ring-kotel-yellow">
                         <option value="">All Types</option>
-                        <option value="payment">Payment</option>
-                        <option value="refund">Refund</option>
-                        <option value="deposit">Deposit</option>
-                        <option value="fee">Fee</option>
+                        <option v-for="type in transactionTypeOptions" :key="type" :value="type">
+                            {{ formatType(type) }}
+                        </option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-kotel-text-secondary mb-2">Revenue Type</label>
+                    <select v-model="selectedRevenueType"
+                            class="w-full border border-kotel-border rounded-md px-3 py-2 bg-kotel-black text-kotel-text-primary focus:outline-none focus:ring-2 focus:ring-kotel-yellow">
+                        <option value="">All Revenue Types</option>
+                        <option v-for="option in revenueTypeOptions" :key="option.value" :value="option.value">
+                            {{ option.label }}
+                        </option>
                     </select>
                 </div>
                 <div>
@@ -200,6 +209,9 @@
                                 Type
                             </th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-kotel-text-secondary uppercase tracking-wider">
+                                Revenue Type
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-kotel-text-secondary uppercase tracking-wider">
                                 Amount
                             </th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-kotel-text-secondary uppercase tracking-wider">
@@ -233,6 +245,9 @@
                                       :class="getTypeColor(transaction.type)">
                                     {{ formatType(transaction.type) }}
                                 </span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-kotel-text-primary">
+                                {{ transaction.source_label || formatType(transaction.type) }}
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium"
                                 :class="transaction.type === 'refund' ? 'text-kotel-red' : 'text-kotel-green'">
@@ -385,10 +400,27 @@ const formatCurrency = (amount) => {
 
 const searchQuery = ref('')
 const selectedType = ref('')
+const selectedRevenueType = ref('')
 const selectedStatus = ref('')
 const selectedPaymentMethod = ref('')
 const selectedEmployee = ref(props.filters?.employee_id ? String(props.filters.employee_id) : '')
 const selectedTransaction = ref(null)
+
+const transactionTypeOptions = computed(() => {
+    return [...new Set((props.transactions || []).map(transaction => transaction.type).filter(Boolean))].sort()
+})
+
+const revenueTypeOptions = computed(() => {
+    return [...new Map((props.transactions || [])
+        .filter(transaction => transaction.source_key || transaction.source_label)
+        .map(transaction => [
+            transaction.source_key || transaction.source_label,
+            {
+                value: transaction.source_key || transaction.source_label,
+                label: transaction.source_label || formatType(transaction.type),
+            }
+        ])).values()].sort((left, right) => left.label.localeCompare(right.label))
+})
 
 const closeModal = () => { selectedTransaction.value = null }
 
@@ -400,11 +432,12 @@ const filteredTransactions = computed(() => {
             transaction.transaction_id?.toLowerCase().includes(searchQuery.value.toLowerCase())
 
         const matchesType = !selectedType.value || transaction.type === selectedType.value
+        const matchesRevenueType = !selectedRevenueType.value || (transaction.source_key || transaction.source_label) === selectedRevenueType.value
         const matchesStatus = !selectedStatus.value || transaction.status === selectedStatus.value
         const matchesPaymentMethod = !selectedPaymentMethod.value || transaction.payment_method === selectedPaymentMethod.value
         const matchesEmployee = !selectedEmployee.value || String(transaction.user_id || '') === selectedEmployee.value
 
-        return matchesSearch && matchesType && matchesStatus && matchesPaymentMethod && matchesEmployee
+        return matchesSearch && matchesType && matchesRevenueType && matchesStatus && matchesPaymentMethod && matchesEmployee
     })
 })
 
@@ -465,6 +498,7 @@ const formatDateTime = (date) => {
 const clearFilters = () => {
     searchQuery.value = ''
     selectedType.value = ''
+    selectedRevenueType.value = ''
     selectedStatus.value = ''
     selectedPaymentMethod.value = ''
     selectedEmployee.value = ''

@@ -50,11 +50,31 @@
 
             <!-- Filters -->
             <div class="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="grid grid-cols-2 md:grid-cols-6 gap-4">
                     <div>
                         <label class="block text-xs font-medium text-gray-600 mb-1">Search</label>
                         <input v-model="filters.search" type="text" placeholder="Guest name, payment #..."
                                class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Type</label>
+                        <select v-model="filters.type"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            <option value="">All Types</option>
+                            <option v-for="type in transactionTypeOptions" :key="type" :value="type">
+                                {{ formatType(type) }}
+                            </option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Revenue Type</label>
+                        <select v-model="filters.revenue_type"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            <option value="">All Revenue Types</option>
+                            <option v-for="option in revenueTypeOptions" :key="option.value" :value="option.value">
+                                {{ option.label }}
+                            </option>
+                        </select>
                     </div>
                     <div>
                         <label class="block text-xs font-medium text-gray-600 mb-1">Status</label>
@@ -95,6 +115,7 @@
                                 <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Guest</th>
                                 <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Room</th>
                                 <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Reference</th>
+                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Revenue Type</th>
                                 <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Amount</th>
                                 <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Method</th>
                                 <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
@@ -104,7 +125,7 @@
                         </thead>
                         <tbody class="bg-white divide-y divide-gray-200">
                             <tr v-if="filteredTransactions.length === 0">
-                                <td colspan="9" class="px-6 py-10 text-center text-gray-500">
+                                <td colspan="10" class="px-6 py-10 text-center text-gray-500">
                                     No transactions found.
                                 </td>
                             </tr>
@@ -121,6 +142,9 @@
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                                     {{ txn.reference }}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                                    {{ txn.source_label || formatType(txn.type) }}
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                                     {{ formatCurrency(txn.amount) }}
@@ -239,9 +263,27 @@ const props = defineProps({
 // Filters
 const filters = ref({
     search: '',
+    type: '',
+    revenue_type: '',
     status: '',
     start_date: '',
     end_date: '',
+})
+
+const transactionTypeOptions = computed(() => {
+    return [...new Set(props.transactions.map(transaction => transaction.type).filter(Boolean))].sort()
+})
+
+const revenueTypeOptions = computed(() => {
+    return [...new Map(props.transactions
+        .filter(transaction => transaction.source_key || transaction.source_label)
+        .map(transaction => [
+            transaction.source_key || transaction.source_label,
+            {
+                value: transaction.source_key || transaction.source_label,
+                label: transaction.source_label || formatType(transaction.type),
+            }
+        ])).values()].sort((left, right) => left.label.localeCompare(right.label))
 })
 
 // Modal
@@ -293,6 +335,8 @@ const filteredTransactions = computed(() => {
             ].join(' ').toLowerCase()
             if (!haystack.includes(search)) return false
         }
+        if (filters.value.type && txn.type !== filters.value.type) return false
+        if (filters.value.revenue_type && (txn.source_key || txn.source_label) !== filters.value.revenue_type) return false
         if (filters.value.status && txn.status !== filters.value.status) return false
         if (filters.value.start_date) {
             const txnDate = new Date(txn.date || txn.created_at).toISOString().slice(0, 10)
@@ -307,7 +351,12 @@ const filteredTransactions = computed(() => {
 })
 
 const clearFilters = () => {
-    filters.value = { search: '', status: '', start_date: '', end_date: '' }
+    filters.value = { search: '', type: '', revenue_type: '', status: '', start_date: '', end_date: '' }
+}
+
+const formatType = (type) => {
+    if (!type) return 'N/A'
+    return type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
 }
 
 // Formatters

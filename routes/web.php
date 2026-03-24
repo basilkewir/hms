@@ -83,6 +83,64 @@ Route::post('/license/activate', function (Request $request) {
     return redirect()->intended(route('login'))->with('success', 'License activated! Please log in.');
 })->name('license.activate.store');
 
+if (!function_exists('hms_label_to_key')) {
+    function hms_label_to_key(?string $label): string
+    {
+        $normalized = strtolower((string) $label);
+        $normalized = preg_replace('/[^a-z0-9]+/', '_', $normalized) ?? '';
+
+        return trim($normalized, '_') ?: 'other';
+    }
+}
+
+if (!function_exists('hms_transaction_source_meta')) {
+    function hms_transaction_source_meta(string $type, array $context = []): array
+    {
+        $type = strtolower($type);
+        $chargeCode = strtoupper((string) ($context['charge_code'] ?? ''));
+        $department = strtoupper((string) ($context['department'] ?? ''));
+        $description = strtoupper((string) ($context['description'] ?? ''));
+
+        $roomChargeCodes = [
+            'ROOM', 'ROOM_RATE', 'ACCOMMODATION', 'ROOM_CHARGE', 'STAY', 'NIGHT',
+            'ROOM_NIGHT', 'ROOM_SERVICE_CHARGE', 'ACCOMMODATION_CHARGE',
+            'HOTEL_ROOM', 'GUEST_ROOM', 'LODGING', 'OCCUPANCY', 'DAILY_RATE',
+            'ROOM_TAX', 'ROOM_FEE', 'ROOM_FOLIO'
+        ];
+
+        $serviceChargeCodes = ['SERVICE', 'SERVICE_CHARGE', 'ROOM_SERVICE', 'RESORT_FEE'];
+        $damageChargeCodes = ['DAMAGE', 'DAMAGES', 'DAMAGE_FEE', 'BREAKAGE'];
+        $posChargeCodes = ['POS', 'POS_SALE', 'FOOD', 'BEVERAGE', 'RESTAURANT', 'BAR', 'MINIBAR'];
+        $parkingChargeCodes = ['PARKING', 'VALET_PARKING'];
+        $laundryChargeCodes = ['LAUNDRY', 'DRY_CLEANING', 'PRESSING'];
+
+        $label = match ($type) {
+            'payment' => !empty($context['reservation_id']) ? 'Room Payment' : 'Payment',
+            'sale' => !empty($context['is_charged_to_room']) ? 'POS Room Charge' : 'POS Restaurant/Bar',
+            'pos_transaction' => 'POS Restaurant/Bar',
+            'folio_charge' => match (true) {
+                in_array($chargeCode, $roomChargeCodes, true) => 'Room Folio',
+                in_array($chargeCode, $serviceChargeCodes, true) => 'Service Charge',
+                in_array($chargeCode, $damageChargeCodes, true) => 'Damages',
+                in_array($chargeCode, $parkingChargeCodes, true) => 'Parking',
+                in_array($chargeCode, $laundryChargeCodes, true) => 'Laundry',
+                in_array($chargeCode, $posChargeCodes, true) => 'POS Restaurant/Bar',
+                str_contains($department, 'BAR') || str_contains($department, 'RESTAURANT') => 'POS Restaurant/Bar',
+                str_contains($description, 'DAMAGE') => 'Damages',
+                str_contains($description, 'SERVICE') => 'Service Charge',
+                default => ucwords(strtolower(str_replace('_', ' ', $chargeCode ?: 'Other Services'))),
+            },
+            'expense' => 'Expense',
+            default => ucwords(str_replace('_', ' ', $type)),
+        };
+
+        return [
+            'source_key' => hms_label_to_key($label),
+            'source_label' => $label,
+        ];
+    }
+}
+
 // General User Routes
 Route::middleware(['auth'])->group(function () {
     Route::get('/dashboard', function () {
@@ -1940,25 +1998,30 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
             ->orderBy('created_at', 'desc')
             ->limit(10)
             ->get()
-            ->map(fn($p) => [
-                'id'            => $p->id,
-                'source_id'     => $p->id,
-                'transaction_id' => $p->payment_number ?? 'PAY-' . $p->id,
-                'guest_name'    => $p->reservation?->guest
-                    ? trim($p->reservation->guest->first_name . ' ' . $p->reservation->guest->last_name)
-                    : 'Guest',
-                'reference'     => $p->reservation?->id ? 'Reservation #' . $p->reservation->id : 'Direct Payment',
-                'type'          => 'payment',
-                'amount'        => (float)$p->amount,
-                'status'        => $p->status ?? 'completed',
-                'payment_method' => $p->payment_method,
-                'user_id'       => $p->processed_by,
-                'user_name'     => $p->processedBy
-                    ? trim(($p->processedBy->first_name ?? '') . ' ' . ($p->processedBy->last_name ?? ''))
-                    : 'N/A',
-                'date'          => $p->processed_at?->format('Y-m-d H:i:s') ?? $p->created_at->format('Y-m-d H:i:s'),
-                'created_at'    => $p->created_at->format('Y-m-d H:i:s'),
-            ]);
+            ->map(function ($p) {
+                return array_merge([
+                    'id'            => $p->id,
+                    'source_id'     => $p->id,
+                    'transaction_id' => $p->payment_number ?? 'PAY-' . $p->id,
+                    'guest_name'    => $p->reservation?->guest
+                        ? trim($p->reservation->guest->first_name . ' ' . $p->reservation->guest->last_name)
+                        : 'Guest',
+                    'reference'     => $p->reservation?->id ? 'Reservation #' . $p->reservation->id : 'Direct Payment',
+                    'type'          => 'payment',
+                    'amount'        => (float)$p->amount,
+                    'status'        => $p->status ?? 'completed',
+                    'payment_method' => $p->payment_method,
+                    'user_id'       => $p->processed_by,
+                    'user_name'     => $p->processedBy
+                        ? trim(($p->processedBy->first_name ?? '') . ' ' . ($p->processedBy->last_name ?? ''))
+                        : 'N/A',
+                    'date'          => $p->processed_at?->format('Y-m-d H:i:s') ?? $p->created_at->format('Y-m-d H:i:s'),
+                    'created_at'    => $p->created_at->format('Y-m-d H:i:s'),
+                ], hms_transaction_source_meta('payment', [
+                    'reservation_id' => $p->reservation_id,
+                    'description' => $p->notes,
+                ]));
+            });
         $recentTransactions = $recentTransactions->merge($payments);
 
         // Add recent sales
@@ -1968,25 +2031,29 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
                 ->orderBy('created_at', 'desc')
                 ->limit(10)
                 ->get()
-                ->map(fn($s) => [
-                    'id'            => $s->id,
-                    'source_id'     => $s->id,
-                    'transaction_id' => $s->sale_number ?? 'SALE-' . $s->id,
-                    'guest_name'    => $s->guest
-                        ? trim($s->guest->first_name . ' ' . $s->guest->last_name)
-                        : 'Customer',
-                    'reference'     => 'Sale #' . $s->id,
-                    'type'          => 'sale',
-                    'amount'        => (float)$s->total_amount,
-                    'status'        => $s->payment_status ?? 'completed',
-                    'payment_method' => $s->payment_method ?? 'cash',
-                    'user_id'       => $s->user_id,
-                    'user_name'     => $s->user
-                        ? trim(($s->user->first_name ?? '') . ' ' . ($s->user->last_name ?? ''))
-                        : 'N/A',
-                    'date'          => $s->created_at->format('Y-m-d H:i:s'),
-                    'created_at'    => $s->created_at->format('Y-m-d H:i:s'),
-                ]);
+                ->map(function ($s) {
+                    return array_merge([
+                        'id'            => $s->id,
+                        'source_id'     => $s->id,
+                        'transaction_id' => $s->sale_number ?? 'SALE-' . $s->id,
+                        'guest_name'    => $s->guest
+                            ? trim($s->guest->first_name . ' ' . $s->guest->last_name)
+                            : 'Customer',
+                        'reference'     => 'Sale #' . $s->id,
+                        'type'          => 'sale',
+                        'amount'        => (float)$s->total_amount,
+                        'status'        => $s->payment_status ?? 'completed',
+                        'payment_method' => $s->payment_method ?? 'cash',
+                        'user_id'       => $s->user_id,
+                        'user_name'     => $s->user
+                            ? trim(($s->user->first_name ?? '') . ' ' . ($s->user->last_name ?? ''))
+                            : 'N/A',
+                        'date'          => $s->created_at->format('Y-m-d H:i:s'),
+                        'created_at'    => $s->created_at->format('Y-m-d H:i:s'),
+                    ], hms_transaction_source_meta('sale', [
+                        'is_charged_to_room' => $s->is_charged_to_room,
+                    ]));
+                });
             $recentTransactions = $recentTransactions->merge($sales);
         }
 
@@ -1997,23 +2064,27 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
                 ->orderBy('id', 'desc')
                 ->limit(10)
                 ->get()
-                ->map(fn($pt) => [
-                    'id'            => $pt->id,
-                    'source_id'     => $pt->id,
-                    'transaction_id' => 'POS-' . $pt->id,
-                    'guest_name'    => 'POS Customer',
-                    'user_name'     => $pt->user
-                        ? trim($pt->user->first_name . ' ' . $pt->user->last_name)
-                        : 'N/A',
-                    'reference'     => $pt->sale?->sale_number ? 'POS Sale #' . $pt->sale->sale_number : 'POS Transaction',
-                    'type'          => 'pos_transaction',
-                    'amount'        => (float)$pt->amount,
-                    'status'        => 'completed',
-                    'payment_method' => $pt->payment_method ?? 'cash',
-                    'user_id'       => $pt->user_id,
-                    'date'          => $pt->sale?->created_at?->format('Y-m-d H:i:s') ?? now()->format('Y-m-d H:i:s'),
-                    'created_at'    => $pt->sale?->created_at?->format('Y-m-d H:i:s') ?? now()->format('Y-m-d H:i:s'),
-                ]);
+                ->map(function ($pt) {
+                    return array_merge([
+                        'id'            => $pt->id,
+                        'source_id'     => $pt->id,
+                        'transaction_id' => 'POS-' . $pt->id,
+                        'guest_name'    => 'POS Customer',
+                        'user_name'     => $pt->user
+                            ? trim($pt->user->first_name . ' ' . $pt->user->last_name)
+                            : 'N/A',
+                        'reference'     => $pt->sale?->sale_number ? 'POS Sale #' . $pt->sale->sale_number : 'POS Transaction',
+                        'type'          => 'pos_transaction',
+                        'amount'        => (float)$pt->amount,
+                        'status'        => 'completed',
+                        'payment_method' => $pt->payment_method ?? 'cash',
+                        'user_id'       => $pt->user_id,
+                        'date'          => $pt->sale?->created_at?->format('Y-m-d H:i:s') ?? now()->format('Y-m-d H:i:s'),
+                        'created_at'    => $pt->sale?->created_at?->format('Y-m-d H:i:s') ?? now()->format('Y-m-d H:i:s'),
+                    ], hms_transaction_source_meta('pos_transaction', [
+                        'description' => $pt->description,
+                    ]));
+                });
             $recentTransactions = $recentTransactions->merge($posTransactions);
         }
 
@@ -2024,25 +2095,31 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
                 ->orderBy('id', 'desc')
                 ->limit(10)
                 ->get()
-                ->map(fn($fc) => [
-                    'id'            => $fc->id,
-                    'source_id'     => $fc->id,
-                    'transaction_id' => 'FOLIO-' . $fc->id,
-                    'guest_name'    => $fc->folio?->reservation?->guest
-                        ? trim($fc->folio->reservation->guest->first_name . ' ' . $fc->folio->reservation->guest->last_name)
-                        : 'Guest',
-                    'reference'     => $fc->folio?->reservation?->id ? 'Room #' . $fc->folio->reservation->room?->room_number . ' Folio' : 'Room Charge',
-                    'type'          => 'folio_charge',
-                    'amount'        => (float)$fc->net_amount,
-                    'status'        => 'active',
-                    'payment_method' => 'room_charge',
-                    'user_id'       => $fc->posted_by,
-                    'user_name'     => $fc->postedBy
-                        ? trim(($fc->postedBy->first_name ?? '') . ' ' . ($fc->postedBy->last_name ?? ''))
-                        : 'N/A',
-                    'date'          => $fc->charge_date?->format('Y-m-d H:i:s') ?? now()->format('Y-m-d H:i:s'),
-                    'created_at'    => $fc->created_at?->format('Y-m-d H:i:s') ?? now()->format('Y-m-d H:i:s'),
-                ]);
+                ->map(function ($fc) {
+                    return array_merge([
+                        'id'            => $fc->id,
+                        'source_id'     => $fc->id,
+                        'transaction_id' => 'FOLIO-' . $fc->id,
+                        'guest_name'    => $fc->folio?->reservation?->guest
+                            ? trim($fc->folio->reservation->guest->first_name . ' ' . $fc->folio->reservation->guest->last_name)
+                            : 'Guest',
+                        'reference'     => $fc->folio?->reservation?->id ? 'Room #' . $fc->folio->reservation->room?->room_number . ' Folio' : 'Room Charge',
+                        'type'          => 'folio_charge',
+                        'amount'        => (float)$fc->net_amount,
+                        'status'        => 'active',
+                        'payment_method' => 'room_charge',
+                        'user_id'       => $fc->posted_by,
+                        'user_name'     => $fc->postedBy
+                            ? trim(($fc->postedBy->first_name ?? '') . ' ' . ($fc->postedBy->last_name ?? ''))
+                            : 'N/A',
+                        'date'          => $fc->charge_date?->format('Y-m-d H:i:s') ?? now()->format('Y-m-d H:i:s'),
+                        'created_at'    => $fc->created_at?->format('Y-m-d H:i:s') ?? now()->format('Y-m-d H:i:s'),
+                    ], hms_transaction_source_meta('folio_charge', [
+                        'charge_code' => $fc->charge_code,
+                        'department' => $fc->department,
+                        'description' => $fc->description,
+                    ]));
+                });
             $recentTransactions = $recentTransactions->merge($folioCharges);
         }
 
@@ -2058,25 +2135,27 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
                 ->orderBy('expense_date', 'desc')
                 ->limit(10)
                 ->get()
-                ->map(fn($e) => [
-                    'id'            => $e->id,
-                    'source_id'     => $e->id,
-                    'transaction_id' => $e->expense_number ?? 'EXP-' . $e->id,
-                    'guest_name'    => $e->vendor_name ?? 'Vendor',
-                    'reference'     => 'Expense #' . $e->id,
-                    'type'          => 'expense',
-                    'amount'        => (float)$e->amount,
-                    'status'        => $e->status ?? 'pending',
-                    'payment_method' => $e->payment_method ?? 'cash',
-                    'user_id'       => $e->paid_by ?? $e->submitted_by,
-                    'user_name'     => $e->paidBy
-                        ? trim(($e->paidBy->first_name ?? '') . ' ' . ($e->paidBy->last_name ?? ''))
-                        : ($e->submittedBy
-                            ? trim(($e->submittedBy->first_name ?? '') . ' ' . ($e->submittedBy->last_name ?? ''))
-                            : 'N/A'),
-                    'date'          => $e->expense_date->format('Y-m-d H:i:s'),
-                    'created_at'    => $e->created_at->format('Y-m-d H:i:s'),
-                ]);
+                ->map(function ($e) {
+                    return array_merge([
+                        'id'            => $e->id,
+                        'source_id'     => $e->id,
+                        'transaction_id' => $e->expense_number ?? 'EXP-' . $e->id,
+                        'guest_name'    => $e->vendor_name ?? 'Vendor',
+                        'reference'     => 'Expense #' . $e->id,
+                        'type'          => 'expense',
+                        'amount'        => (float)$e->amount,
+                        'status'        => $e->status ?? 'pending',
+                        'payment_method' => $e->payment_method ?? 'cash',
+                        'user_id'       => $e->paid_by ?? $e->submitted_by,
+                        'user_name'     => $e->paidBy
+                            ? trim(($e->paidBy->first_name ?? '') . ' ' . ($e->paidBy->last_name ?? ''))
+                            : ($e->submittedBy
+                                ? trim(($e->submittedBy->first_name ?? '') . ' ' . ($e->submittedBy->last_name ?? ''))
+                                : 'N/A'),
+                        'date'          => $e->expense_date->format('Y-m-d H:i:s'),
+                        'created_at'    => $e->created_at->format('Y-m-d H:i:s'),
+                    ], hms_transaction_source_meta('expense'));
+                });
             $recentTransactions = $recentTransactions->merge($expenses);
         }
 
@@ -4574,12 +4653,19 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
             }
 
             // Revenue by category
-            $revByCategory = array_filter([
-                $roomRevenue > 0 ? ['category' => 'Room Revenue', 'amount' => $roomRevenue, 'formatted_amount' => $fmt($roomRevenue)] : null,
-                $hallRevenue > 0 ? ['category' => 'Hall Revenue', 'amount' => $hallRevenue, 'formatted_amount' => $fmt($hallRevenue)] : null,
-                $posRevenue  > 0 ? ['category' => 'POS / F&B',    'amount' => $posRevenue,  'formatted_amount' => $fmt($posRevenue)]  : null,
-                $discountTotal > 0 ? ['category' => 'Discounts Applied', 'amount' => -$discountTotal, 'formatted_amount' => $fmt(-$discountTotal)] : null,
-            ]);
+            $revByCategory = $employeeId
+                ? array_filter([
+                    $paymentRevenue > 0 ? ['category' => 'Processed Payments', 'amount' => $paymentRevenue, 'formatted_amount' => $fmt($paymentRevenue)] : null,
+                    $folioRevenue > 0 ? ['category' => 'Folio Charges', 'amount' => $folioRevenue, 'formatted_amount' => $fmt($folioRevenue)] : null,
+                    $posRevenue  > 0 ? ['category' => 'POS Sales', 'amount' => $posRevenue, 'formatted_amount' => $fmt($posRevenue)] : null,
+                    $discountTotal > 0 ? ['category' => 'Discounts Applied', 'amount' => -$discountTotal, 'formatted_amount' => $fmt(-$discountTotal)] : null,
+                ])
+                : array_filter([
+                    $roomRevenue > 0 ? ['category' => 'Room Revenue', 'amount' => $roomRevenue, 'formatted_amount' => $fmt($roomRevenue)] : null,
+                    $hallRevenue > 0 ? ['category' => 'Hall Revenue', 'amount' => $hallRevenue, 'formatted_amount' => $fmt($hallRevenue)] : null,
+                    $posRevenue  > 0 ? ['category' => 'POS / F&B', 'amount' => $posRevenue, 'formatted_amount' => $fmt($posRevenue)] : null,
+                    $discountTotal > 0 ? ['category' => 'Discounts Applied', 'amount' => -$discountTotal, 'formatted_amount' => $fmt(-$discountTotal)] : null,
+                ]);
 
             // ── Expenses ──────────────────────────────────────────────
             if (class_exists(\App\Models\Expense::class)) {
@@ -4628,7 +4714,7 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
             'filters' => ['employeeId' => $employeeId],
             'revenueData' => [
                 'total_revenue'        => $stats['total_revenue'],
-                'room_revenue'         => $roomRevenue,
+                'room_revenue'         => $employeeId ? 0.0 : $roomRevenue,
                 'hall_revenue'         => $hallRevenue,
                 'average_daily_rate'   => $adr,
                 'revenue_by_category'  => array_values($revByCategory),
@@ -6407,24 +6493,29 @@ Route::middleware(['auth', 'role:front_desk'])->prefix('front-desk')->name('fron
             ->where('processed_by', $userId)
             ->orderBy('processed_at', 'desc')
             ->get()
-            ->map(fn($p) => [
-                'id'             => $p->id,
-                'source_id'      => $p->id,
-                'transaction_id' => 'PAY-' . $p->id,
-                'payment_number' => $p->payment_number,
-                'guest_name'     => $p->reservation?->guest
-                    ? trim($p->reservation->guest->first_name . ' ' . $p->reservation->guest->last_name)
-                    : 'N/A',
-                'room_number'    => $p->reservation?->room?->room_number ?? 'N/A',
-                'reference'      => $p->reservation_id ? 'Reservation #' . $p->reservation_id : ($p->payment_number ?? 'N/A'),
-                'type'           => 'payment',
-                'amount'         => (float) $p->amount,
-                'status'         => $p->status ?? 'completed',
-                'payment_method' => $p->payment_method,
-                'date'           => $p->processed_at ?? $p->created_at,
-                'created_at'     => $p->created_at,
-                'notes'          => $p->notes,
-            ]);
+            ->map(function ($p) {
+                return array_merge([
+                    'id'             => $p->id,
+                    'source_id'      => $p->id,
+                    'transaction_id' => 'PAY-' . $p->id,
+                    'payment_number' => $p->payment_number,
+                    'guest_name'     => $p->reservation?->guest
+                        ? trim($p->reservation->guest->first_name . ' ' . $p->reservation->guest->last_name)
+                        : 'N/A',
+                    'room_number'    => $p->reservation?->room?->room_number ?? 'N/A',
+                    'reference'      => $p->reservation_id ? 'Reservation #' . $p->reservation_id : ($p->payment_number ?? 'N/A'),
+                    'type'           => 'payment',
+                    'amount'         => (float) $p->amount,
+                    'status'         => $p->status ?? 'completed',
+                    'payment_method' => $p->payment_method,
+                    'date'           => $p->processed_at ?? $p->created_at,
+                    'created_at'     => $p->created_at,
+                    'notes'          => $p->notes,
+                ], hms_transaction_source_meta('payment', [
+                    'reservation_id' => $p->reservation_id,
+                    'description' => $p->notes,
+                ]));
+            });
 
         $stats = [
             'total_count'  => $transactions->count(),
@@ -8067,21 +8158,26 @@ Route::middleware(['auth', 'role:accountant'])->prefix('accountant')->name('acco
             ->orderBy('created_at', 'desc')
             ->limit(10)
             ->get()
-            ->map(fn($p) => [
-                'id'            => $p->id,
-                'source_id'     => $p->id,
-                'transaction_id' => $p->payment_number ?? 'PAY-' . $p->id,
-                'guest_name'    => $p->reservation?->guest
-                    ? trim($p->reservation->guest->first_name . ' ' . $p->reservation->guest->last_name)
-                    : 'Guest',
-                'reference'     => $p->reservation?->id ? 'Reservation #' . $p->reservation->id : 'Direct Payment',
-                'type'          => 'payment',
-                'amount'        => (float)$p->amount,
-                'status'        => $p->status ?? 'completed',
-                'payment_method' => $p->payment_method,
-                'date'          => $p->processed_at?->format('Y-m-d H:i:s') ?? $p->created_at->format('Y-m-d H:i:s'),
-                'created_at'    => $p->created_at->format('Y-m-d H:i:s'),
-            ]);
+            ->map(function ($p) {
+                return array_merge([
+                    'id'            => $p->id,
+                    'source_id'     => $p->id,
+                    'transaction_id' => $p->payment_number ?? 'PAY-' . $p->id,
+                    'guest_name'    => $p->reservation?->guest
+                        ? trim($p->reservation->guest->first_name . ' ' . $p->reservation->guest->last_name)
+                        : 'Guest',
+                    'reference'     => $p->reservation?->id ? 'Reservation #' . $p->reservation->id : 'Direct Payment',
+                    'type'          => 'payment',
+                    'amount'        => (float)$p->amount,
+                    'status'        => $p->status ?? 'completed',
+                    'payment_method' => $p->payment_method,
+                    'date'          => $p->processed_at?->format('Y-m-d H:i:s') ?? $p->created_at->format('Y-m-d H:i:s'),
+                    'created_at'    => $p->created_at->format('Y-m-d H:i:s'),
+                ], hms_transaction_source_meta('payment', [
+                    'reservation_id' => $p->reservation_id,
+                    'description' => $p->notes,
+                ]));
+            });
         $recentTransactions = $recentTransactions->merge($payments);
 
         // Add recent sales
@@ -8090,21 +8186,25 @@ Route::middleware(['auth', 'role:accountant'])->prefix('accountant')->name('acco
                 ->orderBy('created_at', 'desc')
                 ->limit(10)
                 ->get()
-                ->map(fn($s) => [
-                    'id'            => $s->id,
-                    'source_id'     => $s->id,
-                    'transaction_id' => $s->sale_number ?? 'SALE-' . $s->id,
-                    'guest_name'    => $s->guest
-                        ? trim($s->guest->first_name . ' ' . $s->guest->last_name)
-                        : 'Customer',
-                    'reference'     => 'Sale #' . $s->id,
-                    'type'          => 'sale',
-                    'amount'        => (float)$s->total_amount,
-                    'status'        => $s->payment_status ?? 'completed',
-                    'payment_method' => $s->payment_method ?? 'cash',
-                    'date'          => $s->created_at->format('Y-m-d H:i:s'),
-                    'created_at'    => $s->created_at->format('Y-m-d H:i:s'),
-                ]);
+                ->map(function ($s) {
+                    return array_merge([
+                        'id'            => $s->id,
+                        'source_id'     => $s->id,
+                        'transaction_id' => $s->sale_number ?? 'SALE-' . $s->id,
+                        'guest_name'    => $s->guest
+                            ? trim($s->guest->first_name . ' ' . $s->guest->last_name)
+                            : 'Customer',
+                        'reference'     => 'Sale #' . $s->id,
+                        'type'          => 'sale',
+                        'amount'        => (float)$s->total_amount,
+                        'status'        => $s->payment_status ?? 'completed',
+                        'payment_method' => $s->payment_method ?? 'cash',
+                        'date'          => $s->created_at->format('Y-m-d H:i:s'),
+                        'created_at'    => $s->created_at->format('Y-m-d H:i:s'),
+                    ], hms_transaction_source_meta('sale', [
+                        'is_charged_to_room' => $s->is_charged_to_room,
+                    ]));
+                });
             $recentTransactions = $recentTransactions->merge($sales);
         }
 
@@ -8114,19 +8214,23 @@ Route::middleware(['auth', 'role:accountant'])->prefix('accountant')->name('acco
                 ->orderBy('id', 'desc')
                 ->limit(10)
                 ->get()
-                ->map(fn($pt) => [
-                    'id'            => $pt->id,
-                    'source_id'     => $pt->id,
-                    'transaction_id' => 'POS-' . $pt->id,
-                    'guest_name'    => 'POS Customer',
-                    'reference'     => $pt->sale?->sale_number ? 'POS Sale #' . $pt->sale->sale_number : 'POS Transaction',
-                    'type'          => 'pos_transaction',
-                    'amount'        => (float)$pt->amount,
-                    'status'        => 'completed',
-                    'payment_method' => $pt->payment_method ?? 'cash',
-                    'date'          => $pt->sale?->created_at?->format('Y-m-d H:i:s') ?? now()->format('Y-m-d H:i:s'),
-                    'created_at'    => $pt->sale?->created_at?->format('Y-m-d H:i:s') ?? now()->format('Y-m-d H:i:s'),
-                ]);
+                ->map(function ($pt) {
+                    return array_merge([
+                        'id'            => $pt->id,
+                        'source_id'     => $pt->id,
+                        'transaction_id' => 'POS-' . $pt->id,
+                        'guest_name'    => 'POS Customer',
+                        'reference'     => $pt->sale?->sale_number ? 'POS Sale #' . $pt->sale->sale_number : 'POS Transaction',
+                        'type'          => 'pos_transaction',
+                        'amount'        => (float)$pt->amount,
+                        'status'        => 'completed',
+                        'payment_method' => $pt->payment_method ?? 'cash',
+                        'date'          => $pt->sale?->created_at?->format('Y-m-d H:i:s') ?? now()->format('Y-m-d H:i:s'),
+                        'created_at'    => $pt->sale?->created_at?->format('Y-m-d H:i:s') ?? now()->format('Y-m-d H:i:s'),
+                    ], hms_transaction_source_meta('pos_transaction', [
+                        'description' => $pt->description,
+                    ]));
+                });
             $recentTransactions = $recentTransactions->merge($posTransactions);
         }
 
@@ -8136,21 +8240,27 @@ Route::middleware(['auth', 'role:accountant'])->prefix('accountant')->name('acco
                 ->orderBy('id', 'desc')
                 ->limit(10)
                 ->get()
-                ->map(fn($fc) => [
-                    'id'            => $fc->id,
-                    'source_id'     => $fc->id,
-                    'transaction_id' => 'FOLIO-' . $fc->id,
-                    'guest_name'    => $fc->folio?->reservation?->guest
-                        ? trim($fc->folio->reservation->guest->first_name . ' ' . $fc->folio->reservation->guest->last_name)
-                        : 'Guest',
-                    'reference'     => $fc->folio?->reservation?->id ? 'Room #' . $fc->folio->reservation->room?->room_number . ' Folio' : 'Room Charge',
-                    'type'          => 'folio_charge',
-                    'amount'        => (float)$fc->net_amount,
-                    'status'        => 'active',
-                    'payment_method' => 'room_charge',
-                    'date'          => $fc->charge_date?->format('Y-m-d H:i:s') ?? now()->format('Y-m-d H:i:s'),
-                    'created_at'    => $fc->created_at?->format('Y-m-d H:i:s') ?? now()->format('Y-m-d H:i:s'),
-                ]);
+                ->map(function ($fc) {
+                    return array_merge([
+                        'id'            => $fc->id,
+                        'source_id'     => $fc->id,
+                        'transaction_id' => 'FOLIO-' . $fc->id,
+                        'guest_name'    => $fc->folio?->reservation?->guest
+                            ? trim($fc->folio->reservation->guest->first_name . ' ' . $fc->folio->reservation->guest->last_name)
+                            : 'Guest',
+                        'reference'     => $fc->folio?->reservation?->id ? 'Room #' . $fc->folio->reservation->room?->room_number . ' Folio' : 'Room Charge',
+                        'type'          => 'folio_charge',
+                        'amount'        => (float)$fc->net_amount,
+                        'status'        => 'active',
+                        'payment_method' => 'room_charge',
+                        'date'          => $fc->charge_date?->format('Y-m-d H:i:s') ?? now()->format('Y-m-d H:i:s'),
+                        'created_at'    => $fc->created_at?->format('Y-m-d H:i:s') ?? now()->format('Y-m-d H:i:s'),
+                    ], hms_transaction_source_meta('folio_charge', [
+                        'charge_code' => $fc->charge_code,
+                        'department' => $fc->department,
+                        'description' => $fc->description,
+                    ]));
+                });
             $recentTransactions = $recentTransactions->merge($folioCharges);
         }
 
@@ -8159,19 +8269,21 @@ Route::middleware(['auth', 'role:accountant'])->prefix('accountant')->name('acco
             $expenses = \App\Models\Expense::orderBy('expense_date', 'desc')
                 ->limit(10)
                 ->get()
-                ->map(fn($e) => [
-                    'id'            => $e->id,
-                    'source_id'     => $e->id,
-                    'transaction_id' => $e->expense_number ?? 'EXP-' . $e->id,
-                    'guest_name'    => $e->vendor_name ?? 'Vendor',
-                    'reference'     => 'Expense #' . $e->id,
-                    'type'          => 'expense',
-                    'amount'        => (float)$e->amount,
-                    'status'        => $e->status ?? 'pending',
-                    'payment_method' => $e->payment_method ?? 'cash',
-                    'date'          => $e->expense_date->format('Y-m-d H:i:s'),
-                    'created_at'    => $e->created_at->format('Y-m-d H:i:s'),
-                ]);
+                ->map(function ($e) {
+                    return array_merge([
+                        'id'            => $e->id,
+                        'source_id'     => $e->id,
+                        'transaction_id' => $e->expense_number ?? 'EXP-' . $e->id,
+                        'guest_name'    => $e->vendor_name ?? 'Vendor',
+                        'reference'     => 'Expense #' . $e->id,
+                        'type'          => 'expense',
+                        'amount'        => (float)$e->amount,
+                        'status'        => $e->status ?? 'pending',
+                        'payment_method' => $e->payment_method ?? 'cash',
+                        'date'          => $e->expense_date->format('Y-m-d H:i:s'),
+                        'created_at'    => $e->created_at->format('Y-m-d H:i:s'),
+                    ], hms_transaction_source_meta('expense'));
+                });
             $recentTransactions = $recentTransactions->merge($expenses);
         }
 
@@ -9221,6 +9333,12 @@ Route::middleware(['auth', 'role:manager'])->prefix('manager')->name('manager.')
             ->when($employeeId, fn($query) => $query->where('processed_by', $employeeId));
         $saleStatsQuery = \App\Models\Sale::query()
             ->when($employeeId, fn($query) => $query->where('user_id', $employeeId));
+        $posStatsQuery = class_exists(\App\Models\PosTransaction::class)
+            ? \App\Models\PosTransaction::query()->when($employeeId, fn($query) => $query->where('user_id', $employeeId))
+            : null;
+        $folioStatsQuery = class_exists(\App\Models\FolioCharge::class)
+            ? \App\Models\FolioCharge::query()->when($employeeId, fn($query) => $query->where('posted_by', $employeeId))
+            : null;
         $expenseStatsQuery = \App\Models\Expense::query()
             ->when($employeeId, function ($query) use ($employeeId) {
                 $query->where(function ($expenseQuery) use ($employeeId) {
@@ -9230,16 +9348,26 @@ Route::middleware(['auth', 'role:manager'])->prefix('manager')->name('manager.')
             });
 
         // ── Transaction Statistics ─────────────────────────────────────────────
-        $totalTx = (clone $paymentStatsQuery)->count() + (clone $saleStatsQuery)->count() + (clone $expenseStatsQuery)->count();
+        $totalTx = (clone $paymentStatsQuery)->count()
+            + (clone $saleStatsQuery)->count()
+            + ($posStatsQuery ? (clone $posStatsQuery)->count() : 0)
+            + ($folioStatsQuery ? (clone $folioStatsQuery)->count() : 0)
+            + (clone $expenseStatsQuery)->count();
         $transactionStats = [
             'total'        => $totalTx,
             'todayRevenue' => (float) (clone $paymentStatsQuery)->where('status', 'completed')
                                 ->whereDate('processed_at', $today)->sum('amount')
-                             + (float) (clone $saleStatsQuery)->whereDate('created_at', $today)->sum('total_amount'),
+                             + (float) (clone $saleStatsQuery)->whereDate('created_at', $today)->sum('total_amount')
+                             + ($posStatsQuery ? (float) (clone $posStatsQuery)->whereDate('created_at', $today)->sum('amount') : 0.0)
+                             + ($folioStatsQuery ? (float) (clone $folioStatsQuery)->whereDate('charge_date', $today)->sum('net_amount') : 0.0),
             'totalRevenue' => (float) (clone $paymentStatsQuery)->where('status', 'completed')->sum('amount')
-                             + (float) (clone $saleStatsQuery)->sum('total_amount'),
+                             + (float) (clone $saleStatsQuery)->sum('total_amount')
+                             + ($posStatsQuery ? (float) (clone $posStatsQuery)->sum('amount') : 0.0)
+                             + ($folioStatsQuery ? (float) (clone $folioStatsQuery)->sum('net_amount') : 0.0),
             'completed'    => (clone $paymentStatsQuery)->where('status', 'completed')->count()
-                             + (clone $saleStatsQuery)->where('payment_status', 'completed')->count(),
+                             + (clone $saleStatsQuery)->where('payment_status', 'completed')->count()
+                             + ($posStatsQuery ? (clone $posStatsQuery)->count() : 0)
+                             + ($folioStatsQuery ? (clone $folioStatsQuery)->count() : 0),
             'pending'      => (clone $paymentStatsQuery)->where('status', 'pending')->count()
                              + (clone $expenseStatsQuery)->where('status', 'pending')->count(),
             'failed'       => (clone $paymentStatsQuery)->where('status', 'failed')->count(),
@@ -9251,44 +9379,108 @@ Route::middleware(['auth', 'role:manager'])->prefix('manager')->name('manager.')
         $payments = \App\Models\Payment::with(['reservation.guest', 'processedBy'])
             ->when($employeeId, fn($query) => $query->where('processed_by', $employeeId))
             ->orderBy('created_at', 'desc')->limit(10)->get()
-            ->map(fn($p) => [
-                'transaction_id' => $p->payment_number ?? 'PAY-' . $p->id,
-                'guest_name'     => $p->reservation?->guest
-                    ? trim($p->reservation->guest->first_name . ' ' . $p->reservation->guest->last_name) : 'Guest',
-                'reference'      => $p->reservation?->id ? 'Reservation #' . $p->reservation->id : 'Direct Payment',
-                'type'           => 'payment',
-                'amount'         => (float) $p->amount,
-                'status'         => $p->status ?? 'completed',
-                'payment_method' => $p->payment_method,
-                'user_id'        => $p->processed_by,
-                'user_name'      => $p->processedBy
-                    ? trim(($p->processedBy->first_name ?? '') . ' ' . ($p->processedBy->last_name ?? ''))
-                    : 'N/A',
-                'date'           => $p->processed_at?->format('Y-m-d H:i:s') ?? $p->created_at->format('Y-m-d H:i:s'),
-                'created_at'     => $p->created_at->format('Y-m-d H:i:s'),
-            ]);
+            ->map(function ($p) {
+                return array_merge([
+                    'transaction_id' => $p->payment_number ?? 'PAY-' . $p->id,
+                    'guest_name'     => $p->reservation?->guest
+                        ? trim($p->reservation->guest->first_name . ' ' . $p->reservation->guest->last_name) : 'Guest',
+                    'reference'      => $p->reservation?->id ? 'Reservation #' . $p->reservation->id : 'Direct Payment',
+                    'type'           => 'payment',
+                    'amount'         => (float) $p->amount,
+                    'status'         => $p->status ?? 'completed',
+                    'payment_method' => $p->payment_method,
+                    'user_id'        => $p->processed_by,
+                    'user_name'      => $p->processedBy
+                        ? trim(($p->processedBy->first_name ?? '') . ' ' . ($p->processedBy->last_name ?? ''))
+                        : 'N/A',
+                    'date'           => $p->processed_at?->format('Y-m-d H:i:s') ?? $p->created_at->format('Y-m-d H:i:s'),
+                    'created_at'     => $p->created_at->format('Y-m-d H:i:s'),
+                ], hms_transaction_source_meta('payment', [
+                    'reservation_id' => $p->reservation_id,
+                    'description' => $p->notes,
+                ]));
+            });
         $recentTransactions = $recentTransactions->merge($payments);
 
         if (class_exists(\App\Models\Sale::class)) {
             $sales = \App\Models\Sale::with(['guest', 'user'])
                 ->when($employeeId, fn($query) => $query->where('user_id', $employeeId))
                 ->orderBy('created_at', 'desc')->limit(10)->get()
-                ->map(fn($s) => [
-                    'transaction_id' => $s->sale_number ?? 'SALE-' . $s->id,
-                    'guest_name'     => $s->guest ? trim($s->guest->first_name . ' ' . $s->guest->last_name) : 'Customer',
-                    'reference'      => 'Sale #' . $s->id,
-                    'type'           => 'sale',
-                    'amount'         => (float) $s->total_amount,
-                    'status'         => $s->payment_status ?? 'completed',
-                    'payment_method' => $s->payment_method ?? 'cash',
-                    'user_id'        => $s->user_id,
-                    'user_name'      => $s->user
-                        ? trim(($s->user->first_name ?? '') . ' ' . ($s->user->last_name ?? ''))
-                        : 'N/A',
-                    'date'           => $s->created_at->format('Y-m-d H:i:s'),
-                    'created_at'     => $s->created_at->format('Y-m-d H:i:s'),
-                ]);
+                ->map(function ($s) {
+                    return array_merge([
+                        'transaction_id' => $s->sale_number ?? 'SALE-' . $s->id,
+                        'guest_name'     => $s->guest ? trim($s->guest->first_name . ' ' . $s->guest->last_name) : 'Customer',
+                        'reference'      => 'Sale #' . $s->id,
+                        'type'           => 'sale',
+                        'amount'         => (float) $s->total_amount,
+                        'status'         => $s->payment_status ?? 'completed',
+                        'payment_method' => $s->payment_method ?? 'cash',
+                        'user_id'        => $s->user_id,
+                        'user_name'      => $s->user
+                            ? trim(($s->user->first_name ?? '') . ' ' . ($s->user->last_name ?? ''))
+                            : 'N/A',
+                        'date'           => $s->created_at->format('Y-m-d H:i:s'),
+                        'created_at'     => $s->created_at->format('Y-m-d H:i:s'),
+                    ], hms_transaction_source_meta('sale', [
+                        'is_charged_to_room' => $s->is_charged_to_room,
+                    ]));
+                });
             $recentTransactions = $recentTransactions->merge($sales);
+        }
+
+        if (class_exists(\App\Models\PosTransaction::class)) {
+            $posTransactions = \App\Models\PosTransaction::with(['sale', 'cashDrawerSession.user', 'user'])
+                ->when($employeeId, fn($query) => $query->where('user_id', $employeeId))
+                ->orderBy('id', 'desc')->limit(10)->get()
+                ->map(function ($pt) {
+                    return array_merge([
+                        'transaction_id' => 'POS-' . $pt->id,
+                        'guest_name'     => 'POS Customer',
+                        'reference'      => $pt->sale?->sale_number ? 'POS Sale #' . $pt->sale->sale_number : 'POS Transaction',
+                        'type'           => 'pos_transaction',
+                        'amount'         => (float) $pt->amount,
+                        'status'         => 'completed',
+                        'payment_method' => $pt->payment_method ?? 'cash',
+                        'user_id'        => $pt->user_id,
+                        'user_name'      => $pt->user
+                            ? trim(($pt->user->first_name ?? '') . ' ' . ($pt->user->last_name ?? ''))
+                            : 'N/A',
+                        'date'           => $pt->created_at?->format('Y-m-d H:i:s') ?? now()->format('Y-m-d H:i:s'),
+                        'created_at'     => $pt->created_at?->format('Y-m-d H:i:s') ?? now()->format('Y-m-d H:i:s'),
+                    ], hms_transaction_source_meta('pos_transaction', [
+                        'description' => $pt->description,
+                    ]));
+                });
+            $recentTransactions = $recentTransactions->merge($posTransactions);
+        }
+
+        if (class_exists(\App\Models\FolioCharge::class)) {
+            $folioCharges = \App\Models\FolioCharge::with(['folio.reservation.guest', 'folio.reservation.room', 'postedBy'])
+                ->when($employeeId, fn($query) => $query->where('posted_by', $employeeId))
+                ->orderBy('id', 'desc')->limit(10)->get()
+                ->map(function ($fc) {
+                    return array_merge([
+                        'transaction_id' => 'FOLIO-' . $fc->id,
+                        'guest_name'     => $fc->folio?->reservation?->guest
+                            ? trim($fc->folio->reservation->guest->first_name . ' ' . $fc->folio->reservation->guest->last_name) : 'Guest',
+                        'reference'      => $fc->folio?->reservation?->id ? 'Room #' . $fc->folio->reservation->room?->room_number . ' Folio' : 'Room Charge',
+                        'type'           => 'folio_charge',
+                        'amount'         => (float) $fc->net_amount,
+                        'status'         => 'active',
+                        'payment_method' => 'room_charge',
+                        'user_id'        => $fc->posted_by,
+                        'user_name'      => $fc->postedBy
+                            ? trim(($fc->postedBy->first_name ?? '') . ' ' . ($fc->postedBy->last_name ?? ''))
+                            : 'N/A',
+                        'date'           => $fc->charge_date?->format('Y-m-d H:i:s') ?? now()->format('Y-m-d H:i:s'),
+                        'created_at'     => $fc->created_at?->format('Y-m-d H:i:s') ?? now()->format('Y-m-d H:i:s'),
+                    ], hms_transaction_source_meta('folio_charge', [
+                        'charge_code' => $fc->charge_code,
+                        'department' => $fc->department,
+                        'description' => $fc->description,
+                    ]));
+                });
+            $recentTransactions = $recentTransactions->merge($folioCharges);
         }
 
         if (class_exists(\App\Models\Expense::class)) {
@@ -9300,23 +9492,25 @@ Route::middleware(['auth', 'role:manager'])->prefix('manager')->name('manager.')
                     });
                 })
                 ->orderBy('expense_date', 'desc')->limit(10)->get()
-                ->map(fn($e) => [
-                    'transaction_id' => $e->expense_number ?? 'EXP-' . $e->id,
-                    'guest_name'     => $e->vendor_name ?? 'Vendor',
-                    'reference'      => 'Expense #' . $e->id,
-                    'type'           => 'expense',
-                    'amount'         => (float) $e->amount,
-                    'status'         => $e->status ?? 'pending',
-                    'payment_method' => $e->payment_method ?? 'cash',
-                    'user_id'        => $e->paid_by ?? $e->submitted_by,
-                    'user_name'      => $e->paidBy
-                        ? trim(($e->paidBy->first_name ?? '') . ' ' . ($e->paidBy->last_name ?? ''))
-                        : ($e->submittedBy
-                            ? trim(($e->submittedBy->first_name ?? '') . ' ' . ($e->submittedBy->last_name ?? ''))
-                            : 'N/A'),
-                    'date'           => $e->expense_date->format('Y-m-d H:i:s'),
-                    'created_at'     => $e->created_at->format('Y-m-d H:i:s'),
-                ]);
+                ->map(function ($e) {
+                    return array_merge([
+                        'transaction_id' => $e->expense_number ?? 'EXP-' . $e->id,
+                        'guest_name'     => $e->vendor_name ?? 'Vendor',
+                        'reference'      => 'Expense #' . $e->id,
+                        'type'           => 'expense',
+                        'amount'         => (float) $e->amount,
+                        'status'         => $e->status ?? 'pending',
+                        'payment_method' => $e->payment_method ?? 'cash',
+                        'user_id'        => $e->paid_by ?? $e->submitted_by,
+                        'user_name'      => $e->paidBy
+                            ? trim(($e->paidBy->first_name ?? '') . ' ' . ($e->paidBy->last_name ?? ''))
+                            : ($e->submittedBy
+                                ? trim(($e->submittedBy->first_name ?? '') . ' ' . ($e->submittedBy->last_name ?? ''))
+                                : 'N/A'),
+                        'date'           => $e->expense_date->format('Y-m-d H:i:s'),
+                        'created_at'     => $e->created_at->format('Y-m-d H:i:s'),
+                    ], hms_transaction_source_meta('expense'));
+                });
             $recentTransactions = $recentTransactions->merge($expenses);
         }
 
@@ -9331,6 +9525,7 @@ Route::middleware(['auth', 'role:manager'])->prefix('manager')->name('manager.')
             'filters'            => [
                 'search'     => request('search', ''),
                 'type'       => request('type', ''),
+                'revenue_type' => request('revenue_type', ''),
                 'status'     => request('status', ''),
                 'start_date' => request('start_date', ''),
                 'end_date'   => request('end_date', ''),
