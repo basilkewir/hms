@@ -4906,6 +4906,7 @@ $renderSelfRevenueReport = function ($user, $role, $routeName) {
 
     $recentSales = collect();
     $posRevenue = 0.0;
+    $paymentRevenue = 0.0;
     $folioRevenue = 0.0;
     $discountTotal = 0.0;
 
@@ -4956,6 +4957,47 @@ $renderSelfRevenueReport = function ($user, $role, $routeName) {
                     'user_name' => $sale->user
                         ? (trim(($sale->user->first_name ?? '') . ' ' . ($sale->user->last_name ?? '')) ?: ($sale->user->name ?? 'N/A'))
                         : 'N/A',
+                ])
+        );
+    }
+
+    if (class_exists(\App\Models\Payment::class) && \Schema::hasColumn('payments', 'processed_by')) {
+        $paymentBase = \App\Models\Payment::query()
+            ->where('processed_by', $userId)
+            ->where('status', 'completed')
+            ->whereBetween('processed_at', [$start . ' 00:00:00', $end . ' 23:59:59']);
+
+        $paymentCount = (int) $paymentBase->count();
+        $paymentRevenue = (float) ($paymentBase->sum('amount') ?? 0);
+        $stats['total_sales'] += $paymentCount;
+
+        $dailyPayments = \App\Models\Payment::selectRaw('DATE(processed_at) as d, COUNT(*) as orders, SUM(amount) as revenue')
+            ->where('processed_by', $userId)
+            ->where('status', 'completed')
+            ->whereBetween('processed_at', [$start . ' 00:00:00', $end . ' 23:59:59'])
+            ->groupBy('d')
+            ->orderBy('d')
+            ->get();
+
+        foreach ($dailyPayments as $paymentDay) {
+            $appendDaily($paymentDay->d, $paymentDay->orders, $paymentDay->revenue);
+        }
+
+        $recentSales = $recentSales->merge(
+            \App\Models\Payment::with(['processedBy'])
+                ->orderByDesc('processed_at')
+                ->limit(10)
+                ->where('processed_by', $userId)
+                ->where('status', 'completed')
+                ->whereBetween('processed_at', [$start . ' 00:00:00', $end . ' 23:59:59'])
+                ->get(['id', 'payment_number', 'amount', 'processed_at', 'processed_by'])
+                ->map(fn($payment) => [
+                    'id' => 'payment-' . $payment->id,
+                    'sale_number' => $payment->payment_number ?? ('PAY-' . $payment->id),
+                    'sale_date' => $payment->processed_at,
+                    'total_amount' => (float) $payment->amount,
+                    'user_id' => $payment->processed_by,
+                    'user_name' => trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? '')) ?: ($user->name ?? $user->email ?? 'N/A'),
                 ])
         );
     }
@@ -5014,7 +5056,7 @@ $renderSelfRevenueReport = function ($user, $role, $routeName) {
         }
     }
 
-    $stats['total_revenue'] = (float) ($posRevenue + $folioRevenue);
+    $stats['total_revenue'] = (float) ($posRevenue + $paymentRevenue + $folioRevenue);
     $stats['avg_order_value'] = $stats['total_sales'] > 0
         ? round($stats['total_revenue'] / $stats['total_sales'], 2)
         : 0.0;
@@ -5043,6 +5085,7 @@ $renderSelfRevenueReport = function ($user, $role, $routeName) {
 
     $revenueByCategory = array_values(array_filter([
         $posRevenue > 0 ? ['category' => 'POS Sales', 'amount' => $posRevenue, 'formatted_amount' => $fmt($posRevenue)] : null,
+        $paymentRevenue > 0 ? ['category' => 'Processed Payments', 'amount' => $paymentRevenue, 'formatted_amount' => $fmt($paymentRevenue)] : null,
         $folioRevenue > 0 ? ['category' => 'Folio Charges', 'amount' => $folioRevenue, 'formatted_amount' => $fmt($folioRevenue)] : null,
         $discountTotal > 0 ? ['category' => 'Discounts Applied', 'amount' => -$discountTotal, 'formatted_amount' => $fmt(-$discountTotal)] : null,
     ]));
@@ -5074,7 +5117,7 @@ $renderSelfRevenueReport = function ($user, $role, $routeName) {
         'filters' => ['employeeId' => (string) $userId],
         'revenueData' => [
             'total_revenue' => $stats['total_revenue'],
-            'room_revenue' => $folioRevenue,
+            'room_revenue' => $paymentRevenue + $folioRevenue,
             'hall_revenue' => 0.0,
             'average_daily_rate' => $stats['avg_order_value'],
             'revenue_by_category' => $revenueByCategory,
