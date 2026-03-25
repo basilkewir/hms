@@ -42,14 +42,17 @@ class CheckLicense
         try {
             $licensed = $this->licenseService->isSystemLicensed();
         } catch (\RuntimeException $e) {
-            Log::warning('License server unreachable; access blocked until online verification succeeds.', [
-                'path' => $path,
+            Log::warning('License check threw RuntimeException; denying access.', [
+                'path'  => $path,
                 'error' => $e->getMessage(),
             ]);
             $licensed = false;
         } catch (\Throwable $e) {
+            // Any unexpected error during the check should not silently block users.
+            // The grace-period logic inside isSystemLicensed() already handles network failures;
+            // only a truly unrecoverable exception lands here.
             Log::error('Unexpected license middleware error.', [
-                'path' => $path,
+                'path'  => $path,
                 'error' => $e->getMessage(),
             ]);
             $licensed = false;

@@ -379,6 +379,10 @@
                                             class="text-green-600 hover:text-green-800 text-sm">
                                         Print
                                     </button>
+                                    <button @click="openReturnModal(sale)"
+                                            class="text-orange-600 hover:text-orange-800 text-sm">
+                                        ↩ Return
+                                    </button>
                                 </div>
                             </td>
                         </tr>
@@ -424,6 +428,91 @@
                                 opacity: currentPage === totalPages ? 0.5 : 1
                             }">
                         Next
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Return Request Modal -->
+        <div v-if="returnModal" class="fixed inset-0 z-50 flex items-center justify-center p-4"
+             style="background: rgba(0,0,0,0.55);" @click.self="returnModal = false">
+            <div class="rounded-xl shadow-2xl w-full max-w-lg"
+                 :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border, border: '1px solid' }">
+                <!-- Modal Header -->
+                <div class="px-6 py-4 border-b flex items-center justify-between"
+                     :style="{ borderColor: themeColors.border }">
+                    <div>
+                        <h2 class="text-lg font-bold" :style="{ color: themeColors.textPrimary }">Request Return / Exchange</h2>
+                        <p class="text-sm mt-0.5" :style="{ color: themeColors.textSecondary }">
+                            Sale: {{ returnSaleInfo?.sale_number }}
+                        </p>
+                    </div>
+                    <button @click="returnModal = false" :style="{ color: themeColors.textSecondary }"
+                            class="hover:text-red-500 text-xl font-bold">✕</button>
+                </div>
+
+                <!-- Loading -->
+                <div v-if="returnLoading" class="px-6 py-10 text-center" :style="{ color: themeColors.textSecondary }">
+                    Loading sale items…
+                </div>
+
+                <!-- Items -->
+                <div v-else class="px-6 py-4 space-y-4 max-h-96 overflow-y-auto">
+                    <div v-if="returnItems.length === 0" class="text-center py-6"
+                         :style="{ color: themeColors.textSecondary }">
+                        No returnable items found for this sale.
+                    </div>
+                    <div v-for="item in returnItems" :key="item.sale_item_id"
+                         class="flex items-center gap-3 p-3 rounded-lg border"
+                         :style="{ borderColor: themeColors.border, backgroundColor: themeColors.background }">
+                        <div class="flex-1">
+                            <p class="text-sm font-medium" :style="{ color: themeColors.textPrimary }">{{ item.product_name }}</p>
+                            <p class="text-xs" :style="{ color: themeColors.textSecondary }">
+                                Sold: {{ item.sold_quantity }} · Already returned: {{ item.returned_quantity }} · Available: {{ item.available_quantity }}
+                            </p>
+                        </div>
+                        <div>
+                            <label class="text-xs mr-1" :style="{ color: themeColors.textSecondary }">Qty</label>
+                            <input type="number" min="0" :max="item.available_quantity"
+                                   v-model.number="returnQtys[item.sale_item_id]"
+                                   class="w-16 px-2 py-1 text-sm rounded border text-center"
+                                   :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border, color: themeColors.textPrimary }"
+                                   :disabled="item.available_quantity === 0" />
+                        </div>
+                    </div>
+
+                    <!-- Type + Reason -->
+                    <div class="grid grid-cols-2 gap-3 pt-2">
+                        <div>
+                            <label class="block text-xs font-medium mb-1" :style="{ color: themeColors.textSecondary }">Type *</label>
+                            <select v-model="returnType"
+                                    class="w-full px-3 py-2 rounded border text-sm"
+                                    :style="{ backgroundColor: themeColors.background, borderColor: themeColors.border, color: themeColors.textPrimary }">
+                                <option value="return">Return</option>
+                                <option value="exchange">Exchange</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium mb-1" :style="{ color: themeColors.textSecondary }">Reason</label>
+                            <input type="text" v-model="returnReason" placeholder="Optional reason"
+                                   class="w-full px-3 py-2 rounded border text-sm"
+                                   :style="{ backgroundColor: themeColors.background, borderColor: themeColors.border, color: themeColors.textPrimary }" />
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Footer -->
+                <div class="px-6 py-4 border-t flex items-center justify-end gap-3"
+                     :style="{ borderColor: themeColors.border }">
+                    <button @click="returnModal = false"
+                            class="px-4 py-2 rounded text-sm"
+                            :style="{ backgroundColor: themeColors.background, color: themeColors.textSecondary, border: '1px solid ' + themeColors.border }">
+                        Cancel
+                    </button>
+                    <button @click="submitReturn" :disabled="returnSubmitting || returnItems.length === 0"
+                            class="px-4 py-2 rounded text-sm font-medium text-white disabled:opacity-50"
+                            :style="{ backgroundColor: themeColors.primary }">
+                        {{ returnSubmitting ? 'Submitting…' : 'Submit Request' }}
                     </button>
                 </div>
             </div>
@@ -656,6 +745,87 @@ const openDatePicker = (inputName) => {
         dateFromInput.value.showPicker?.()
     } else if (inputName === 'dateTo' && dateToInput.value) {
         dateToInput.value.showPicker?.()
+    }
+}
+
+// ── Return Request Modal ──────────────────────────────────────────────────────
+const returnModal    = ref(false)
+const returnLoading  = ref(false)
+const returnSubmitting = ref(false)
+const returnSaleInfo = ref(null)
+const returnItems    = ref([])
+const returnQtys     = ref({})
+const returnType     = ref('return')
+const returnReason   = ref('')
+
+const openReturnModal = async (sale) => {
+    returnModal.value    = true
+    returnLoading.value  = true
+    returnSaleInfo.value = sale
+    returnItems.value    = []
+    returnQtys.value     = {}
+    returnType.value     = 'return'
+    returnReason.value   = ''
+
+    try {
+        const res  = await fetch(`/pos/sales/${sale.id}/return-details`, {
+            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin',
+        })
+        const data = await res.json()
+        if (data.success) {
+            returnItems.value = data.sale.items
+            data.sale.items.forEach(item => {
+                returnQtys.value[item.sale_item_id] = 0
+            })
+        }
+    } catch(e) {
+        console.error(e)
+    } finally {
+        returnLoading.value = false
+    }
+}
+
+const submitReturn = async () => {
+    const itemsToReturn = returnItems.value
+        .filter(item => (returnQtys.value[item.sale_item_id] || 0) > 0)
+        .map(item => ({ sale_item_id: item.sale_item_id, quantity: returnQtys.value[item.sale_item_id] }))
+
+    if (itemsToReturn.length === 0) {
+        alert('Please enter a quantity greater than 0 for at least one item.')
+        return
+    }
+
+    returnSubmitting.value = true
+    try {
+        const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+        const res = await fetch('/pos/returns/request', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': csrf,
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            body: JSON.stringify({
+                sale_id: returnSaleInfo.value.id,
+                request_type: returnType.value,
+                reason: returnReason.value || null,
+                items: itemsToReturn,
+            }),
+        })
+        const data = await res.json()
+        if (data.success) {
+            returnModal.value = false
+            alert('Return request submitted successfully. Awaiting manager/admin approval.')
+        } else {
+            alert(data.message || 'Failed to submit return request.')
+        }
+    } catch(e) {
+        alert('Network error. Please try again.')
+    } finally {
+        returnSubmitting.value = false
     }
 }
 </script>

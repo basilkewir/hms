@@ -135,11 +135,22 @@ const roomsAtLimit = computed(() => roomsLimit.value !== -1 && roomsUsed.value >
                     </p>
 
                     <!-- Token status -->
-                    <div class="mt-4 flex items-center gap-2">
-                        <span class="w-2.5 h-2.5 rounded-full inline-block"
+                    <div class="mt-4 flex items-center gap-2 flex-wrap">
+                        <span class="w-2.5 h-2.5 rounded-full inline-block flex-shrink-0"
                               :style="{ backgroundColor: isActivated ? themeColors.success : themeColors.textTertiary }"></span>
                         <span class="text-sm" :style="{ color: themeColors.textSecondary }">
                             {{ isActivated ? 'License token is valid and active on this server' : 'Not activated on this server' }}
+                        </span>
+                        <!-- Verified Online badge -->
+                        <span v-if="isActivated && licenseInfo?.verified_online"
+                              class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium"
+                              :style="{ backgroundColor: themeColors.success + '20', color: themeColors.success }">
+                            ✓ Verified Online
+                        </span>
+                        <span v-else-if="isActivated && !licenseInfo?.verified_online"
+                              class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium"
+                              :style="{ backgroundColor: themeColors.warning + '20', color: themeColors.warning }">
+                            ⚠ Offline (grace period)
                         </span>
                         <button v-if="isActivated"
                                 @click="refresh"
@@ -252,9 +263,16 @@ const roomsAtLimit = computed(() => roomsLimit.value !== -1 && roomsUsed.value >
                             </div>
                         </div>
 
-                        <div v-if="licenseInfo.last_validation" class="flex justify-between">
-                            <span :style="{ color: themeColors.textSecondary }">Last validated</span>
-                            <span class="text-xs" :style="{ color: themeColors.textTertiary }">{{ formatDate(licenseInfo.last_validation) }}</span>
+                        <div v-if="licenseInfo.online_verified_at" class="flex justify-between items-center pt-2 border-t"
+                             :style="{ borderColor: themeColors.border }">
+                            <span :style="{ color: themeColors.textSecondary }">Online verification</span>
+                            <span class="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full"
+                                  :style="licenseInfo.verified_online
+                                    ? { backgroundColor: themeColors.success + '20', color: themeColors.success }
+                                    : { backgroundColor: themeColors.warning + '20', color: themeColors.warning }">
+                                {{ licenseInfo.verified_online ? '✓ Verified Online' : '⚠ Grace period' }}
+                                &nbsp;{{ formatDate(licenseInfo.online_verified_at) }}
+                            </span>
                         </div>
                     </div>
 

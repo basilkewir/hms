@@ -2587,6 +2587,12 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
             'navigation' => app(DashboardController::class)->getNavigationForRole($role)
         ]);
     })->name('reservations.service-charges');
+    Route::get('/reservations/{reservation}/service-charges', [\App\Http\Controllers\Admin\ServiceChargeController::class, 'index'])
+        ->name('reservations.service-charges.index');
+    Route::post('/reservations/{reservation}/service-charges', [\App\Http\Controllers\Admin\ServiceChargeController::class, 'store'])
+        ->name('reservations.service-charges.store');
+    Route::post('/folio-charges/{charge}/void', [\App\Http\Controllers\Admin\ServiceChargeController::class, 'void'])
+        ->name('folio-charges.void');
 
     // Wildcard routes - MUST be after static routes
     Route::get('/reservations/{reservation}', [ReservationController::class, 'show'])->name('reservations.show');
@@ -6660,6 +6666,14 @@ Route::middleware(['auth', 'role:front_desk'])->prefix('front-desk')->name('fron
     Route::get('/reports/folio-balance', [\App\Http\Controllers\Accountant\HospitalityReportController::class, 'folioBalance'])->name('reports.folio-balance');
     Route::get('/reports/unposted-charges', [\App\Http\Controllers\Accountant\HospitalityReportController::class, 'unpostedCharges'])->name('reports.unposted-charges');
 
+    // Service Charges (folio management)
+    Route::get('/reservations/{reservation}/service-charges', [\App\Http\Controllers\Admin\ServiceChargeController::class, 'index'])
+        ->name('reservations.service-charges.index');
+    Route::post('/reservations/{reservation}/service-charges', [\App\Http\Controllers\Admin\ServiceChargeController::class, 'store'])
+        ->name('reservations.service-charges.store');
+    Route::post('/folio-charges/{charge}/void', [\App\Http\Controllers\Admin\ServiceChargeController::class, 'void'])
+        ->name('folio-charges.void');
+
     // Key Cards
     Route::get('/key-cards', function () {
         $user = auth()->user()->load('roles');
@@ -9852,6 +9866,12 @@ Route::middleware(['auth', 'role:manager'])->prefix('manager')->name('manager.')
             'navigation' => app(DashboardController::class)->getNavigationForRole($role),
         ]);
     })->name('reservations.service-charges');
+    Route::get('/reservations/{reservation}/service-charges', [\App\Http\Controllers\Admin\ServiceChargeController::class, 'index'])
+        ->name('reservations.service-charges.index');
+    Route::post('/reservations/{reservation}/service-charges', [\App\Http\Controllers\Admin\ServiceChargeController::class, 'store'])
+        ->name('reservations.service-charges.store');
+    Route::post('/folio-charges/{charge}/void', [\App\Http\Controllers\Admin\ServiceChargeController::class, 'void'])
+        ->name('folio-charges.void');
 
     Route::get('/reservations/{reservation}', function ($id) {
         $user = auth()->user()->load('roles');

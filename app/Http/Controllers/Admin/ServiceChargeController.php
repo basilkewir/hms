@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\DashboardController;
 use App\Models\GuestFolio;
 use App\Models\FolioCharge;
 use App\Models\HotelService;

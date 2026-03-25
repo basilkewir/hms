@@ -247,12 +247,18 @@ class LicenseValidationService
             return ['licensed' => false, 'status' => null];
         }
 
+        $lastValidated = $license->last_validated_at;
+        // Consider "verified online" if validated within the last 30 days
+        $verifiedOnline = $lastValidated && $lastValidated->gt(now()->subDays(30));
+
         $status = array_merge($license->license_data, [
-            'license_key' => $license->license_key,
-            'license_type' => $license->license_type,
-            'status' => strtoupper((string) ($license->license_data['status'] ?? $license->status ?? 'ACTIVE')),
-            'expires_at' => optional($license->expires_at)->toISOString() ?? ($license->license_data['expires_at'] ?? null),
-            'validated_at' => optional($license->last_validated_at)->toISOString(),
+            'license_key'       => $license->license_key,
+            'license_type'      => $license->license_type,
+            'status'            => strtoupper((string) ($license->license_data['status'] ?? $license->status ?? 'ACTIVE')),
+            'expires_at'        => optional($license->expires_at)->toISOString() ?? ($license->license_data['expires_at'] ?? null),
+            'validated_at'      => optional($lastValidated)->toISOString(),
+            'verified_online'   => $verifiedOnline,
+            'online_verified_at'=> optional($lastValidated)->toISOString(),
         ]);
 
         return ['licensed' => !$this->licenseExpired($license), 'status' => $status];
@@ -330,7 +336,9 @@ class LicenseValidationService
             return true;
         }
 
-        if (!$force && $license->last_validated_at && $license->last_validated_at->gt(now()->subMinutes(15))) {
+        // Only re-verify online once every 7 days — not every 15 minutes.
+        // If already validated within the last 7 days, trust the stored result.
+        if (!$force && $license->last_validated_at && $license->last_validated_at->gt(now()->subDays(7))) {
             return true;
         }
 
@@ -339,6 +347,15 @@ class LicenseValidationService
         if ($result['valid']) {
             $license->update(['last_validated_at' => now()]);
             return true;
+        }
+
+        // If the failure was a network/connectivity error (not a deliberate server rejection),
+        // grant a 30-day offline grace period so users are not locked out due to server downtime.
+        if (!empty($result['network_error'])) {
+            if ($license->last_validated_at && $license->last_validated_at->gt(now()->subDays(30))) {
+                Log::info('License server unreachable; using stored verification (grace period active).');
+                return true;
+            }
         }
 
         return false;
@@ -364,24 +381,29 @@ class LicenseValidationService
             ]);
 
             if (!$response->successful()) {
-                return ['valid' => false, 'message' => 'Token validation failed.'];
+                // 4xx = server explicitly rejected — treat as hard failure
+                // 5xx = server-side error — treat as transient network issue
+                $networkError = $response->status() >= 500;
+                return ['valid' => false, 'network_error' => $networkError, 'message' => 'Token validation failed.'];
             }
 
             $body = (array) ($response->json() ?? []);
 
             if (!($body['success'] ?? false)) {
-                return ['valid' => false, 'message' => $body['error'] ?? $body['message'] ?? 'Token invalid.'];
+                return ['valid' => false, 'network_error' => false, 'message' => $body['error'] ?? $body['message'] ?? 'Token invalid.'];
             }
 
             return [
                 'valid' => true,
+                'network_error' => false,
                 'license_type' => $body['license_type'] ?? ($license->license_data['license_type'] ?? null),
                 'features' => $body['features'] ?? ($license->license_data['features'] ?? []),
                 'expires_at' => $body['expires_at'] ?? ($license->license_data['expires_at'] ?? null),
             ];
         } catch (\Throwable $e) {
-            Log::warning('Token validation exception: ' . $e->getMessage());
-            return ['valid' => false, 'message' => 'Could not validate token online.'];
+            // Connection refused, timeout, DNS failure, etc. — not a deliberate rejection
+            Log::warning('Token validation network error: ' . $e->getMessage());
+            return ['valid' => false, 'network_error' => true, 'message' => 'Could not reach license server.'];
         }
     }
 
