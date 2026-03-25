@@ -186,7 +186,8 @@ class HospitalityReportController extends Controller
             ->where('status', 'open')
             ->where('balance_amount', '>', 0)
             ->with([
-                'reservation:id,confirmation_number,check_out_date,guest_name,room_type_id',
+                'reservation:id,reservation_number,check_out_date,guest_id,room_type_id',
+                'reservation.guest:id,first_name,last_name',
                 'guest:id,first_name,last_name',
             ])
             ->select('id', 'folio_number', 'reservation_id', 'guest_id', 'balance_amount', 'folio_date', 'customer_name')
@@ -208,14 +209,14 @@ class HospitalityReportController extends Controller
 
                 $guestName = $f->customer_name
                     ?? ($f->guest ? trim($f->guest->first_name . ' ' . $f->guest->last_name) : null)
-                    ?? optional($f->reservation)->guest_name
+                    ?? optional(optional($f->reservation)->guest)->full_name
                     ?? '—';
 
                 return [
                     'folio_id'      => $f->id,
                     'folio_number'  => $f->folio_number,
                     'guest_name'    => $guestName,
-                    'confirmation'  => optional($f->reservation)->confirmation_number,
+                    'confirmation'  => optional($f->reservation)->reservation_number,
                     'due_date'      => $dueDate->toDateString(),
                     'days_overdue'  => max(0, $days),
                     'balance'       => (float) $f->balance_amount,
@@ -487,12 +488,13 @@ class HospitalityReportController extends Controller
             ->leftJoin('guest_folios', 'guest_folios.id', '=', 'folio_charges.guest_folio_id')
             ->leftJoin('rooms', 'rooms.id', '=', 'guest_folios.room_id')
             ->leftJoin('reservations', 'reservations.id', '=', 'guest_folios.reservation_id')
+            ->leftJoin('guests', 'guests.id', '=', 'reservations.guest_id')
             ->select(
                 'rooms.room_number',
                 'folio_charges.charge_date',
                 'folio_charges.description',
                 'folio_charges.total_amount',
-                DB::raw("CONCAT(COALESCE(reservations.guest_name, '—')) as guest_name")
+                DB::raw("NULLIF(TRIM(CONCAT(COALESCE(guests.first_name, ''), ' ', COALESCE(guests.last_name, ''))), '') as guest_name")
             )
             ->orderByDesc('folio_charges.charge_date')
             ->get()
@@ -501,7 +503,7 @@ class HospitalityReportController extends Controller
                 'charge_date'  => $r->charge_date,
                 'description'  => $r->description,
                 'amount'       => (float) $r->total_amount,
-                'guest_name'   => $r->guest_name,
+                'guest_name'   => $r->guest_name ?: '—',
             ]);
 
         $byRoom = $cases
@@ -632,7 +634,8 @@ class HospitalityReportController extends Controller
         $folios = GuestFolio::query()
             ->where('status', 'open')
             ->with([
-                'reservation:id,confirmation_number,check_in_date,check_out_date,guest_name,room_type_id',
+                'reservation:id,reservation_number,check_in_date,check_out_date,guest_id,room_type_id',
+                'reservation.guest:id,first_name,last_name',
                 'room:id,room_number',
             ])
             ->select('id', 'folio_number', 'reservation_id', 'room_id', 'balance_amount',
@@ -640,12 +643,13 @@ class HospitalityReportController extends Controller
             ->get()
             ->map(function ($f) {
                 $res = $f->reservation;
+                $reservationGuest = optional($res)->guest;
                 return [
                     'folio_id'       => $f->id,
                     'folio_number'   => $f->folio_number,
-                    'guest_name'     => $f->customer_name ?? optional($res)->guest_name ?? '—',
+                    'guest_name'     => $f->customer_name ?? optional($reservationGuest)->full_name ?? '—',
                     'room_number'    => optional($f->room)->room_number ?? '—',
-                    'confirmation'   => optional($res)->confirmation_number,
+                    'confirmation'   => optional($res)->reservation_number,
                     'check_in_date'  => optional($res)->check_in_date?->format('Y-m-d'),
                     'check_out_date' => optional($res)->check_out_date?->format('Y-m-d'),
                     'total_charges'  => (float) $f->total_amount,
@@ -690,7 +694,8 @@ class HospitalityReportController extends Controller
             ->whereNotIn('id', $postedSaleIds)
             ->whereNotNull('reservation_id')
             ->with([
-                'reservation:id,confirmation_number,guest_name,check_out_date,room_id',
+                'reservation:id,reservation_number,guest_id,check_out_date,room_id',
+                'reservation.guest:id,first_name,last_name',
             ])
             ->select('id', 'sale_number', 'reservation_id', 'customer_name',
                      'total_amount', 'tax_amount', 'tip_amount', 'sale_date', 'payment_status')
@@ -702,8 +707,8 @@ class HospitalityReportController extends Controller
                 return [
                     'sale_id'       => $s->id,
                     'sale_number'   => $s->sale_number,
-                    'guest_name'    => $s->customer_name ?? optional($s->reservation)->guest_name ?? '—',
-                    'confirmation'  => optional($s->reservation)->confirmation_number,
+                    'guest_name'    => $s->customer_name ?? optional(optional($s->reservation)->guest)->full_name ?? '—',
+                    'confirmation'  => optional($s->reservation)->reservation_number,
                     'check_out_date'=> $checkout ? Carbon::parse($checkout)->toDateString() : null,
                     'sale_date'     => $s->sale_date?->toDateString(),
                     'total'         => (float) $s->total_amount,
