@@ -5380,8 +5380,63 @@ $renderSelfRevenueReport = function ($user, $role, $routeName) {
     ]);
 };
 
+$renderSelfSchedule = function ($user, $role) {
+    $weekStart = request('week_start')
+        ? \Carbon\Carbon::parse(request('week_start'))->startOfWeek()
+        : now()->startOfWeek();
+    $weekEnd = $weekStart->copy()->endOfWeek();
+
+    $employeeShifts = \App\Models\EmployeeShift::with('workShift')
+        ->where('user_id', $user->id)
+        ->where('is_active', true)
+        ->whereDate('effective_date', '<=', $weekEnd->toDateString())
+        ->where(function ($query) use ($weekStart) {
+            $query->whereNull('end_date')
+                ->orWhereDate('end_date', '>=', $weekStart->toDateString());
+        })
+        ->orderBy('effective_date')
+        ->get();
+
+    $schedule = collect(range(0, 6))->map(function ($offset) use ($weekStart, $employeeShifts) {
+        $date = $weekStart->copy()->addDays($offset);
+
+        $shift = $employeeShifts->first(function ($employeeShift) use ($date) {
+            if ((string) $employeeShift->effective_date === $date->toDateString()) {
+                return true;
+            }
+
+            $days = $employeeShift->days_of_week;
+            if (!is_array($days)) {
+                return false;
+            }
+
+            return in_array($date->dayOfWeek, $days, true)
+                || in_array((string) $date->dayOfWeek, $days, true);
+        });
+
+        return [
+            'day' => $date->format('l'),
+            'date' => $date->format('Y-m-d'),
+            'shift_name' => $shift?->workShift?->name ?? 'Off',
+            'start' => $shift?->workShift?->start_time
+                ? \Carbon\Carbon::parse($shift->workShift->start_time)->format('H:i')
+                : null,
+            'end' => $shift?->workShift?->end_time
+                ? \Carbon\Carbon::parse($shift->workShift->end_time)->format('H:i')
+                : null,
+        ];
+    })->values();
+
+    return Inertia::render('Staff/TimeTracking/Schedule', [
+        'user' => $user,
+        'navigation' => app(DashboardController::class)->getNavigationForRole($role),
+        'weekStart' => $weekStart->format('M d, Y'),
+        'schedule' => $schedule,
+    ]);
+};
+
 // Front Desk Routes
-Route::middleware(['auth', 'role:front_desk'])->prefix('front-desk')->name('front-desk.')->group(function () use ($renderSelfRevenueReport) {
+Route::middleware(['auth', 'role:front_desk'])->prefix('front-desk')->name('front-desk.')->group(function () use ($renderSelfRevenueReport, $renderSelfSchedule) {
     Route::get('/dashboard', function () {
         $user = auth()->user()->load('roles');
         $role = $user->roles->first()?->name ?? 'staff';
@@ -6587,6 +6642,13 @@ Route::middleware(['auth', 'role:front_desk'])->prefix('front-desk')->name('fron
 
         return $renderSelfRevenueReport($user, $role, 'front-desk.reports.revenue');
     })->name('reports.revenue');
+
+    Route::get('/schedule', function () use ($renderSelfSchedule) {
+        $user = auth()->user()->load('roles');
+        $role = $user->roles->first()?->name ?? 'front_desk';
+
+        return $renderSelfSchedule($user, $role);
+    })->name('schedule');
 
     // Hospitality-specific front desk reports
     Route::get('/reports/folio-balance', [\App\Http\Controllers\Accountant\HospitalityReportController::class, 'folioBalance'])->name('reports.folio-balance');
@@ -12523,7 +12585,7 @@ Route::middleware(['auth', 'verified', 'role:bartender'])->prefix('bartender')->
 });
 
 // Server/Restaurant Routes
-Route::middleware(['auth', 'verified', 'role:server|restaurant_staff'])->prefix('server')->name('server.')->group(function () use ($renderSelfRevenueReport) {
+Route::middleware(['auth', 'verified', 'role:server|restaurant_staff'])->prefix('server')->name('server.')->group(function () use ($renderSelfRevenueReport, $renderSelfSchedule) {
     Route::get('/dashboard', [\App\Http\Controllers\Server\DashboardController::class, 'index'])->name('dashboard');
     Route::get('/sales', [\App\Http\Controllers\Server\SalesController::class, 'index'])->name('sales');
     Route::get('/reports/revenue', function () use ($renderSelfRevenueReport) {
@@ -12532,12 +12594,22 @@ Route::middleware(['auth', 'verified', 'role:server|restaurant_staff'])->prefix(
 
         return $renderSelfRevenueReport($user, $role, 'server.reports.revenue');
     })->name('reports.revenue');
+    Route::get('/schedule', function () use ($renderSelfSchedule) {
+        $user = auth()->user()->load('roles');
+        $role = $user->roles->first()?->name ?? 'server';
+
+        return $renderSelfSchedule($user, $role);
+    })->name('schedule');
 });
 
 // POS Routes
 Route::middleware(['auth', 'verified'])->prefix('pos')->name('pos.')->group(function () {
     Route::get('/', [\App\Http\Controllers\POS\POSController::class, 'index'])->name('index');
     Route::post('/process-sale', [\App\Http\Controllers\POS\POSController::class, 'processSale'])->name('process-sale');
+    Route::get('/sales/{sale}/return-details', [\App\Http\Controllers\POS\POSController::class, 'saleReturnDetails'])->name('sales.return-details');
+    Route::post('/returns/request', [\App\Http\Controllers\POS\POSController::class, 'requestReturn'])->name('returns.request');
+    Route::post('/returns/{returnRequest}/approve', [\App\Http\Controllers\POS\POSController::class, 'approveReturn'])->middleware('role:admin|manager')->name('returns.approve');
+    Route::post('/returns/{returnRequest}/reject', [\App\Http\Controllers\POS\POSController::class, 'rejectReturn'])->middleware('role:admin|manager')->name('returns.reject');
     Route::post('/open-drawer', [\App\Http\Controllers\POS\POSController::class, 'openDrawer'])->name('open-drawer');
     Route::post('/close-drawer', [\App\Http\Controllers\POS\POSController::class, 'closeDrawer'])->name('close-drawer');
 
@@ -13133,6 +13205,8 @@ Route::middleware(['auth', 'verified'])->prefix('pos')->name('pos.')->group(func
             'recent'      => $recent,
         ]);
     })->name('pos.reports.index');
+
+    Route::get('/returns/report', [\App\Http\Controllers\POS\POSController::class, 'returnsReport'])->name('returns.report');
 
     // POS Analytics
     Route::get('/analytics', function () {

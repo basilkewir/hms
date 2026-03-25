@@ -174,6 +174,8 @@ export const getNavigationForRole = (role, userPermissions = []) => {
             roles: ['front_desk'],
             children: [
                 { name: 'Revenue Reports', href: '/front-desk/reports/revenue', permission: null, roles: ['front_desk'] },
+                { name: 'Product Return Reports', href: '/pos/returns/report', permission: null, roles: ['front_desk'] },
+                { name: 'My Schedule', href: '/front-desk/schedule', permission: null, roles: ['front_desk'] },
                 { name: 'Folio Balance', href: '/front-desk/reports/folio-balance', permission: null, roles: ['front_desk'] },
                 { name: 'Unposted Charges', href: '/front-desk/reports/unposted-charges', permission: null, roles: ['front_desk'] },
             ]
@@ -258,9 +260,10 @@ export const getNavigationForRole = (role, userPermissions = []) => {
             name: 'POS',
             icon: 'ShoppingCartIcon',
             permission: 'access_pos',
-            roles: ['admin', 'manager', 'front_desk'],
+            roles: ['admin', 'manager', 'front_desk', 'bartender', 'server', 'restaurant_staff'],
             children: [
-                { name: 'POS Terminal', href: '/pos', permission: 'access_pos', roles: ['admin', 'manager', 'front_desk'] },
+                { name: 'POS Terminal', href: '/pos', permission: null, roles: ['admin', 'manager', 'front_desk', 'bartender', 'server', 'restaurant_staff'] },
+                { name: 'Product Return Reports', href: '/pos/returns/report', permission: null, roles: ['admin', 'manager', 'front_desk', 'bartender', 'server', 'restaurant_staff'] },
                 { name: 'Sales', href: '/pos/sales', permission: 'view_pos_reports', roles: ['admin', 'manager', 'accountant'] },
                 { name: 'Products', href: '/admin/pos/products', permission: 'manage_inventory', roles: ['admin'] },
                 { name: 'Categories', href: '/admin/pos/categories', permission: 'manage_inventory', roles: ['admin'] },
@@ -405,6 +408,7 @@ export const getNavigationForRole = (role, userPermissions = []) => {
             roles: ['bartender'],
             children: [
                 { name: 'Dashboard', href: '/bartender/dashboard', permission: null, roles: ['bartender'] },
+                { name: 'Product Return Reports', href: '/pos/returns/report', permission: null, roles: ['bartender'] },
                 { name: 'Drinks Menu', href: '/bartender/drinks', permission: null, roles: ['bartender'] },
                 { name: 'Inventory', href: '/bartender/inventory', permission: null, roles: ['bartender'] },
                 { name: 'Sales', href: '/bartender/sales', permission: null, roles: ['bartender'] },
@@ -420,6 +424,8 @@ export const getNavigationForRole = (role, userPermissions = []) => {
             roles: ['server', 'restaurant_staff'],
             children: [
                 { name: 'Dashboard', href: '/server/dashboard', permission: null, roles: ['server', 'restaurant_staff'] },
+                { name: 'Product Return Reports', href: '/pos/returns/report', permission: null, roles: ['server', 'restaurant_staff'] },
+                { name: 'My Schedule', href: '/server/schedule', permission: null, roles: ['server', 'restaurant_staff'] },
                 { name: 'Sales', href: '/server/sales', permission: null, roles: ['server', 'restaurant_staff'] },
             ]
         },

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\POS;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\DashboardController;
 use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Models\Brand;
@@ -23,6 +24,7 @@ use App\Models\CashDrawerSession;
 use App\Models\PosTransaction;
 use App\Models\PosExpense;
 use App\Models\PosExpenseCategory;
+use App\Models\PosReturnRequest;
 use App\Models\Setting;
 use App\Models\Customer;
 use App\Models\Room;
@@ -40,6 +42,8 @@ class POSController extends Controller
 {
     public function index()
     {
+        $user = auth()->user()->load('roles');
+
         // Check if user has active cash drawer session
         $activeSession = CashDrawerSession::where('user_id', auth()->id())
             ->where('is_active', true)
@@ -90,8 +94,12 @@ class POSController extends Controller
                 ];
             });
 
+        $pendingReturnRequests = $this->isReturnApprover($user)
+            ? $this->getPendingReturnRequests()
+            : [];
+
         return Inertia::render('POS/StandaloneIndex', [
-            'user' => auth()->user()->load('roles'),
+            'user' => $user,
             'categories' => $categories,
             'products' => $products->map(fn($product) => [
                 'id' => $product->id,
@@ -118,12 +126,350 @@ class POSController extends Controller
             'todaySales' => (float) $todaySales,
             'todaySalesCount' => $todaySalesCount,
             'recentSales' => $recentSales,
+            'pendingReturnRequests' => $pendingReturnRequests,
             'hotelName' => Setting::get('hotel_name', 'Grand Hotel'),
             'hotelAddress' => Setting::get('hotel_address', ''),
             'hotelPhone' => Setting::get('hotel_phone', ''),
             'hotelEmail' => Setting::get('hotel_email', ''),
             'receiptSizeRestaurant' => Setting::get('receipt_size_restaurant', '80mm'),
             'exitUrl' => $this->getDashboardUrlForCurrentUser(),
+        ]);
+    }
+
+    public function saleReturnDetails(Sale $sale)
+    {
+        $user = auth()->user()->load('roles');
+        if (!$this->isReturnApprover($user) && (int) $sale->user_id !== (int) auth()->id()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You are not allowed to access this sale.',
+            ], 403);
+        }
+
+        $sale->load(['items.product:id,name,code']);
+
+        $approvedRequests = PosReturnRequest::where('sale_id', $sale->id)
+            ->where('status', 'approved')
+            ->get();
+
+        $approvedReturnedByItem = [];
+        foreach ($approvedRequests as $request) {
+            foreach (($request->items ?? []) as $item) {
+                $saleItemId = (int) ($item['sale_item_id'] ?? 0);
+                $qty = (int) ($item['quantity'] ?? 0);
+                if ($saleItemId > 0 && $qty > 0) {
+                    $approvedReturnedByItem[$saleItemId] = ($approvedReturnedByItem[$saleItemId] ?? 0) + $qty;
+                }
+            }
+        }
+
+        $saleItems = $sale->items->map(function ($item) use ($approvedReturnedByItem) {
+            $returnedQty = (int) ($approvedReturnedByItem[$item->id] ?? 0);
+            $soldQty = (int) $item->quantity;
+
+            return [
+                'sale_item_id' => $item->id,
+                'product_id' => $item->product_id,
+                'product_name' => $item->product->name ?? 'Product',
+                'sold_quantity' => $soldQty,
+                'returned_quantity' => $returnedQty,
+                'available_quantity' => max(0, $soldQty - $returnedQty),
+                'unit_price' => (float) $item->unit_price,
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'sale' => [
+                'id' => $sale->id,
+                'sale_number' => $sale->sale_number,
+                'customer_name' => $sale->is_walk_in
+                    ? 'Walk-In'
+                    : ($sale->customer_name ?? ($sale->customer ? trim(($sale->customer->first_name ?? '') . ' ' . ($sale->customer->last_name ?? '')) : 'N/A')),
+                'sale_date' => $sale->sale_date,
+                'items' => $saleItems,
+            ],
+        ]);
+    }
+
+    public function requestReturn(Request $request)
+    {
+        $validated = $request->validate([
+            'sale_id' => 'required|exists:sales,id',
+            'request_type' => 'required|in:return,exchange',
+            'reason' => 'nullable|string|max:1000',
+            'items' => 'required|array|min:1',
+            'items.*.sale_item_id' => 'required|exists:sale_items,id',
+            'items.*.quantity' => 'required|integer|min:1',
+        ]);
+
+        $sale = Sale::with(['items.product', 'customer'])->findOrFail($validated['sale_id']);
+        $user = auth()->user()->load('roles');
+
+        if (!$this->isReturnApprover($user) && (int) $sale->user_id !== (int) auth()->id()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You are not allowed to request returns for this sale.',
+            ], 403);
+        }
+
+        $saleItems = $sale->items->keyBy('id');
+
+        $existingRequests = PosReturnRequest::where('sale_id', $sale->id)
+            ->whereIn('status', ['pending', 'approved'])
+            ->get();
+
+        $existingQtyByItem = [];
+        foreach ($existingRequests as $existingRequest) {
+            foreach (($existingRequest->items ?? []) as $existingItem) {
+                $saleItemId = (int) ($existingItem['sale_item_id'] ?? 0);
+                $qty = (int) ($existingItem['quantity'] ?? 0);
+                if ($saleItemId > 0 && $qty > 0) {
+                    $existingQtyByItem[$saleItemId] = ($existingQtyByItem[$saleItemId] ?? 0) + $qty;
+                }
+            }
+        }
+
+        $normalizedItems = [];
+        foreach ($validated['items'] as $itemInput) {
+            $saleItemId = (int) $itemInput['sale_item_id'];
+            $quantity = (int) $itemInput['quantity'];
+
+            $saleItem = $saleItems->get($saleItemId);
+            if (!$saleItem) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid sale item selected.',
+                ], 422);
+            }
+
+            $soldQty = (int) $saleItem->quantity;
+            $alreadyRequested = (int) ($existingQtyByItem[$saleItemId] ?? 0);
+            $remainingQty = max(0, $soldQty - $alreadyRequested);
+
+            if ($quantity > $remainingQty) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Requested quantity exceeds remaining returnable quantity for {$saleItem->product->name}.",
+                ], 422);
+            }
+
+            $normalizedItems[] = [
+                'sale_item_id' => $saleItemId,
+                'product_id' => $saleItem->product_id,
+                'product_name' => $saleItem->product->name ?? 'Product',
+                'quantity' => $quantity,
+                'unit_price' => (float) $saleItem->unit_price,
+            ];
+        }
+
+        $returnRequest = PosReturnRequest::create([
+            'sale_id' => $sale->id,
+            'requested_by' => auth()->id(),
+            'status' => 'pending',
+            'request_type' => $validated['request_type'],
+            'reason' => $validated['reason'] ?? null,
+            'items' => $normalizedItems,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Return/exchange request submitted for approval.',
+            'request' => $this->mapReturnRequest($returnRequest->load(['sale', 'requestedBy'])),
+        ]);
+    }
+
+    public function approveReturn(PosReturnRequest $returnRequest)
+    {
+        $user = auth()->user()->load('roles');
+        if (!$this->isReturnApprover($user)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Only admin or manager can approve returns.',
+            ], 403);
+        }
+
+        if ($returnRequest->status !== 'pending') {
+            return response()->json([
+                'success' => false,
+                'message' => 'This request is already processed.',
+            ], 422);
+        }
+
+        $sale = Sale::with(['items.product'])->findOrFail($returnRequest->sale_id);
+        $saleItems = $sale->items->keyBy('id');
+
+        return DB::transaction(function () use ($returnRequest, $sale, $saleItems) {
+            $approvedRequests = PosReturnRequest::where('sale_id', $sale->id)
+                ->where('status', 'approved')
+                ->get();
+
+            $approvedQtyByItem = [];
+            foreach ($approvedRequests as $approvedRequest) {
+                foreach (($approvedRequest->items ?? []) as $approvedItem) {
+                    $saleItemId = (int) ($approvedItem['sale_item_id'] ?? 0);
+                    $qty = (int) ($approvedItem['quantity'] ?? 0);
+                    if ($saleItemId > 0 && $qty > 0) {
+                        $approvedQtyByItem[$saleItemId] = ($approvedQtyByItem[$saleItemId] ?? 0) + $qty;
+                    }
+                }
+            }
+
+            foreach (($returnRequest->items ?? []) as $requestItem) {
+                $saleItemId = (int) ($requestItem['sale_item_id'] ?? 0);
+                $qty = (int) ($requestItem['quantity'] ?? 0);
+
+                if ($saleItemId <= 0 || $qty <= 0) {
+                    continue;
+                }
+
+                $saleItem = $saleItems->get($saleItemId);
+                if (!$saleItem || !$saleItem->product) {
+                    throw new \RuntimeException('Sale item or product not found for return processing.');
+                }
+
+                $soldQty = (int) $saleItem->quantity;
+                $alreadyApproved = (int) ($approvedQtyByItem[$saleItemId] ?? 0);
+                $remainingQty = max(0, $soldQty - $alreadyApproved);
+
+                if ($qty > $remainingQty) {
+                    throw new \RuntimeException("Cannot approve: return quantity exceeds remaining quantity for {$saleItem->product->name}.");
+                }
+
+                $product = $saleItem->product;
+                $previousStock = (int) $product->stock_quantity;
+                $newStock = $previousStock + $qty;
+
+                $product->update(['stock_quantity' => $newStock]);
+
+                StockMovement::create([
+                    'product_id' => $product->id,
+                    'type' => 'in',
+                    'quantity' => $qty,
+                    'previous_stock' => $previousStock,
+                    'new_stock' => $newStock,
+                    'reference_type' => 'pos_return_request',
+                    'reference_id' => $returnRequest->id,
+                    'notes' => "Approved {$returnRequest->request_type} for sale {$sale->sale_number}",
+                    'user_id' => auth()->id(),
+                ]);
+            }
+
+            $returnRequest->update([
+                'status' => 'approved',
+                'approved_by' => auth()->id(),
+                'processed_at' => now(),
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Return/exchange request approved and stock restored.',
+                'request' => $this->mapReturnRequest($returnRequest->fresh(['sale', 'requestedBy', 'approvedBy'])),
+            ]);
+        });
+    }
+
+    public function rejectReturn(Request $request, PosReturnRequest $returnRequest)
+    {
+        $user = auth()->user()->load('roles');
+        if (!$this->isReturnApprover($user)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Only admin or manager can reject returns.',
+            ], 403);
+        }
+
+        if ($returnRequest->status !== 'pending') {
+            return response()->json([
+                'success' => false,
+                'message' => 'This request is already processed.',
+            ], 422);
+        }
+
+        $validated = $request->validate([
+            'rejection_reason' => 'nullable|string|max:1000',
+        ]);
+
+        $returnRequest->update([
+            'status' => 'rejected',
+            'approved_by' => auth()->id(),
+            'processed_at' => now(),
+            'rejection_reason' => $validated['rejection_reason'] ?? null,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Return/exchange request rejected.',
+            'request' => $this->mapReturnRequest($returnRequest->fresh(['sale', 'requestedBy', 'approvedBy'])),
+        ]);
+    }
+
+    public function returnsReport(Request $request)
+    {
+        $user = auth()->user()->load('roles');
+        $role = $user->roles->first()?->name ?? 'staff';
+
+        $statusFilter = $request->string('status')->toString();
+
+        $query = PosReturnRequest::with([
+            'sale:id,sale_number,sale_date,total_amount,user_id',
+            'requestedBy:id,first_name,last_name',
+            'approvedBy:id,first_name,last_name',
+        ])->latest();
+
+        if (!$this->isReturnApprover($user)) {
+            $query->where('requested_by', auth()->id());
+        }
+
+        if (in_array($statusFilter, ['pending', 'approved', 'rejected'], true)) {
+            $query->where('status', $statusFilter);
+        }
+
+        $requests = $query->limit(200)->get();
+
+        $rows = $requests->map(function (PosReturnRequest $returnRequest) {
+            $items = collect($returnRequest->items ?? []);
+
+            return [
+                'id' => $returnRequest->id,
+                'sale_number' => $returnRequest->sale?->sale_number,
+                'sale_date' => $returnRequest->sale?->sale_date,
+                'request_type' => $returnRequest->request_type,
+                'status' => $returnRequest->status,
+                'reason' => $returnRequest->reason,
+                'rejection_reason' => $returnRequest->rejection_reason,
+                'items_count' => $items->count(),
+                'quantity_total' => (int) $items->sum(fn ($item) => (int) ($item['quantity'] ?? 0)),
+                'amount_total' => (float) $items->sum(fn ($item) => ((float) ($item['unit_price'] ?? 0)) * ((int) ($item['quantity'] ?? 0))),
+                'requested_by_name' => $returnRequest->requestedBy
+                    ? trim(($returnRequest->requestedBy->first_name ?? '') . ' ' . ($returnRequest->requestedBy->last_name ?? ''))
+                    : null,
+                'approved_by_name' => $returnRequest->approvedBy
+                    ? trim(($returnRequest->approvedBy->first_name ?? '') . ' ' . ($returnRequest->approvedBy->last_name ?? ''))
+                    : null,
+                'created_at' => $returnRequest->created_at,
+                'processed_at' => $returnRequest->processed_at,
+            ];
+        })->values();
+
+        $summary = [
+            'total_requests' => $rows->count(),
+            'pending_requests' => $rows->where('status', 'pending')->count(),
+            'approved_requests' => $rows->where('status', 'approved')->count(),
+            'rejected_requests' => $rows->where('status', 'rejected')->count(),
+            'total_quantity' => (int) $rows->sum('quantity_total'),
+            'total_amount' => (float) $rows->sum('amount_total'),
+        ];
+
+        return Inertia::render('POS/Reports/Returns', [
+            'user' => $user,
+            'navigation' => app(DashboardController::class)->getNavigationForRole($role),
+            'summary' => $summary,
+            'requests' => $rows,
+            'filters' => [
+                'status' => $statusFilter,
+            ],
+            'isApprover' => $this->isReturnApprover($user),
         ]);
     }
 
@@ -2033,36 +2379,34 @@ class POSController extends Controller
             ] : null
         ]);
 
-        // Get occupied rooms with their guests
-        $occupiedRooms = Room::where('status', 'occupied')
-            ->with(['reservations' => function($query) {
-                $query->where('status', 'checked_in')
-                    ->whereDate('check_in_date', '<=', now())
-                    ->whereDate('check_out_date', '>=', now())
-                    ->with(['guest.guestType', 'roomType']);
-            }])
+        // Get active checked-in reservations with assigned rooms.
+        // This keeps room-charge guest options available even if room status lags.
+        $activeReservations = Reservation::where('status', 'checked_in')
+            ->whereDate('check_in_date', '<=', now())
+            ->whereDate('check_out_date', '>=', now())
+            ->whereNotNull('room_id')
+            ->with(['guest.guestType', 'room', 'roomType'])
             ->get();
 
-        $guests = collect();
-        foreach ($occupiedRooms as $room) {
-            $activeReservation = $room->reservations->first();
-            if ($activeReservation && $activeReservation->guest) {
+        $guests = $activeReservations
+            ->filter(fn ($reservation) => $reservation->guest && $reservation->room)
+            ->map(function ($activeReservation) {
                 $guest = $activeReservation->guest;
-                $guests->push([
-                    'id' => 'guest_' . $guest->id . '_' . $activeReservation->id, // Unique identifier
+                $room = $activeReservation->room;
+
+                return [
+                    'id' => 'guest_' . $guest->id . '_' . $activeReservation->id,
                     'type' => 'guest',
                     'customer_code' => null,
                     'full_name' => $guest->full_name . ' (Room ' . $room->room_number . ')',
                     'email' => $guest->email,
                     'phone' => $guest->phone,
                     'customer_group' => null,
-                    // Additional guest/reservation info
                     'guest_id' => $guest->id,
                     'reservation_id' => $activeReservation->id,
                     'room_id' => $room->id,
                     'room_number' => $room->room_number,
                     'room_type' => $activeReservation->roomType->name ?? null,
-                    // Guest type and VIP information for discounts
                     'guest_type' => $guest->guestType ? [
                         'id' => $guest->guestType->id,
                         'name' => $guest->guestType->name,
@@ -2071,12 +2415,54 @@ class POSController extends Controller
                         'is_active' => $guest->guestType->is_active,
                     ] : null,
                     'is_vip' => (bool) $guest->is_vip,
-                ]);
-            }
-        }
+                ];
+            })
+            ->values();
 
         // Combine and sort by name
         return $customers->concat($guests)->sortBy('full_name')->values();
+    }
+
+    private function isReturnApprover($user): bool
+    {
+        $role = $user->roles->first()?->name;
+        return in_array($role, ['admin', 'manager'], true);
+    }
+
+    private function getPendingReturnRequests()
+    {
+        return PosReturnRequest::with([
+            'sale:id,sale_number,sale_date,user_id',
+            'requestedBy:id,first_name,last_name',
+        ])
+            ->where('status', 'pending')
+            ->latest()
+            ->limit(30)
+            ->get()
+            ->map(fn (PosReturnRequest $request) => $this->mapReturnRequest($request));
+    }
+
+    private function mapReturnRequest(PosReturnRequest $request): array
+    {
+        return [
+            'id' => $request->id,
+            'sale_id' => $request->sale_id,
+            'sale_number' => $request->sale?->sale_number,
+            'sale_date' => $request->sale?->sale_date,
+            'request_type' => $request->request_type,
+            'status' => $request->status,
+            'reason' => $request->reason,
+            'rejection_reason' => $request->rejection_reason,
+            'items' => $request->items ?? [],
+            'requested_by_name' => $request->requestedBy
+                ? trim(($request->requestedBy->first_name ?? '') . ' ' . ($request->requestedBy->last_name ?? ''))
+                : null,
+            'approved_by_name' => $request->approvedBy
+                ? trim(($request->approvedBy->first_name ?? '') . ' ' . ($request->approvedBy->last_name ?? ''))
+                : null,
+            'created_at' => $request->created_at,
+            'processed_at' => $request->processed_at,
+        ];
     }
 
     // Unit CRUD Methods

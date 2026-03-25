@@ -136,6 +136,7 @@ export const navigationConfig = {
           icon: 'chart',
           items: [
             { label: '📊 Sales Reports', href: '/pos/reports' },
+            { label: '↩️ Product Return Reports', href: '/pos/returns/report' },
             { label: '📈 Analytics',     href: '/pos/analytics' },
           ],
         },
@@ -735,6 +736,7 @@ export const navigationConfig = {
           icon: 'chart',
           items: [
             { label: 'Revenue Reports', routeName: 'front-desk.reports.revenue' },
+            { label: '↩️ Product Return Reports', href: '/pos/returns/report' },
             { label: 'Folio Balance', routeName: 'front-desk.reports.folio-balance' },
             { label: 'Unposted Charges', routeName: 'front-desk.reports.unposted-charges' },
           ],
@@ -752,6 +754,7 @@ export const navigationConfig = {
           label: 'Services & Requests',
           icon: 'bell',
           items: [
+            { label: '📅 My Schedule', routeName: 'front-desk.schedule' },
             { label: 'Concierge',     routeName: 'front-desk.services.concierge' },
             { label: 'Hall Bookings', routeName: 'front-desk.services.hall-bookings' },
             { label: 'Housekeeping',  routeName: 'front-desk.services.housekeeping' },
@@ -869,6 +872,8 @@ export const navigationConfig = {
           label: 'Operations',
           icon: 'shopping',
           items: [
+            { label: '🧾 POS Terminal',    href: '/pos' },
+            { label: '↩️ Product Return Reports', href: '/pos/returns/report' },
             { label: '🍹 Drinks Menu',     href: '/bartender/drinks' },
             { label: '📦 Inventory',        href: '/bartender/inventory' },
             { label: '📊 Sales Reports',    href: '/bartender/sales' },
@@ -897,8 +902,11 @@ export const navigationConfig = {
           label: 'Operations',
           icon: 'shopping',
           items: [
+            { label: '🧾 POS Terminal',    href: '/pos' },
+            { label: '↩️ Product Return Reports', href: '/pos/returns/report' },
             { label: '📊 Sales Reports',    href: '/server/sales' },
             { label: 'Revenue Reports',     routeName: 'server.reports.revenue' },
+            { label: '📅 My Schedule',      routeName: 'server.schedule' },
           ],
         },
       ],

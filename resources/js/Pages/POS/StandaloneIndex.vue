@@ -346,6 +346,7 @@
                 <th>Method</th>
                 <th>Amount</th>
                 <th>Date</th>
+                <th>Action</th>
               </tr>
             </thead>
             <tbody>
@@ -356,13 +357,102 @@
                 <td><span class="txn-method-badge">{{ formatPaymentMethod(sale.payment_method) }}</span></td>
                 <td class="txn-amount">{{ formatCurrency(sale.total_amount) }}</td>
                 <td class="txn-date">{{ formatReceiptDate(sale.sale_date) }}</td>
+                <td>
+                  <button class="txn-return-btn" @click="openReturnModal(sale)">Return / Exchange</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div v-if="canApproveReturns" class="return-approval-section">
+            <div class="return-approval-header">
+              <h4>Pending Return / Exchange Approvals</h4>
+              <span>{{ pendingReturnRequests.length }} pending</span>
+            </div>
+            <div v-if="pendingReturnRequests.length === 0" class="txn-empty">
+              <p>No pending requests.</p>
+            </div>
+            <div v-else class="return-approval-list">
+              <div v-for="request in pendingReturnRequests" :key="request.id" class="return-approval-item">
+                <div class="return-approval-meta">
+                  <strong>#{{ request.sale_number }}</strong>
+                  <span>{{ request.request_type }}</span>
+                  <span>By: {{ request.requested_by_name || 'Staff' }}</span>
+                  <span>{{ formatReceiptDate(request.created_at) }}</span>
+                </div>
+                <div class="return-approval-items">
+                  <span v-for="item in request.items" :key="`${request.id}-${item.sale_item_id}`">
+                    {{ item.product_name }} × {{ item.quantity }}
+                  </span>
+                </div>
+                <div class="return-approval-actions">
+                  <button class="approve-btn" @click="approveReturnRequest(request.id)">Approve</button>
+                  <button class="reject-btn" @click="rejectReturnRequest(request.id)">Reject</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="txn-modal-footer">
+          <span class="txn-footer-note">Showing last {{ recentSales.length }} transactions</span>
+          <Link :href="route('pos.sales.index')" class="txn-view-all">View All →</Link>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="showReturnModal" class="modal-overlay" @click.self="closeReturnModal">
+      <div class="transactions-modal">
+        <div class="txn-modal-header">
+          <div class="txn-modal-title">
+            <span class="txn-modal-icon">↩️</span>
+            <div>
+              <h3>Return / Exchange Request</h3>
+              <p>Sale #{{ selectedReturnSale?.sale_number }}</p>
+            </div>
+          </div>
+          <button @click="closeReturnModal" class="txn-modal-close">✕</button>
+        </div>
+        <div class="txn-modal-body">
+          <div class="return-form-grid">
+            <label>Type</label>
+            <select v-model="returnRequestForm.request_type" class="customer-select">
+              <option value="return">Return to Stock</option>
+              <option value="exchange">Exchange Product</option>
+            </select>
+            <label>Reason</label>
+            <textarea v-model="returnRequestForm.reason" rows="2" class="search-input" placeholder="Reason for return or exchange"></textarea>
+          </div>
+
+          <table class="txn-table" v-if="selectedReturnSale?.items?.length">
+            <thead>
+              <tr>
+                <th>Product</th>
+                <th>Sold</th>
+                <th>Already Returned</th>
+                <th>Return Qty</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="item in selectedReturnSale.items" :key="item.sale_item_id">
+                <td>{{ item.product_name }}</td>
+                <td>{{ item.sold_quantity }}</td>
+                <td>{{ item.returned_quantity }}</td>
+                <td>
+                  <input
+                    type="number"
+                    min="0"
+                    :max="item.available_quantity"
+                    v-model.number="returnRequestForm.quantities[item.sale_item_id]"
+                    class="drawer-input"
+                  />
+                </td>
               </tr>
             </tbody>
           </table>
         </div>
         <div class="txn-modal-footer">
-          <span class="txn-footer-note">Showing last {{ recentSales.length }} transactions</span>
-          <Link :href="route('pos.sales.index')" class="txn-view-all">View All →</Link>
+          <button class="btn-cancel" @click="closeReturnModal">Cancel</button>
+          <button class="btn-confirm" @click="submitReturnRequest">Submit for Approval</button>
         </div>
       </div>
     </div>
@@ -425,6 +515,10 @@ const props = defineProps({
     type: Array,
     default: () => [],
   },
+  pendingReturnRequests: {
+    type: Array,
+    default: () => [],
+  },
   hotelName: String,
   printSettings: Object,
   exitUrl: { type: String, default: '/admin/dashboard' },
@@ -450,6 +544,7 @@ const showDrawerModal = ref(false)
 const showSuccessModal = ref(false)
 const showHeldOrders = ref(false)
 const showTransactionsModal = ref(false)
+const showReturnModal = ref(false)
 const isProcessing = ref(false)
 const openingBalance = ref(0)
 const closingBalance = ref(0)
@@ -461,6 +556,13 @@ const barcodeScannerActive = ref(false)
 const barcodeValue = ref('')
 const heldOrders = ref([])
 const barcodeInput = ref(null)
+const selectedReturnSale = ref(null)
+const pendingReturnRequests = ref(Array.isArray(props.pendingReturnRequests) ? [...props.pendingReturnRequests] : [])
+const returnRequestForm = ref({
+  request_type: 'return',
+  reason: '',
+  quantities: {},
+})
 
 const calcInput = (val) => { calcExpression.value += val; try { calcResult.value = eval(calcExpression.value.replace(/×/g, '*').replace(/÷/g, '/')).toFixed(2) } catch {} }
 const calcClear = () => { calcExpression.value = ''; calcResult.value = '' }
@@ -477,6 +579,8 @@ const cart = ref({ items: [], customer_id: '', payment_method: 'cash', is_charge
 
 const activeSession = ref(props.activeSession)
 const recentSales = ref(Array.isArray(props.recentSales) ? [...props.recentSales] : [])
+const userRole = computed(() => props.user?.roles?.[0]?.name || '')
+const canApproveReturns = computed(() => ['admin', 'manager'].includes(userRole.value))
 
 const customerGroupName = computed(() => { const c = props.customers.find(x => x.id === cart.value.customer_id); return c?.customer_group?.name || 'Group' })
 const getGuestRoomNumber = (id) => { const c = props.customers.find(x => x.id === id); return c?.room_number || '' }
@@ -625,6 +729,93 @@ const holdOrder = () => { if (cart.value.items.length === 0) return; const custo
 const resumeOrder = (idx) => { const order = heldOrders.value[idx]; cart.value = { items: [...order.items], customer_id: order.customer_id, payment_method: order.payment_method, is_charged_to_room: order.is_charged_to_room, discount_amount: 0, is_walk_in: !order.customer_id }; heldOrders.value.splice(idx, 1); showHeldOrders.value = false }
 const deleteHeldOrder = (idx) => { heldOrders.value.splice(idx, 1) }
 const formatTime = (date) => { const d = new Date(date); return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) }
+
+const closeReturnModal = () => {
+  showReturnModal.value = false
+  selectedReturnSale.value = null
+  returnRequestForm.value = { request_type: 'return', reason: '', quantities: {} }
+}
+
+const openReturnModal = async (sale) => {
+  try {
+    const response = await axios.get(`/pos/sales/${sale.id}/return-details`)
+    if (!response.data?.success) {
+      alert(response.data?.message || 'Failed to load sale details')
+      return
+    }
+
+    selectedReturnSale.value = response.data.sale
+    const quantities = {}
+    for (const item of (response.data.sale.items || [])) {
+      quantities[item.sale_item_id] = 0
+    }
+    returnRequestForm.value = {
+      request_type: 'return',
+      reason: '',
+      quantities,
+    }
+    showReturnModal.value = true
+  } catch (error) {
+    alert(error.response?.data?.message || 'Failed to load sale details')
+  }
+}
+
+const submitReturnRequest = async () => {
+  if (!selectedReturnSale.value) return
+
+  const items = (selectedReturnSale.value.items || [])
+    .map(item => ({
+      sale_item_id: item.sale_item_id,
+      quantity: Number(returnRequestForm.value.quantities[item.sale_item_id] || 0),
+    }))
+    .filter(item => item.quantity > 0)
+
+  if (items.length === 0) {
+    alert('Select at least one item quantity to return/exchange.')
+    return
+  }
+
+  try {
+    await axios.post('/pos/returns/request', {
+      sale_id: selectedReturnSale.value.id,
+      request_type: returnRequestForm.value.request_type,
+      reason: returnRequestForm.value.reason,
+      items,
+    })
+
+    alert('Return/exchange request submitted for approval.')
+    closeReturnModal()
+  } catch (error) {
+    alert(error.response?.data?.message || 'Failed to submit return request')
+  }
+}
+
+const approveReturnRequest = async (requestId) => {
+  try {
+    const response = await axios.post(`/pos/returns/${requestId}/approve`)
+    if (response.data?.success) {
+      pendingReturnRequests.value = pendingReturnRequests.value.filter(request => request.id !== requestId)
+    }
+  } catch (error) {
+    alert(error.response?.data?.message || 'Failed to approve request')
+  }
+}
+
+const rejectReturnRequest = async (requestId) => {
+  const rejectionReason = window.prompt('Optional rejection reason:') || ''
+
+  try {
+    const response = await axios.post(`/pos/returns/${requestId}/reject`, {
+      rejection_reason: rejectionReason,
+    })
+
+    if (response.data?.success) {
+      pendingReturnRequests.value = pendingReturnRequests.value.filter(request => request.id !== requestId)
+    }
+  } catch (error) {
+    alert(error.response?.data?.message || 'Failed to reject request')
+  }
+}
 
 onMounted(() => { updateTime(); timeInterval = setInterval(updateTime, 1000) })
 onUnmounted(() => { if (timeInterval) clearInterval(timeInterval) })
@@ -1517,6 +1708,97 @@ onUnmounted(() => { if (timeInterval) clearInterval(timeInterval) })
   font-size: 11px;
   font-weight: 600;
   white-space: nowrap;
+}
+.txn-return-btn {
+  border: 1px solid #c7d2fe;
+  background: #eef2ff;
+  color: #4338ca;
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.return-approval-section {
+  margin: 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px;
+  background: #fafcff;
+}
+.return-approval-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.return-approval-header h4 {
+  margin: 0;
+  font-size: 13px;
+  color: #1e293b;
+}
+.return-approval-header span {
+  font-size: 11px;
+  color: #64748b;
+}
+.return-approval-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.return-approval-item {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px;
+  background: white;
+}
+.return-approval-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 11px;
+  color: #475569;
+  margin-bottom: 6px;
+}
+.return-approval-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 11px;
+  color: #334155;
+  margin-bottom: 8px;
+}
+.return-approval-actions {
+  display: flex;
+  gap: 8px;
+}
+.approve-btn,
+.reject-btn {
+  border: none;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.approve-btn {
+  background: #dcfce7;
+  color: #166534;
+}
+.reject-btn {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+.return-form-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  padding: 14px;
+}
+.return-form-grid label {
+  font-size: 12px;
+  color: #475569;
+  font-weight: 600;
 }
 .txn-modal-footer {
   display: flex;
