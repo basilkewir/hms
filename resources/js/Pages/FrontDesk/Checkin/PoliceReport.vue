@@ -171,7 +171,9 @@ const exportCSV = async () => {
     // Auto-mark all exported unreported records as sent
     const ids = guests.filter(r => r.police_report_status !== 'sent').map(r => r.id)
     await markSent(ids)
-} = (d) => d ? new Date(d).toLocaleDateString('en-GB') : '—'
+}
+
+const formatDate = (d) => d ? new Date(d).toLocaleDateString('en-GB') : '—'
 
 // Escape HTML to prevent XSS when writing data into the print window
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
@@ -288,6 +290,8 @@ ${tableHtml}
     markSent(ids)
 }
 
+</script>
+
 <template>
     <Head title="Police Report – Today\'s Check-ins" />
     <DashboardLayout title="Police Report" :user="user" :navigation="navigation">
@@ -362,7 +366,6 @@ ${tableHtml}
                     Sent ({{ statusCounts.sent }})
                 </button>
             </div>
-        </div>
         </div>
 
         <!-- Printable report -->
