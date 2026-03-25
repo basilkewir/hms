@@ -47,5 +47,17 @@ export const validateServerUrl = (url) => {
 
 export const formatServerUrl = (url) => {
   if (!url) return '';
-  return url.trim().replace(/\/+$/, '');
+  const cleaned = url.trim().replace(/\/+$/, '');
+  try {
+    const parsed = new URL(cleaned);
+    const isDefaultPort =
+      (parsed.protocol === 'http:' && parsed.port === '80') ||
+      (parsed.protocol === 'https:' && parsed.port === '443');
+    if (isDefaultPort) {
+      parsed.port = '';
+    }
+    return parsed.toString().replace(/\/+$/, '');
+  } catch {
+    return cleaned;
+  }
 };

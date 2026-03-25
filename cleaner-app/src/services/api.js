@@ -5,22 +5,23 @@ const API = axios.create({
   timeout: 10000,
 });
 
+const normalizeServerUrl = (value) => {
+  if (!value || typeof value !== 'string') return '';
+  return value.trim().replace(/\/+$/, '');
+};
+
 // Add request interceptor to include auth token
 API.interceptors.request.use(
   async (config) => {
     const token = await AsyncStorage.getItem('auth_token');
-    const serverUrl = await AsyncStorage.getItem('server_url');
+    const rawServerUrl = await AsyncStorage.getItem('server_url');
+    const serverUrl = normalizeServerUrl(rawServerUrl);
     
     if (!serverUrl) {
       return Promise.reject(new Error('Server URL not configured. Please configure it first.'));
     }
     
-    // Ensure baseURL is set
-    if (!config.baseURL) {
-      config.baseURL = serverUrl;
-    }
-    
-    // If URL is relative, prepend baseURL
+    // If URL is relative, prepend normalized server URL
     if (config.url && !config.url.startsWith('http')) {
       config.url = `${serverUrl}${config.url.startsWith('/') ? '' : '/'}${config.url}`;
     }

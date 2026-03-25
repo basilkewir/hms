@@ -1,11 +1,12 @@
 import { Storage } from '../services/storage';
+import { formatServerUrl } from './validation';
 
 /**
  * Check if server is reachable
  */
 export const checkServerConnection = async () => {
   try {
-    const serverUrl = await Storage.getServerUrl();
+    const serverUrl = formatServerUrl(await Storage.getServerUrl());
     
     if (!serverUrl) {
       return {
@@ -20,6 +21,9 @@ export const checkServerConnection = async () => {
     try {
       const response = await fetch(`${serverUrl}/api/health`, {
         method: 'GET',
+        headers: {
+          Accept: 'application/json',
+        },
         signal: controller.signal,
       });
 
@@ -64,7 +68,7 @@ export const checkServerConnection = async () => {
  */
 export const testServerUrl = async (url) => {
   try {
-    const formattedUrl = url.trim().replace(/\/+$/, '');
+    const formattedUrl = formatServerUrl(url);
     
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000);
@@ -72,6 +76,9 @@ export const testServerUrl = async (url) => {
     try {
       const response = await fetch(`${formattedUrl}/api/health`, {
         method: 'GET',
+        headers: {
+          Accept: 'application/json',
+        },
         signal: controller.signal,
       });
 

@@ -436,7 +436,7 @@ export const navigationConfig = {
       ],
     },
     {
-      section: '🛎️ Services',
+      section: '🛎️ Services & Charges',
       condition: 'isManager',
       groups: [
         {
@@ -450,6 +450,15 @@ export const navigationConfig = {
             { label: '👕 Laundry',         routeName: 'manager.laundry.index' },
             { label: '📦 Packages',        href: '/manager/packages' },
             { label: '👥 Group Bookings',  routeName: 'manager.group-bookings.index' },
+          ],
+        },
+        {
+          id: 'manager-returns',
+          label: 'Returns & Refunds',
+          icon: 'undo',
+          items: [
+            { label: '↩️ Request Return', href: '/pos/sales/report' },
+            { label: '↩️ Return Reports', href: '/pos/returns/report' },
           ],
         },
       ],
@@ -726,11 +735,12 @@ export const navigationConfig = {
         },
         {
           id: 'frontdesk-payments',
-          label: 'Payments',
+          label: 'Payments & Billing',
           icon: 'dollar',
           items: [
             { label: 'Payments',      routeName: 'front-desk.payments.process' },
             { label: 'My Transactions', routeName: 'front-desk.transactions.index' },
+            { label: '💰 Service Charges', href: '/front-desk/reservations/service-charges' },
           ],
         },
         {
@@ -739,9 +749,9 @@ export const navigationConfig = {
           icon: 'chart',
           items: [
             { label: 'Revenue Reports', routeName: 'front-desk.reports.revenue' },
-            { label: '↩️ Product Return Reports', href: '/pos/returns/report' },
             { label: 'Folio Balance', routeName: 'front-desk.reports.folio-balance' },
             { label: 'Unposted Charges', routeName: 'front-desk.reports.unposted-charges' },
+            { label: '↩️ Product Return Reports', href: '/pos/returns/report' },
           ],
         },
         {
@@ -767,7 +777,7 @@ export const navigationConfig = {
       ],
     },
     {
-      section: '💰 Invoicing',
+      section: '💰 Invoicing & Operations',
       condition: 'isFrontDesk',
       groups: [
         {
@@ -777,6 +787,15 @@ export const navigationConfig = {
           items: [
             { label: 'Invoices',     routeName: 'front-desk.invoices.index' },
             { label: 'Quotes',       routeName: 'front-desk.quotes.index' },
+          ],
+        },
+        {
+          id: 'frontdesk-returns',
+          label: 'Returns & Adjustments',
+          icon: 'undo',
+          items: [
+            { label: '↩️ Request Product Return', href: '/pos/sales/report' },
+            { label: '↩️ Return Reports', href: '/pos/returns/report' },
           ],
         },
         {
@@ -906,10 +925,18 @@ export const navigationConfig = {
           icon: 'shopping',
           items: [
             { label: '🧾 POS Terminal',    href: '/pos' },
-            { label: '↩️ Product Return Reports', href: '/pos/returns/report' },
             { label: '🍹 Drinks Menu',     href: '/bartender/drinks' },
             { label: '📦 Inventory',        href: '/bartender/inventory' },
             { label: '📊 Sales Reports',    href: '/bartender/sales' },
+          ],
+        },
+        {
+          id: 'bartender-returns-charges',
+          label: 'Returns & Charges',
+          icon: 'undo',
+          items: [
+            { label: '↩️ Request Return', href: '/bartender/sales' },
+            { label: '↩️ Return Reports', href: '/pos/returns/report' },
           ],
         },
       ],
