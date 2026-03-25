@@ -437,6 +437,13 @@ class GuestController extends Controller
 
         $guest->update($validated);
 
+        // When a guest's identity/stay details are updated, any checked-in reservation
+        // whose police data was already marked 'sent' needs to be re-reported.
+        \App\Models\Reservation::where('guest_id', $guest->id)
+            ->where('status', 'checked_in')
+            ->where('police_report_status', 'sent')
+            ->update(['police_report_status' => 'modified']);
+
         // Redirect based on route name
         $routeName = request()->route()->getName() ?? '';
         if (str_starts_with($routeName, 'manager.')) {

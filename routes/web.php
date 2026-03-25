@@ -2745,6 +2745,7 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
         $mapReservation = function ($r) {
             $g = $r->guest;
             return [
+                'id'                 => $r->id,
                 'reservation_number' => $r->reservation_number,
                 'room_number'        => $r->room->room_number ?? 'N/A',
                 'room_type'          => $r->roomType->name ?? 'N/A',
@@ -2754,6 +2755,8 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
                 'nights'             => $r->nights ?? ($r->check_in_date && $r->check_out_date ? $r->check_in_date->diffInDays($r->check_out_date) : 0),
                 'number_of_adults'   => $r->number_of_adults ?? 1,
                 'number_of_children' => $r->number_of_children ?? 0,
+                'police_report_status' => $r->police_report_status,
+                'police_reported_at'   => $r->police_reported_at?->format('Y-m-d H:i'),
                 'guest' => $g ? [
                     'full_name'             => $g->full_name,
                     'first_name'            => $g->first_name,
@@ -2823,6 +2826,20 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
             'hotelPhone'             => \App\Models\Setting::get('hotel_phone', ''),
         ]);
     })->name('police.report');
+
+    // Mark police report records as sent (admin)
+    Route::post('/checkin/police-report/mark-sent', function (\Illuminate\Http\Request $request) {
+        $ids = $request->input('ids', []);
+        if (!empty($ids)) {
+            \App\Models\Reservation::whereIn('id', $ids)
+                ->whereIn('police_report_status', ['new', 'modified'])
+                ->update([
+                    'police_report_status' => 'sent',
+                    'police_reported_at'   => now(),
+                ]);
+        }
+        return response()->json(['success' => true]);
+    })->name('police.report.mark-sent');
 
     // Today's checked-in guests report (admin)
     Route::get('/checkin/today-guests', function () {
@@ -5927,6 +5944,7 @@ Route::middleware(['auth', 'role:front_desk'])->prefix('front-desk')->name('fron
         $mapReservation = function ($r) {
             $g = $r->guest;
             return [
+                'id'                 => $r->id,
                 'reservation_number' => $r->reservation_number,
                 'room_number'        => $r->room->room_number ?? 'N/A',
                 'room_type'          => $r->roomType->name ?? 'N/A',
@@ -5936,6 +5954,8 @@ Route::middleware(['auth', 'role:front_desk'])->prefix('front-desk')->name('fron
                 'nights'             => $r->nights ?? ($r->check_in_date && $r->check_out_date ? $r->check_in_date->diffInDays($r->check_out_date) : 0),
                 'number_of_adults'   => $r->number_of_adults ?? 1,
                 'number_of_children' => $r->number_of_children ?? 0,
+                'police_report_status' => $r->police_report_status,
+                'police_reported_at'   => $r->police_reported_at?->format('Y-m-d H:i'),
                 'guest' => $g ? [
                     'full_name'                  => $g->full_name,
                     'first_name'                 => $g->first_name,
@@ -6004,6 +6024,20 @@ Route::middleware(['auth', 'role:front_desk'])->prefix('front-desk')->name('fron
         ]);
     })->name('checkin.police-report');
 
+    // Mark police report records as sent (front desk)
+    Route::post('/checkin/police-report/mark-sent', function (\Illuminate\Http\Request $request) {
+        $ids = $request->input('ids', []);
+        if (!empty($ids)) {
+            \App\Models\Reservation::whereIn('id', $ids)
+                ->whereIn('police_report_status', ['new', 'modified'])
+                ->update([
+                    'police_report_status' => 'sent',
+                    'police_reported_at'   => now(),
+                ]);
+        }
+        return response()->json(['success' => true]);
+    })->name('checkin.police-report.mark-sent');
+
     Route::get('/checkout', [CheckOutController::class, 'index'])->name('checkout');
 
     Route::post('/checkout', [\App\Http\Controllers\FrontDesk\CheckOutController::class, 'store'])->name('checkout.store');
@@ -6027,11 +6061,19 @@ Route::middleware(['auth', 'role:front_desk'])->prefix('front-desk')->name('fron
             ->map(function ($room) {
                 $currentReservation = $room->currentReservation;
                 $pendingReservation = null;
+                $upcomingReservation = null;
                 if ($room->status === 'available') {
                     $pendingReservation = \App\Models\Reservation::where('room_id', $room->id)
-                        ->whereIn('status', ['confirmed', 'pending'])
-                        ->whereDate('check_in_date', '<=', now()->addDay())
-                        ->whereDate('check_out_date', '>', now())
+                        ->whereIn('status', ['confirmed', 'pending', 'modified'])
+                        ->whereDate('check_in_date', today())
+                        ->whereDate('check_out_date', '>', today())
+                        ->with('guest')
+                        ->orderBy('check_in_date')
+                        ->first();
+
+                    $upcomingReservation = \App\Models\Reservation::where('room_id', $room->id)
+                        ->whereIn('status', ['confirmed', 'pending', 'modified'])
+                        ->whereDate('check_in_date', '>', today())
                         ->with('guest')
                         ->orderBy('check_in_date')
                         ->first();
@@ -6089,6 +6131,13 @@ Route::middleware(['auth', 'role:front_desk'])->prefix('front-desk')->name('fron
                         'reservation_number' => $pendingReservation->id,
                         'check_in_date'      => $pendingReservation->check_in_date,
                         'check_out_date'     => $pendingReservation->check_out_date,
+                    ] : null,
+                    'upcoming_reservation' => $upcomingReservation ? [
+                        'id'                 => $upcomingReservation->id,
+                        'guest_name'         => trim($upcomingReservation->guest->first_name . ' ' . $upcomingReservation->guest->last_name),
+                        'reservation_number' => $upcomingReservation->id,
+                        'check_in_date'      => $upcomingReservation->check_in_date,
+                        'check_out_date'     => $upcomingReservation->check_out_date,
                     ] : null,
                     'amenities'           => $amenities,
                     'capacity'            => $room->roomType ? ($room->roomType->capacity ?? $room->roomType->max_occupancy ?? 2) : 2,
@@ -6538,6 +6587,10 @@ Route::middleware(['auth', 'role:front_desk'])->prefix('front-desk')->name('fron
 
         return $renderSelfRevenueReport($user, $role, 'front-desk.reports.revenue');
     })->name('reports.revenue');
+
+    // Hospitality-specific front desk reports
+    Route::get('/reports/folio-balance', [\App\Http\Controllers\Accountant\HospitalityReportController::class, 'folioBalance'])->name('reports.folio-balance');
+    Route::get('/reports/unposted-charges', [\App\Http\Controllers\Accountant\HospitalityReportController::class, 'unpostedCharges'])->name('reports.unposted-charges');
 
     // Key Cards
     Route::get('/key-cards', function () {
@@ -9048,6 +9101,16 @@ Route::middleware(['auth', 'role:accountant'])->prefix('accountant')->name('acco
         ]);
     })->name('reports.revenue');
 
+    // Hospitality-specific financial reports
+    Route::get('/reports/departmental-revenue', [\App\Http\Controllers\Accountant\HospitalityReportController::class, 'departmentalRevenue'])->name('reports.departmental-revenue');
+    Route::get('/reports/service-charge-distribution', [\App\Http\Controllers\Accountant\HospitalityReportController::class, 'serviceChargeDistribution'])->name('reports.service-charge-distribution');
+    Route::get('/reports/tax-reconciliation', [\App\Http\Controllers\Accountant\HospitalityReportController::class, 'taxReconciliation'])->name('reports.tax-reconciliation');
+    Route::get('/reports/aging-ar', [\App\Http\Controllers\Accountant\HospitalityReportController::class, 'agingAccountsReceivable'])->name('reports.aging-ar');
+    Route::get('/reports/night-audit', [\App\Http\Controllers\Accountant\HospitalityReportController::class, 'nightAudit'])->name('reports.night-audit');
+    Route::get('/reports/gratuity', [\App\Http\Controllers\Accountant\HospitalityReportController::class, 'gratuityReport'])->name('reports.gratuity');
+    Route::get('/reports/incidentals', [\App\Http\Controllers\Accountant\HospitalityReportController::class, 'incidentalsAnalysis'])->name('reports.incidentals');
+    Route::get('/reports/damage-frequency', [\App\Http\Controllers\Accountant\HospitalityReportController::class, 'damageFrequency'])->name('reports.damage-frequency');
+
     // Invoices
     Route::get('/invoices', [\App\Http\Controllers\Accountant\InvoiceController::class, 'index'])->name('invoices.index');
     Route::get('/invoices/create', [\App\Http\Controllers\Accountant\InvoiceController::class, 'create'])->name('invoices.create');
@@ -10025,6 +10088,7 @@ Route::middleware(['auth', 'role:manager'])->prefix('manager')->name('manager.')
         $mapReservation = function ($r) {
             $g = $r->guest;
             return [
+                'id'                 => $r->id,
                 'reservation_number' => $r->reservation_number,
                 'room_number'        => $r->room->room_number ?? 'N/A',
                 'room_type'          => $r->roomType->name ?? 'N/A',
@@ -10034,6 +10098,8 @@ Route::middleware(['auth', 'role:manager'])->prefix('manager')->name('manager.')
                 'nights'             => $r->nights ?? ($r->check_in_date && $r->check_out_date ? $r->check_in_date->diffInDays($r->check_out_date) : 0),
                 'number_of_adults'   => $r->number_of_adults ?? 1,
                 'number_of_children' => $r->number_of_children ?? 0,
+                'police_report_status' => $r->police_report_status,
+                'police_reported_at'   => $r->police_reported_at?->format('Y-m-d H:i'),
                 'guest' => $g ? [
                     'full_name'                  => $g->full_name,
                     'first_name'                 => $g->first_name,
@@ -10100,6 +10166,20 @@ Route::middleware(['auth', 'role:manager'])->prefix('manager')->name('manager.')
             'hotelPhone'             => \App\Models\Setting::get('hotel_phone', ''),
         ]);
     })->name('police.report');
+
+    // Mark police report records as sent (manager)
+    Route::post('/checkin/police-report/mark-sent', function (\Illuminate\Http\Request $request) {
+        $ids = $request->input('ids', []);
+        if (!empty($ids)) {
+            \App\Models\Reservation::whereIn('id', $ids)
+                ->whereIn('police_report_status', ['new', 'modified'])
+                ->update([
+                    'police_report_status' => 'sent',
+                    'police_reported_at'   => now(),
+                ]);
+        }
+        return response()->json(['success' => true]);
+    })->name('police.report.mark-sent');
 
     Route::get('/checkout', [CheckOutController::class, 'index'])->name('checkout');
 
@@ -11406,6 +11486,11 @@ Route::middleware(['auth', 'role:manager'])->prefix('manager')->name('manager.')
             'dateRange' => ['start' => $start, 'end' => $end],
         ]);
     })->name('reports.revenue');
+
+    // Hospitality-specific manager reports
+    Route::get('/reports/trevpar', [\App\Http\Controllers\Accountant\HospitalityReportController::class, 'trevpar'])->name('reports.trevpar');
+    Route::get('/reports/incidentals', [\App\Http\Controllers\Accountant\HospitalityReportController::class, 'incidentalsAnalysis'])->name('reports.incidentals');
+    Route::get('/reports/damage-frequency', [\App\Http\Controllers\Accountant\HospitalityReportController::class, 'damageFrequency'])->name('reports.damage-frequency');
 
     Route::get('/reports/occupancy', function () {
         $user  = auth()->user()->load('roles');

@@ -49,14 +49,6 @@ class CheckInController extends Controller
             ->where('housekeeping_status', 'clean') // Only show rooms that are clean and ready
             ->get();
 
-        // Also include reserved rooms that are clean (for reservations that already have a room assigned)
-        $reservedRooms = Room::with('roomType')
-            ->where('status', 'reserved')
-            ->where('housekeeping_status', 'clean')
-            ->get();
-
-        $availableRooms = $availableRooms->merge($reservedRooms)->unique('id');
-
         $availableKeyCards = KeyCard::available()->get();
 
         $user = auth()->user();
@@ -79,43 +71,9 @@ class CheckInController extends Controller
             ]),
             'todaysArrivals' => $arrivals->map(function($r) {
                 $reservedRoom = $r->room;
-                // Allow check-in if room is available OR if it's reserved for this specific reservation
+                // Room is ready for check-in if it's available+clean, or pre-assigned (admin reservation)
                 $isRoomAvailable = $reservedRoom &&
-                    ($reservedRoom->status === 'available' ||
-                     ($reservedRoom->status === 'reserved' && $reservedRoom->housekeeping_status === 'clean') ||
-                     ($reservedRoom->status === 'reserved' && $r->room_id === $reservedRoom->id));
-
-                return [
-                    'id' => $r->id,
-                    'reservation_number' => $r->reservation_number,
-                    'guestName' => $r->guest->full_name ?? 'N/A',
-                    'guest_id' => $r->guest_id,
-                    'roomNumber' => $reservedRoom->room_number ?? 'TBA',
-                    'room_id' => $r->room_id,
-                    'room_type' => $r->roomType->name ?? 'N/A',
-                    'nights' => $r->check_in_date && $r->check_out_date
-                        ? now()->parse($r->check_in_date)->diffInDays($r->check_out_date)
-                        : 0,
-                    'guestCount' => ($r->adults ?? $r->number_of_adults ?? 0) + ($r->children ?? $r->number_of_children ?? 0),
-                    'arrivalTime' => $r->check_in_date,
-                    'check_in_date' => $r->check_in_date->format('Y-m-d'),
-                    'check_out_date' => $r->check_out_date->format('Y-m-d'),
-                    'room_rate' => (float) ($r->room_rate ?? 0),
-                    'paid_amount' => (float) ($r->paid_amount ?? 0),
-                    'total_amount' => (float) ($r->total_amount ?? 0),
-                    'balance_amount' => (float) ($r->balance_amount ?? $r->total_amount ?? 0),
-                    'status' => $r->status === 'checked_in' ? 'checked_in' : 'pending',
-                    'reservedRoomAvailable' => $isRoomAvailable,
-                    'reservedRoomStatus' => $reservedRoom ? $reservedRoom->status : null,
-                    'reservedRoomHousekeepingStatus' => $reservedRoom ? $reservedRoom->housekeeping_status : null,
-                ];
-            }),
-            'allReservations' => $allReservations->map(function($r) {
-                $reservedRoom = $r->room;
-                // Allow check-in if room is available OR if it's reserved for this specific reservation
-                $isRoomAvailable = $reservedRoom &&
-                    ($reservedRoom->status === 'available' ||
-                     ($reservedRoom->status === 'reserved' && $reservedRoom->housekeeping_status === 'clean') ||
+                    (($reservedRoom->status === 'available' && $reservedRoom->housekeeping_status === 'clean') ||
                      ($reservedRoom->status === 'reserved' && $r->room_id === $reservedRoom->id));
 
                 return [
@@ -149,6 +107,38 @@ class CheckInController extends Controller
                 'type' => $room->roomType->name ?? 'N/A',
                 'room_type_id' => $room->room_type_id,
             ]),
+            'allReservations' => $allReservations->map(function($r) {
+                $reservedRoom = $r->room;
+                // Room is ready for check-in if it's available+clean, or pre-assigned (admin reservation)
+                $isRoomAvailable = $reservedRoom &&
+                    (($reservedRoom->status === 'available' && $reservedRoom->housekeeping_status === 'clean') ||
+                     ($reservedRoom->status === 'reserved' && $r->room_id === $reservedRoom->id));
+
+                return [
+                    'id' => $r->id,
+                    'reservation_number' => $r->reservation_number,
+                    'guestName' => $r->guest->full_name ?? 'N/A',
+                    'guest_id' => $r->guest_id,
+                    'roomNumber' => $reservedRoom->room_number ?? 'TBA',
+                    'room_id' => $r->room_id,
+                    'room_type' => $r->roomType->name ?? 'N/A',
+                    'nights' => $r->check_in_date && $r->check_out_date
+                        ? now()->parse($r->check_in_date)->diffInDays($r->check_out_date)
+                        : 0,
+                    'guestCount' => ($r->adults ?? $r->number_of_adults ?? 0) + ($r->children ?? $r->number_of_children ?? 0),
+                    'arrivalTime' => $r->check_in_date,
+                    'check_in_date' => $r->check_in_date->format('Y-m-d'),
+                    'check_out_date' => $r->check_out_date->format('Y-m-d'),
+                    'room_rate' => (float) ($r->room_rate ?? 0),
+                    'paid_amount' => (float) ($r->paid_amount ?? 0),
+                    'total_amount' => (float) ($r->total_amount ?? 0),
+                    'balance_amount' => (float) ($r->balance_amount ?? $r->total_amount ?? 0),
+                    'status' => $r->status === 'checked_in' ? 'checked_in' : 'pending',
+                    'reservedRoomAvailable' => $isRoomAvailable,
+                    'reservedRoomStatus' => $reservedRoom ? $reservedRoom->status : null,
+                    'reservedRoomHousekeepingStatus' => $reservedRoom ? $reservedRoom->housekeeping_status : null,
+                ];
+            }),
         ]);
     }
 
@@ -165,9 +155,8 @@ class CheckInController extends Controller
         $reservation = Reservation::with(['guest', 'room'])->findOrFail($validated['reservation_id']);
         $room = Room::where('room_number', $validated['room_number'])->firstOrFail();
 
-        // Verify the room is available, clean, or reserved for this reservation
-        $canCheckIn = $room->status === 'available' ||
-                     ($room->housekeeping_status === 'clean') ||
+        // Verify the room is available and clean for this reservation
+        $canCheckIn = ($room->status === 'available' && $room->housekeeping_status === 'clean') ||
                      ($room->status === 'reserved' && $reservation->room_id === $room->id);
 
         if (!$canCheckIn) {
@@ -189,10 +178,11 @@ class CheckInController extends Controller
         }
 
         $updateFields = [
-            'room_id'         => $room->id,
-            'status'          => 'checked_in',
-            'actual_check_in' => now(),
-            'checked_in_by'   => auth()->id(),
+            'room_id'              => $room->id,
+            'status'               => 'checked_in',
+            'actual_check_in'      => now(),
+            'checked_in_by'        => auth()->id(),
+            'police_report_status' => 'new',
         ];
 
         if ($lateArrivalDays > 0) {

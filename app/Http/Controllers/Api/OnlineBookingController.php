@@ -18,10 +18,15 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Validator;
 use Carbon\Carbon;
 use App\Mail\BookingConfirmation;
+use App\Services\RoomTypeInventoryService;
 
 class OnlineBookingController extends Controller
 {
     private const ONLINE_AVAILABILITY_REFRESH_SECONDS = 30;
+
+    public function __construct(private RoomTypeInventoryService $inventoryService)
+    {
+    }
 
     /**
      * Check room availability for given dates
@@ -48,28 +53,14 @@ class OnlineBookingController extends Controller
         $adults = $request->adults;
         $children = $request->children ?? 0;
 
-        // Get available room types
+        // Get available room types using room-type inventory (not static room assignment)
         $roomTypes = RoomType::where('is_active', true)
             ->where('max_adults', '>=', $adults)
             ->where('max_children', '>=', $children)
-            ->with(['rooms' => function($query) use ($checkIn, $checkOut) {
-                $query->where('status', 'available')
-                    ->where('housekeeping_status', 'clean') // Only show rooms that are clean and ready
-                    ->where('is_active', true)
-                    ->whereDoesntHave('reservations', function($q) use ($checkIn, $checkOut) {
-                        $q->where(function($query) use ($checkIn, $checkOut) {
-                            $query->whereBetween('check_in_date', [$checkIn, $checkOut->copy()->subDay()])
-                                ->orWhereBetween('check_out_date', [$checkIn->copy()->addDay(), $checkOut])
-                                ->orWhere(function($q) use ($checkIn, $checkOut) {
-                                    $q->where('check_in_date', '<=', $checkIn)
-                                      ->where('check_out_date', '>=', $checkOut);
-                                });
-                        })->whereIn('status', ['confirmed', 'checked_in']);
-                    });
-            }])
             ->get()
-            ->map(function($roomType) use ($nights) {
-                $availableRooms = $roomType->rooms->count();
+            ->map(function($roomType) use ($nights, $checkIn, $checkOut) {
+                $inventory = $this->inventoryService->availabilitySummary($roomType->id, $checkIn, $checkOut);
+                $availableRooms = (int) ($inventory['available'] ?? 0);
                 return [
                     'id' => $roomType->id,
                     'name' => $roomType->name,
@@ -82,6 +73,7 @@ class OnlineBookingController extends Controller
                     'total_price' => $roomType->base_price * $nights,
                     'nights' => $nights,
                     'available_rooms' => $availableRooms,
+                    'inventory_by_date' => $inventory['by_date'] ?? [],
                     'is_available' => $availableRooms > 0,
                     'bed_type' => $roomType->bedType ? $roomType->bedType->name : null,
                     'amenities' => $roomType->amenities ?? [],
@@ -192,6 +184,7 @@ class OnlineBookingController extends Controller
             'reservation.check_out_date' => 'required|date|after:reservation.check_in_date',
             'reservation.number_of_adults' => 'required|integer|min:1',
             'reservation.number_of_children' => 'nullable|integer|min:0',
+            'reservation.hold_token' => 'nullable|string|max:100',
             
             'services' => 'nullable|array',
             'services.*.service_id' => 'nullable|exists:hotel_services,id',
@@ -220,31 +213,12 @@ class OnlineBookingController extends Controller
             $checkIn = Carbon::parse($request->reservation['check_in_date']);
             $checkOut = Carbon::parse($request->reservation['check_out_date']);
             $roomTypeId = $request->reservation['room_type_id'];
-            
-            // Lock the room row to prevent double-booking race conditions
-            $availableRoom = Room::where('room_type_id', $roomTypeId)
-                ->where('status', 'available')
-                ->where('housekeeping_status', 'clean')
-                ->where('is_active', true)
-                ->whereDoesntHave('reservations', function ($q) use ($checkIn, $checkOut) {
-                    $q->where(function ($query) use ($checkIn, $checkOut) {
-                        $query->whereBetween('check_in_date', [$checkIn, $checkOut->copy()->subDay()])
-                            ->orWhereBetween('check_out_date', [$checkIn->copy()->addDay(), $checkOut])
-                            ->orWhere(function ($q) use ($checkIn, $checkOut) {
-                                $q->where('check_in_date', '<=', $checkIn)
-                                  ->where('check_out_date', '>=', $checkOut);
-                            });
-                    })->whereIn('status', ['confirmed', 'checked_in']);
-                })
-                ->lockForUpdate()
-                ->first();
 
-            if (!$availableRoom) {
-                DB::rollBack();
-                return response()->json([
-                    'success' => false,
-                    'message' => 'No rooms available for the selected dates',
-                ], 409);
+            $holdToken = $request->reservation['hold_token'] ?? null;
+            if ($holdToken) {
+                $this->inventoryService->consumeHold($holdToken, $roomTypeId, $checkIn, $checkOut, 1);
+            } else {
+                $this->inventoryService->reserveNow($roomTypeId, $checkIn, $checkOut, 1);
             }
 
             // Create or update guest — merge strategy:
@@ -343,7 +317,7 @@ class OnlineBookingController extends Controller
                 'reservation_number'   => $reservationNumber,
                 'confirmation_token'   => hash('sha256', $confirmationToken), // store hashed
                 'guest_id'             => $guest->id,
-                'room_id'              => $availableRoom->id,
+                'room_id'              => null,
                 'room_type_id'         => $roomTypeId,
                 'check_in_date'        => $checkIn,
                 'check_out_date'       => $checkOut,
@@ -400,8 +374,7 @@ class OnlineBookingController extends Controller
                 }
             }
 
-            // Update room status
-            $availableRoom->update(['status' => 'reserved']);
+            $this->inventoryService->refreshRange($roomTypeId, $checkIn, $checkOut);
 
             DB::commit();
 
@@ -427,7 +400,7 @@ class OnlineBookingController extends Controller
                     'confirmation_token' => $confirmationToken, // raw token returned once only
                     'check_in'           => $reservation->check_in_date->format('Y-m-d'),
                     'check_out'          => $reservation->check_out_date->format('Y-m-d'),
-                    'room_number'        => $availableRoom->room_number,
+                    'room_number'        => null,
                     'room_type'          => $roomType->name,
                     'total_amount'       => $totalAmount,
                     'paid_amount'        => $depositAmount,
@@ -435,6 +408,12 @@ class OnlineBookingController extends Controller
                 ],
             ], 201);
 
+        } catch (\RuntimeException $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 409);
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Online booking failed', ['error' => $e->getMessage()]);
@@ -639,6 +618,10 @@ class OnlineBookingController extends Controller
 
                 case 'booking_cancelled':
                     if (in_array($reservation->status, ['pending', 'confirmed'])) {
+                        $roomTypeId  = $reservation->room_type_id;
+                        $checkIn     = $reservation->check_in_date;
+                        $checkOut    = $reservation->check_out_date;
+
                         $reservation->update([
                             'status' => 'cancelled',
                             'cancelled_at' => now(),
@@ -651,10 +634,15 @@ class OnlineBookingController extends Controller
                             'balance_amount' => 0,
                             'cancellation_charges' => 0,
                         ]);
+                        // Release the pre-assigned room (admin reservation) back to available
                         if ($reservation->room_id) {
                             Room::where('id', $reservation->room_id)
-                                ->where('status', 'reserved')
+                                ->whereIn('status', ['reserved', 'available'])
                                 ->update(['status' => 'available']);
+                        }
+                        // Refresh the dated inventory so the slot is visible as available again
+                        if ($roomTypeId && $checkIn && $checkOut) {
+                            $this->inventoryService->refreshRange($roomTypeId, $checkIn, $checkOut);
                         }
                     }
                     break;

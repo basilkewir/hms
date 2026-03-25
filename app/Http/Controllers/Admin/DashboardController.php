@@ -22,11 +22,18 @@ class DashboardController extends Controller
         // Get dashboard statistics
         $totalRooms = Room::where('is_active', true)->count();
         $occupiedRooms = Room::where('is_active', true)
-            ->whereIn('status', ['occupied', 'reserved'])
+            ->where('status', 'occupied')
             ->count();
-        $availableRooms = Room::where('is_active', true)
+        // Count API bookings that are sold for today but have no assigned room yet
+        $today = today();
+        $unassignedActiveToday = Reservation::whereIn('status', ['confirmed', 'pending'])
+            ->whereDate('check_in_date', '<=', $today)
+            ->whereDate('check_out_date', '>', $today)
+            ->whereNull('room_id')
+            ->count();
+        $availableRooms = max(0, Room::where('is_active', true)
             ->where('status', 'available')
-            ->count();
+            ->count() - $unassignedActiveToday);
 
         $stats = [
             'total_rooms' => $totalRooms,

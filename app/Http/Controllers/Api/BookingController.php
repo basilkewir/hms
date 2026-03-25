@@ -8,6 +8,7 @@ use App\Models\Reservation;
 use App\Models\Room;
 use App\Models\RoomType;
 use App\Models\Setting;
+use App\Services\RoomTypeInventoryService;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -16,6 +17,10 @@ use Illuminate\Support\Str;
 class BookingController extends Controller
 {
     private const WEBSITE_ROOM_REFRESH_SECONDS = 30;
+
+    public function __construct(private RoomTypeInventoryService $inventoryService)
+    {
+    }
 
     public function roomTypes()
     {
@@ -154,8 +159,13 @@ class BookingController extends Controller
             return response()->json(['success' => false, 'message' => 'Room type not found'], 404);
         }
 
+        $inventory = $this->inventoryService->availabilitySummary(
+            $roomType->id,
+            $validated['check_in_date'],
+            $validated['check_out_date']
+        );
+
         $availableRoomsQuery = $this->availableRoomsQuery($roomType->id, $validated['check_in_date'], $validated['check_out_date']);
-        $availableRooms = $availableRoomsQuery->count();
         $rooms = $availableRoomsQuery
             ->limit(20)
             ->get(['id', 'room_number'])
@@ -168,13 +178,60 @@ class BookingController extends Controller
             'success' => true,
             'data' => [
                 'room_type_id' => $roomType->id,
-                'available_rooms' => $availableRooms,
+                'available_rooms' => (int) $inventory['available'],
                 'rooms' => $rooms,
+                'inventory_by_date' => $inventory['by_date'],
             ],
             'meta' => [
                 'refresh_after_seconds' => self::WEBSITE_ROOM_REFRESH_SECONDS,
             ],
         ])->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+    }
+
+    public function createHold(Request $request)
+    {
+        $validated = $request->validate([
+            'room_type_id' => 'nullable|exists:room_types,id',
+            'room_type_code' => 'nullable|string|max:50',
+            'check_in_date' => 'required|date|after_or_equal:today',
+            'check_out_date' => 'required|date|after:check_in_date',
+            'quantity' => 'nullable|integer|min:1|max:5',
+            'hold_minutes' => 'nullable|integer|min:5|max:30',
+        ]);
+
+        $roomType = $this->resolveRoomType($validated['room_type_id'] ?? null, $validated['room_type_code'] ?? null);
+        if (!$roomType) {
+            return response()->json(['success' => false, 'message' => 'Room type not found'], 404);
+        }
+
+        try {
+            $hold = $this->inventoryService->createHold(
+                roomTypeId: $roomType->id,
+                checkInDate: $validated['check_in_date'],
+                checkOutDate: $validated['check_out_date'],
+                quantity: (int) ($validated['quantity'] ?? 1),
+                minutesToExpire: (int) ($validated['hold_minutes'] ?? 15),
+                ipAddress: $request->ip(),
+                metadata: ['source' => 'public_booking_api']
+            );
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'hold_token' => $hold->hold_token,
+                    'expires_at' => $hold->expires_at?->toIso8601String(),
+                    'room_type_id' => $hold->room_type_id,
+                    'check_in_date' => $hold->check_in_date?->toDateString(),
+                    'check_out_date' => $hold->check_out_date?->toDateString(),
+                    'quantity' => $hold->quantity,
+                ],
+            ], 201);
+        } catch (\RuntimeException $exception) {
+            return response()->json([
+                'success' => false,
+                'message' => $exception->getMessage(),
+            ], 409);
+        }
     }
 
     public function store(Request $request)
@@ -201,6 +258,7 @@ class BookingController extends Controller
             'infants' => 'nullable|integer|min:0',
             'booking_reference' => 'nullable|string|max:255',
             'special_requests' => 'nullable|string|max:1000',
+            'hold_token' => 'nullable|string|max:100',
         ]);
 
         $roomType = $this->resolveRoomType($validated['room_type_id'] ?? null, $validated['room_type_code'] ?? null);
@@ -212,19 +270,14 @@ class BookingController extends Controller
         $checkOut = Carbon::parse($validated['check_out_date']);
         $nights = max(1, $checkIn->diffInDays($checkOut));
         $systemUserId = $this->resolveSystemUserId();
+        $holdToken = $validated['hold_token'] ?? null;
 
         DB::beginTransaction();
         try {
-            $room = $this->availableRoomsQuery($roomType->id, $checkIn, $checkOut)
-                ->lockForUpdate()
-                ->first();
-
-            if (!$room) {
-                DB::rollBack();
-                return response()->json([
-                    'success' => false,
-                    'message' => 'No rooms available for the selected dates',
-                ], 409);
+            if ($holdToken) {
+                $this->inventoryService->consumeHold($holdToken, $roomType->id, $checkIn, $checkOut, 1);
+            } else {
+                $this->inventoryService->reserveNow($roomType->id, $checkIn, $checkOut, 1);
             }
 
             $roomCharges = (float) $roomType->base_price * $nights;
@@ -263,7 +316,7 @@ class BookingController extends Controller
             $reservation = Reservation::create([
                 'reservation_number' => 'RES-' . strtoupper(Str::random(8)),
                 'guest_id' => $guest->id,
-                'room_id' => $room->id,
+                'room_id' => null,
                 'room_type_id' => $roomType->id,
                 'check_in_date' => $checkIn->format('Y-m-d'),
                 'check_out_date' => $checkOut->format('Y-m-d'),
@@ -285,9 +338,16 @@ class BookingController extends Controller
                 'updated_by' => $systemUserId,
             ]);
 
-            $room->update(['status' => 'reserved']);
+            $this->inventoryService->refreshRange($roomType->id, $checkIn, $checkOut);
 
             DB::commit();
+        } catch (\RuntimeException $exception) {
+            DB::rollBack();
+
+            return response()->json([
+                'success' => false,
+                'message' => $exception->getMessage(),
+            ], 409);
         } catch (\Throwable $exception) {
             DB::rollBack();
 
@@ -303,7 +363,7 @@ class BookingController extends Controller
                 'reservation_id' => $reservation->id,
                 'reservation_number' => $reservation->reservation_number,
                 'status' => $reservation->status,
-                'room_assigned' => true,
+                'room_assigned' => false,
             ],
         ], 201);
     }

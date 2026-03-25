@@ -342,6 +342,7 @@
 
 <script setup>
 import { ref, computed } from "vue"
+import axios from "axios"
 import DashboardLayout from "@/Layouts/DashboardLayout.vue"
 import DialogModal from "@/Components/DialogModal.vue"
 import { formatCurrency as formatCurrencyUtil, initializeCurrencySettings } from "@/Utils/currency.js"
@@ -612,36 +613,30 @@ const handleDrawerAction = async () => {
   try {
     let response
     if (props.activeSession) {
-      response = await fetch("/pos/close-drawer", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRF-TOKEN": document.querySelector('meta[name="csrf-token"]').getAttribute("content")
-        },
-        body: JSON.stringify({ closing_balance: closingBalance.value })
+      response = await axios.post("/pos/close-drawer", {
+        closing_balance: closingBalance.value,
       })
     } else {
-      response = await fetch("/pos/open-drawer", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRF-TOKEN": document.querySelector('meta[name="csrf-token"]').getAttribute("content")
-        },
-        body: JSON.stringify({ opening_balance: openingBalance.value })
+      response = await axios.post("/pos/open-drawer", {
+        opening_balance: openingBalance.value,
       })
     }
-    
-    const data = await response.json()
-    
-    if (!response.ok || !data.success) {
+
+    const data = response?.data
+
+    if (!data?.success) {
       throw new Error(data.message || 'Failed to process drawer action')
     }
-    
+
     showDrawerModal.value = false
     window.location.reload()
   } catch (error) {
     console.error('Drawer action failed:', error)
-    alert(error.message || 'Failed to open/close drawer. Please try again.')
+    const apiMessage = error?.response?.data?.message
+    const validationMessage = error?.response?.data?.errors
+      ? Object.values(error.response.data.errors).flat()[0]
+      : null
+    alert(apiMessage || validationMessage || error.message || 'Failed to open/close drawer. Please try again.')
   }
 }
 

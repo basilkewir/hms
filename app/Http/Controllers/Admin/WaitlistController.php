@@ -9,6 +9,7 @@ use App\Models\Guest;
 use App\Models\RoomType;
 use App\Models\Room;
 use App\Models\Setting;
+use App\Services\RoomTypeInventoryService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Str;
@@ -244,39 +245,55 @@ class WaitlistController extends Controller
             $reservationNumber = 'WL-' . strtoupper(Str::random(8));
         }
 
-        // Create reservation
-        $reservation = Reservation::create([
-            'reservation_number' => $reservationNumber,
-            'guest_id' => $waitlist->guest_id,
-            'room_id' => $availableRoom->id,
-            'room_type_id' => $waitlist->room_type_id,
-            'check_in_date' => $waitlist->requested_check_in,
-            'check_out_date' => $waitlist->requested_check_out,
-            'nights' => $nights,
-            'number_of_adults' => $waitlist->number_of_adults,
-            'number_of_children' => $waitlist->number_of_children,
-            'booking_source' => 'waitlist',
-            'room_rate' => $roomRate,
-            'total_room_charges' => $totalRoomCharges,
-            'taxes' => $taxes,
-            'service_charges' => $serviceCharges,
-            'total_amount' => $totalAmount,
-            'balance_amount' => $totalAmount,
-            'special_requests' => $waitlist->special_requests,
-            'status' => 'confirmed',
-            'created_by' => auth()->id(),
-        ]);
+        try {
+            $reservation = DB::transaction(function () use (
+                $reservationNumber, $waitlist, $nights, $roomRate,
+                $totalRoomCharges, $taxes, $serviceCharges, $totalAmount
+            ) {
+                $inventoryService = app(RoomTypeInventoryService::class);
+                // Assert and lock inventory first — throws RuntimeException if unavailable
+                $inventoryService->reserveNow(
+                    $waitlist->room_type_id,
+                    $waitlist->requested_check_in,
+                    $waitlist->requested_check_out,
+                    1
+                );
 
-        // Update waitlist status
-        $waitlist->update([
-            'status' => 'converted',
-            'converted_at' => now(),
-            'converted_to_reservation_id' => $reservation->id,
-            'updated_by' => auth()->id(),
-        ]);
+                // Create reservation — room assigned at check-in
+                $reservation = Reservation::create([
+                    'reservation_number' => $reservationNumber,
+                    'guest_id' => $waitlist->guest_id,
+                    'room_id' => null,
+                    'room_type_id' => $waitlist->room_type_id,
+                    'check_in_date' => $waitlist->requested_check_in,
+                    'check_out_date' => $waitlist->requested_check_out,
+                    'nights' => $nights,
+                    'number_of_adults' => $waitlist->number_of_adults,
+                    'number_of_children' => $waitlist->number_of_children,
+                    'booking_source' => 'waitlist',
+                    'room_rate' => $roomRate,
+                    'total_room_charges' => $totalRoomCharges,
+                    'taxes' => $taxes,
+                    'service_charges' => $serviceCharges,
+                    'total_amount' => $totalAmount,
+                    'balance_amount' => $totalAmount,
+                    'special_requests' => $waitlist->special_requests,
+                    'status' => 'confirmed',
+                    'created_by' => auth()->id(),
+                ]);
 
-        // Mark room as reserved
-        $availableRoom->update(['status' => 'reserved']);
+                $waitlist->update([
+                    'status' => 'converted',
+                    'converted_at' => now(),
+                    'converted_to_reservation_id' => $reservation->id,
+                    'updated_by' => auth()->id(),
+                ]);
+
+                return $reservation;
+            });
+        } catch (\RuntimeException $e) {
+            return back()->withErrors(['error' => 'Room type is no longer available for these dates.']);
+        }
 
         // Send confirmation email
         if ($waitlist->guest && $waitlist->guest->email) {

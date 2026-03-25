@@ -365,18 +365,18 @@
                         </div>
                     </div>
 
-                    <!-- Pending Reservation (if available) -->
-                    <div v-if="selectedRoom.status === 'available' && selectedRoom.pending_reservation">
+                    <!-- Pending / Upcoming Reservation (if available) -->
+                    <div v-if="selectedRoom.status === 'available' && (selectedRoom.pending_reservation || selectedRoom.upcoming_reservation)">
                         <h3 class="text-kotel-yellow font-semibold mb-3 flex items-center gap-2">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                            Pending Check-in
+                            {{ selectedRoom.pending_reservation ? 'Pending Check-in' : 'Upcoming Reservation' }}
                         </h3>
                         <div class="bg-kotel-black/50 border border-emerald-400/30 rounded-lg p-4">
-                            <p class="text-white font-semibold text-lg">{{ selectedRoom.pending_reservation.guest_name }}</p>
+                            <p class="text-white font-semibold text-lg">{{ (selectedRoom.pending_reservation || selectedRoom.upcoming_reservation).guest_name }}</p>
                             <div class="mt-2 grid grid-cols-2 gap-3 text-sm">
-                                <div><span class="text-kotel-sky-blue/90">Reservation #</span><p class="text-white font-medium">#{{ selectedRoom.pending_reservation.reservation_number }}</p></div>
-                                <div><span class="text-kotel-sky-blue/90">Check-in</span><p class="text-white font-medium">{{ formatDate(selectedRoom.pending_reservation.check_in_date) }}</p></div>
-                                <div><span class="text-kotel-sky-blue/90">Check-out</span><p class="text-white font-medium">{{ formatDate(selectedRoom.pending_reservation.check_out_date) }}</p></div>
+                                <div><span class="text-kotel-sky-blue/90">Reservation #</span><p class="text-white font-medium">#{{ (selectedRoom.pending_reservation || selectedRoom.upcoming_reservation).reservation_number }}</p></div>
+                                <div><span class="text-kotel-sky-blue/90">Check-in</span><p class="text-white font-medium">{{ formatDate((selectedRoom.pending_reservation || selectedRoom.upcoming_reservation).check_in_date) }}</p></div>
+                                <div><span class="text-kotel-sky-blue/90">Check-out</span><p class="text-white font-medium">{{ formatDate((selectedRoom.pending_reservation || selectedRoom.upcoming_reservation).check_out_date) }}</p></div>
                             </div>
                         </div>
                     </div>

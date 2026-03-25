@@ -517,17 +517,12 @@ const toggleDrawer = () => { showDrawerModal.value = true }
 
 const openDrawer = async () => {
   try {
-    const response = await fetch('/pos/open-drawer', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-      },
-      body: JSON.stringify({ opening_balance: openingBalance.value }),
+    const response = await axios.post('/pos/open-drawer', {
+      opening_balance: openingBalance.value,
     })
 
-    const result = await response.json().catch(() => null)
-    if (!response.ok || !result?.success) {
+    const result = response?.data
+    if (!result?.success) {
       alert(result?.message || 'Failed to open drawer')
       return
     }
@@ -535,23 +530,22 @@ const openDrawer = async () => {
     activeSession.value = result.session
     showDrawerModal.value = false
   } catch (e) {
-    alert('Failed to open drawer')
+    const apiMessage = e?.response?.data?.message
+    const validationMessage = e?.response?.data?.errors
+      ? Object.values(e.response.data.errors).flat()[0]
+      : null
+    alert(apiMessage || validationMessage || 'Failed to open drawer')
   }
 }
 
 const closeDrawer = async () => {
   try {
-    const response = await fetch('/pos/close-drawer', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-      },
-      body: JSON.stringify({ closing_balance: closingBalance.value }),
+    const response = await axios.post('/pos/close-drawer', {
+      closing_balance: closingBalance.value,
     })
 
-    const result = await response.json().catch(() => null)
-    if (!response.ok || !result?.success) {
+    const result = response?.data
+    if (!result?.success) {
       alert(result?.message || 'Failed to close drawer')
       return
     }
@@ -559,7 +553,11 @@ const closeDrawer = async () => {
     activeSession.value = null
     showDrawerModal.value = false
   } catch (e) {
-    alert('Failed to close drawer')
+    const apiMessage = e?.response?.data?.message
+    const validationMessage = e?.response?.data?.errors
+      ? Object.values(e.response.data.errors).flat()[0]
+      : null
+    alert(apiMessage || validationMessage || 'Failed to close drawer')
   }
 }
 const processSale = async () => {

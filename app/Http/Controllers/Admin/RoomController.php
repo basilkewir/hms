@@ -526,8 +526,9 @@ class RoomController extends Controller
                 $query->where('status', 'checked_in')->with(['guest', 'activeKeyCard'])->latest('check_in_date')->limit(1);
             },
             'pendingReservations' => function($query) {
-                $query->whereIn('status', ['confirmed', 'pending'])
-                    ->whereDate('check_in_date', '<=', now())
+                $query->whereIn('status', ['confirmed', 'pending', 'modified'])
+                    ->whereDate('check_in_date', today())
+                    ->whereDate('check_out_date', '>', today())
                     ->with('guest')
                     ->latest('check_in_date')
                     ->limit(1);
@@ -607,6 +608,13 @@ class RoomController extends Controller
         $mapRoomData = function ($room) use ($foliosByReservationId) {
             $activeReservation = $room->currentReservation
                 ?? ($room->status === 'occupied' && $room->reservations->isNotEmpty() ? $room->reservations->first() : null);
+            $pendingReservation = $room->pendingReservations->first();
+            $upcomingReservation = Reservation::where('room_id', $room->id)
+                ->whereIn('status', ['confirmed', 'pending', 'modified'])
+                ->whereDate('check_in_date', '>', today())
+                ->with('guest')
+                ->orderBy('check_in_date', 'asc')
+                ->first();
             $activeKeyCard = $activeReservation?->activeKeyCard;
             $activeFolio = $activeReservation ? $foliosByReservationId->get($activeReservation->id) : null;
             $folioCharges = $activeFolio?->charges ?? collect();
@@ -639,12 +647,19 @@ class RoomController extends Controller
                 'check_in' => $activeReservation?->check_in_date?->format('Y-m-d H:i'),
                 'check_out' => $activeReservation?->check_out_date?->format('Y-m-d H:i'),
                 'reservation_id' => $activeReservation?->id,
-                'pending_reservation' => $room->pendingReservations->isNotEmpty() ? [
-                    'id' => $room->pendingReservations->first()->id,
-                    'reservation_number' => $room->pendingReservations->first()->reservation_number,
-                    'guest_name' => $room->pendingReservations->first()->guest?->full_name ?? 'N/A',
-                    'check_in_date' => $room->pendingReservations->first()->check_in_date?->format('Y-m-d'),
-                    'check_out_date' => $room->pendingReservations->first()->check_out_date?->format('Y-m-d'),
+                'pending_reservation' => $pendingReservation ? [
+                    'id' => $pendingReservation->id,
+                    'reservation_number' => $pendingReservation->reservation_number,
+                    'guest_name' => $pendingReservation->guest?->full_name ?? 'N/A',
+                    'check_in_date' => $pendingReservation->check_in_date?->format('Y-m-d'),
+                    'check_out_date' => $pendingReservation->check_out_date?->format('Y-m-d'),
+                ] : null,
+                'upcoming_reservation' => $upcomingReservation ? [
+                    'id' => $upcomingReservation->id,
+                    'reservation_number' => $upcomingReservation->reservation_number,
+                    'guest_name' => $upcomingReservation->guest?->full_name ?? 'N/A',
+                    'check_in_date' => $upcomingReservation->check_in_date?->format('Y-m-d'),
+                    'check_out_date' => $upcomingReservation->check_out_date?->format('Y-m-d'),
                 ] : null,
                 'nights' => $nights,
                 'room_rate' => $roomRate,

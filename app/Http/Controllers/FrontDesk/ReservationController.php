@@ -286,7 +286,7 @@ class ReservationController extends Controller
 
         // Get available rooms with full details
         $availableRooms = Room::with('roomType')
-            ->whereIn('status', ['available', 'reserved'])
+            ->where('status', 'available')
             ->where('housekeeping_status', 'clean')
             ->orderBy('room_number')
             ->get()
@@ -459,11 +459,16 @@ class ReservationController extends Controller
                     'total_room_charges' => $roomTotalCharges,
                 ]);
 
-                // Mark the room as reserved if selected
-                if ($roomId) {
-                    \App\Models\Room::where('id', $roomId)->update(['status' => 'reserved']);
-                }
             }
+        }
+
+        $assignedRoomIds = collect([
+            $validated['room_id'] ?? null,
+            ...collect($selectedRooms)->pluck('room_id')->all(),
+        ])->filter()->unique();
+
+        foreach ($assignedRoomIds as $roomId) {
+            $this->refreshRoomOccupancyStatus((int) $roomId);
         }
 
         // Send confirmation email if requested
@@ -505,5 +510,39 @@ class ReservationController extends Controller
 
             return false;
         }
+    }
+
+    private function refreshRoomOccupancyStatus(?int $roomId): void
+    {
+        if (!$roomId) {
+            return;
+        }
+
+        $room = Room::find($roomId);
+        if (!$room) {
+            return;
+        }
+
+        $activeCheckedInExists = Reservation::where('room_id', $roomId)
+            ->where('status', 'checked_in')
+            ->whereNull('actual_check_out')
+            ->exists();
+
+        if ($activeCheckedInExists) {
+            $room->update(['status' => 'occupied']);
+            return;
+        }
+
+        $today = \Carbon\Carbon::today()->toDateString();
+
+        $activeReservedExists = Reservation::where('room_id', $roomId)
+            ->whereIn('status', ['confirmed', 'pending', 'modified'])
+            ->whereDate('check_in_date', $today)
+            ->whereNull('actual_check_in')
+            ->exists();
+
+        $room->update([
+            'status' => $activeReservedExists ? 'reserved' : 'available',
+        ]);
     }
 }

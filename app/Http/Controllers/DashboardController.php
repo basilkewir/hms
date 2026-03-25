@@ -186,7 +186,7 @@ class DashboardController extends Controller
         $thisMonth = Carbon::now()->startOfMonth();
         $totalRooms = Room::count();
         $occupiedRooms = Room::where('status', 'occupied')->count();
-        $availableRooms = Room::where('status', 'available')->count();
+        $availableRooms = $this->countTrulyAvailableRooms();
 
         // Count current guests (checked-in reservations)
         $totalGuests = Reservation::where('status', 'checked_in')
@@ -386,7 +386,7 @@ class DashboardController extends Controller
 
         // Room status
         $roomStatus = [
-            'available' => Room::where('status', 'available')->count(),
+            'available' => $this->countTrulyAvailableRooms(),
             'occupied' => Room::where('status', 'occupied')->count(),
             'cleaning' => Room::where('housekeeping_status', 'dirty')->orWhere('status', 'cleaning')->count(),
             'maintenance' => Room::where('status', 'maintenance')->orWhere('status', 'out_of_order')->count(),
@@ -603,6 +603,22 @@ class DashboardController extends Controller
         return $totalRooms > 0 ? round(($occupiedRooms / $totalRooms) * 100, 1) : 0;
     }
 
+    /**
+     * Count rooms that are genuinely available to sell today.
+     * Physical 'available' status minus API bookings that haven't been assigned a room yet.
+     */
+    private function countTrulyAvailableRooms(): int
+    {
+        $today = Carbon::today();
+        $physicallyAvailable = Room::where('status', 'available')->count();
+        $apiBookedWithoutRoom = Reservation::whereIn('status', ['confirmed', 'pending'])
+            ->whereDate('check_in_date', '<=', $today)
+            ->whereDate('check_out_date', '>', $today)
+            ->whereNull('room_id')
+            ->count();
+        return max(0, $physicallyAvailable - $apiBookedWithoutRoom);
+    }
+
     private function getAccountantDashboard()
     {
         $today = Carbon::today();
@@ -752,7 +768,7 @@ class DashboardController extends Controller
             'arrivals' => $arrivalsCount,
             'departures' => $departuresCount,
             'currentGuests' => $currentGuests,
-            'availableRooms' => Room::where('status', 'available')->count(),
+            'availableRooms' => $this->countTrulyAvailableRooms(),
         ];
 
         // Arrivals list
@@ -799,7 +815,7 @@ class DashboardController extends Controller
 
         // Room status
         $roomStatus = [
-            'available' => Room::where('status', 'available')->count(),
+            'available' => $this->countTrulyAvailableRooms(),
             'occupied' => Room::where('status', 'occupied')->count(),
             'cleaning' => Room::where('housekeeping_status', 'dirty')->count(), // Dirty rooms need cleaning
             'maintenance' => Room::where('status', 'maintenance')->count(),

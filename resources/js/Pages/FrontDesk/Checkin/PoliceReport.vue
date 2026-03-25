@@ -39,10 +39,76 @@ const props = defineProps({
 })
 
 const navigation = computed(() => props.navigation || getNavigationForRole(props.user?.roles?.[0]?.name || 'front_desk'))
-const allGuests = computed(() => [...(props.currentlyStayingGuests || []), ...(props.checkedInTodayGuests || [])])
+
+// ── Local mutable copies so status updates without full page reload ──────────
+const localToday   = ref([...(props.checkedInTodayGuests   || [])])
+const localStaying = ref([...(props.currentlyStayingGuests || [])])
+
+// ── Filter tabs: unreported (new+modified) | all | sent ──────────────────────
+const filter = ref('unreported')
+
+const filterList = (list) => {
+    if (filter.value === 'unreported') return list.filter(r => r.police_report_status !== 'sent')
+    if (filter.value === 'sent')       return list.filter(r => r.police_report_status === 'sent')
+    return list
+}
+
+const filteredToday   = computed(() => filterList(localToday.value))
+const filteredStaying = computed(() => filterList(localStaying.value))
+const allFiltered     = computed(() => [...filteredStaying.value, ...filteredToday.value])
+const allGuests       = computed(() => [...localStaying.value, ...localToday.value])
+
+const statusCounts = computed(() => {
+    const all = allGuests.value
+    return {
+        new:      all.filter(r => r.police_report_status === 'new').length,
+        modified: all.filter(r => r.police_report_status === 'modified').length,
+        sent:     all.filter(r => r.police_report_status === 'sent').length,
+    }
+})
+
+const statusBadge = (status) => {
+    if (status === 'new')      return { label: 'New',      cls: 'bg-green-100 text-green-800' }
+    if (status === 'modified') return { label: 'Modified', cls: 'bg-amber-100 text-amber-800' }
+    if (status === 'sent')     return { label: 'Sent',     cls: 'bg-gray-100 text-gray-500' }
+    return { label: '—', cls: 'bg-gray-100 text-gray-400' }
+}
+
+// Mark reservation IDs as sent via API, update local state optimistically
+const markSent = async (ids) => {
+    if (!ids || ids.length === 0) return
+    const csrfToken = document.head.querySelector('meta[name="csrf-token"]')?.content || ''
+    try {
+        await fetch('/front-desk/checkin/police-report/mark-sent', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrfToken,
+                'Accept': 'application/json',
+            },
+            body: JSON.stringify({ ids }),
+        })
+        const idSet = new Set(ids)
+        const now   = new Date().toLocaleString('sv').replace('T', ' ').substring(0, 16)
+        const upd   = (list) => list.map(r => idSet.has(r.id)
+            ? { ...r, police_report_status: 'sent', police_reported_at: now }
+            : r)
+        localToday.value   = upd(localToday.value)
+        localStaying.value = upd(localStaying.value)
+    } catch (e) {
+        console.error('Failed to mark records as sent', e)
+    }
+}
+
+const markAllVisibleSent = () => {
+    const ids = allFiltered.value
+        .filter(r => r.police_report_status !== 'sent')
+        .map(r => r.id)
+    markSent(ids)
+}
 
 // Export as CSV
-const exportCSV = () => {
+const exportCSV = async () => {
     const guests = allGuests.value
     const headers = [
         'Room No', 'Room Type', 'Reservation No', 'Full Name', 'Gender',
@@ -51,7 +117,7 @@ const exportCSV = () => {
         'Phone', 'Email', 'Address', 'City', 'Country',
         'Arrival From', 'Departure To', 'Purpose of Visit',
         'Check-in Date', 'Check-out Date', 'Actual Check-in', 'Nights',
-        'Adults', 'Children', 'Police Verification Status',
+        'Adults', 'Children', 'Report Status', 'Reported At',
         'Emergency Contact', 'Emergency Phone',
     ]
     const rows = guests.map(r => {
@@ -86,7 +152,8 @@ const exportCSV = () => {
             r.nights || '',
             r.number_of_adults || '',
             r.number_of_children || '',
-            g.police_verification_status || '',
+            r.police_report_status || '',
+            r.police_reported_at || '',
             g.emergency_contact_name || '',
             g.emergency_contact_phone || '',
         ].map(v => `"${String(v).replace(/"/g, '""')}"`)
@@ -100,9 +167,11 @@ const exportCSV = () => {
     a.download = `police-report-${new Date().toISOString().slice(0, 10)}.csv`
     a.click()
     URL.revokeObjectURL(url)
-}
 
-const formatDate = (d) => d ? new Date(d).toLocaleDateString('en-GB') : '—'
+    // Auto-mark all exported unreported records as sent
+    const ids = guests.filter(r => r.police_report_status !== 'sent').map(r => r.id)
+    await markSent(ids)
+} = (d) => d ? new Date(d).toLocaleDateString('en-GB') : '—'
 
 // Escape HTML to prevent XSS when writing data into the print window
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
@@ -211,14 +280,19 @@ ${tableHtml}
     win.document.close()
     win.focus()
     setTimeout(() => { win.print(); win.close() }, 400)
+
+    // Auto-mark all unreported records as sent after printing
+    const ids = [...stayingGuests, ...todayGuests]
+        .filter(r => r.police_report_status !== 'sent')
+        .map(r => r.id)
+    markSent(ids)
 }
-</script>
 
 <template>
     <Head title="Police Report – Today\'s Check-ins" />
     <DashboardLayout title="Police Report" :user="user" :navigation="navigation">
         <!-- Top action bar (hidden on print) -->
-        <div class="flex flex-wrap items-center justify-between gap-4 mb-6 no-print">
+        <div class="flex flex-wrap items-center justify-between gap-4 mb-4 no-print">
             <div class="flex items-center gap-3">
                 <Link href="/front-desk/checkin"
                       class="inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors"
@@ -228,10 +302,16 @@ ${tableHtml}
                 </Link>
                 <h1 class="text-xl font-semibold flex items-center gap-2" :style="{ color: themeColors.textPrimary }">
                     <ShieldCheckIcon class="h-6 w-6 text-blue-500" />
-                    Police Report — Guests Checked In Today
+                    Police Report — Guest Register
                 </h1>
             </div>
             <div class="flex gap-3">
+                <button @click="markAllVisibleSent"
+                        v-if="allFiltered.some(r => r.police_report_status !== 'sent')"
+                        class="inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors bg-blue-600 text-white hover:bg-blue-700">
+                    <ShieldCheckIcon class="h-4 w-4" />
+                    Mark Visible as Sent
+                </button>
                 <button @click="exportCSV"
                         class="inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors"
                         :style="{ backgroundColor: themeColors.secondary, color: themeColors.textPrimary, border: '1px solid ' + themeColors.border }">
@@ -245,6 +325,44 @@ ${tableHtml}
                     Print Report
                 </button>
             </div>
+        </div>
+
+        <!-- Status summary + filter tabs (hidden on print) -->
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-4 no-print">
+            <!-- Status counts -->
+            <div class="flex gap-3 text-sm">
+                <span class="px-3 py-1 rounded-full bg-green-100 text-green-800 font-medium">
+                    New: {{ statusCounts.new }}
+                </span>
+                <span class="px-3 py-1 rounded-full bg-amber-100 text-amber-800 font-medium">
+                    Modified: {{ statusCounts.modified }}
+                </span>
+                <span class="px-3 py-1 rounded-full bg-gray-100 text-gray-600 font-medium">
+                    Sent: {{ statusCounts.sent }}
+                </span>
+            </div>
+            <!-- Filter tabs -->
+            <div class="flex rounded-md border overflow-hidden text-sm" :style="{ borderColor: themeColors.border }">
+                <button @click="filter = 'unreported'"
+                        :class="filter === 'unreported' ? 'bg-blue-600 text-white' : ''"
+                        :style="filter !== 'unreported' ? { backgroundColor: themeColors.secondary, color: themeColors.textSecondary } : {}"
+                        class="px-4 py-1.5 font-medium border-r">
+                    Unreported ({{ statusCounts.new + statusCounts.modified }})
+                </button>
+                <button @click="filter = 'all'"
+                        :class="filter === 'all' ? 'bg-blue-600 text-white' : ''"
+                        :style="filter !== 'all' ? { backgroundColor: themeColors.secondary, color: themeColors.textSecondary } : {}"
+                        class="px-4 py-1.5 font-medium border-r">
+                    All ({{ allGuests.length }})
+                </button>
+                <button @click="filter = 'sent'"
+                        :class="filter === 'sent' ? 'bg-blue-600 text-white' : ''"
+                        :style="filter !== 'sent' ? { backgroundColor: themeColors.secondary, color: themeColors.textSecondary } : {}"
+                        class="px-4 py-1.5 font-medium">
+                    Sent ({{ statusCounts.sent }})
+                </button>
+            </div>
+        </div>
         </div>
 
         <!-- Printable report -->
@@ -270,16 +388,16 @@ ${tableHtml}
             </div>
 
             <!-- No guests -->
-            <div v-if="(!currentlyStayingGuests || currentlyStayingGuests.length === 0) && (!checkedInTodayGuests || checkedInTodayGuests.length === 0)"
+            <div v-if="filteredStaying.length === 0 && filteredToday.length === 0"
                  class="text-center py-16 text-gray-400">
                 <ShieldCheckIcon class="h-16 w-16 mx-auto mb-4 opacity-40" />
-                <p class="text-lg font-medium">No guests on record.</p>
+                <p class="text-lg font-medium">No guests match selected filter.</p>
             </div>
 
             <!-- Currently Staying section -->
-            <template v-if="currentlyStayingGuests && currentlyStayingGuests.length > 0">
+            <template v-if="filteredStaying.length > 0">
                 <h3 class="text-sm font-bold uppercase tracking-wide mt-2 mb-2 px-1"
-                    :style="{ color: themeColors.textSecondary }">Currently Staying — {{ currentlyStayingGuests.length }} guest{{ currentlyStayingGuests.length !== 1 ? 's' : '' }}</h3>
+                    :style="{ color: themeColors.textSecondary }">Currently Staying — {{ filteredStaying.length }} guest{{ filteredStaying.length !== 1 ? 's' : '' }}</h3>
                 <div class="overflow-x-auto mb-6">
                     <table class="w-full border-collapse text-xs print:text-[10px]">
                         <thead>
@@ -296,12 +414,13 @@ ${tableHtml}
                                 <th class="text-left py-2 px-2 font-semibold text-gray-700">Check-in</th>
                                 <th class="text-left py-2 px-2 font-semibold text-gray-700">Check-out</th>
                                 <th class="text-left py-2 px-2 font-semibold text-gray-700">Contact</th>
+                                <th class="text-left py-2 px-2 font-semibold text-gray-700 no-print">Status</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <tr v-for="(r, i) in currentlyStayingGuests" :key="'s'+i"
+                            <tr v-for="(r, i) in filteredStaying" :key="'s'+r.id"
                                 class="border-b"
-                                :style="{ borderColor: '#e5e7eb', backgroundColor: i % 2 === 0 ? '#ffffff' : '#f9fafb' }">
+                                :style="{ borderColor: '#e5e7eb', backgroundColor: r.police_report_status === 'modified' ? '#fffbeb' : (i % 2 === 0 ? '#ffffff' : '#f9fafb') }">
                                 <td class="py-2 px-2 text-gray-500">{{ i + 1 }}</td>
                                 <td class="py-2 px-2 font-mono font-semibold">{{ r.room_number }}</td>
                                 <td class="py-2 px-2"><div class="font-semibold">{{ r.guest?.full_name || '—' }}</div><div class="text-gray-500 text-[10px]">{{ r.reservation_number }}</div></td>
@@ -318,6 +437,12 @@ ${tableHtml}
                                 <td class="py-2 px-2"><div>{{ formatDate(r.check_in_date) }}</div><div v-if="r.actual_check_in" class="text-[10px] text-gray-500">{{ r.actual_check_in }}</div></td>
                                 <td class="py-2 px-2">{{ formatDate(r.check_out_date) }}<div class="text-[10px] text-gray-500">{{ r.nights }} night{{ r.nights !== 1 ? 's' : '' }}</div></td>
                                 <td class="py-2 px-2"><div>{{ r.guest?.phone || '—' }}</div><div v-if="r.guest?.emergency_contact_name" class="text-[10px] text-gray-500 mt-0.5">Emergency: {{ r.guest?.emergency_contact_name }}</div></td>
+                                <td class="py-2 px-2 no-print">
+                                    <span :class="['px-2 py-0.5 rounded-full text-[10px] font-semibold', statusBadge(r.police_report_status).cls]">
+                                        {{ statusBadge(r.police_report_status).label }}
+                                    </span>
+                                    <div v-if="r.police_reported_at" class="text-[9px] text-gray-400 mt-0.5">{{ r.police_reported_at }}</div>
+                                </td>
                             </tr>
                         </tbody>
                     </table>
@@ -325,9 +450,9 @@ ${tableHtml}
             </template>
 
             <!-- Checked In Today section -->
-            <template v-if="checkedInTodayGuests && checkedInTodayGuests.length > 0">
+            <template v-if="filteredToday.length > 0">
                 <h3 class="text-sm font-bold uppercase tracking-wide mt-2 mb-2 px-1"
-                    :style="{ color: themeColors.textSecondary }">Checked In Today — {{ checkedInTodayGuests.length }} guest{{ checkedInTodayGuests.length !== 1 ? 's' : '' }}</h3>
+                    :style="{ color: themeColors.textSecondary }">Checked In Today — {{ filteredToday.length }} guest{{ filteredToday.length !== 1 ? 's' : '' }}</h3>
                 <div class="overflow-x-auto">
                     <table class="w-full border-collapse text-xs print:text-[10px]">
                         <thead>
@@ -344,12 +469,13 @@ ${tableHtml}
                                 <th class="text-left py-2 px-2 font-semibold text-gray-700">Check-in</th>
                                 <th class="text-left py-2 px-2 font-semibold text-gray-700">Check-out</th>
                                 <th class="text-left py-2 px-2 font-semibold text-gray-700">Contact</th>
+                                <th class="text-left py-2 px-2 font-semibold text-gray-700 no-print">Status</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <tr v-for="(r, i) in checkedInTodayGuests" :key="'t'+i"
+                            <tr v-for="(r, i) in filteredToday" :key="'t'+r.id"
                                 class="border-b"
-                                :style="{ borderColor: '#e5e7eb', backgroundColor: i % 2 === 0 ? '#ffffff' : '#f9fafb' }">
+                                :style="{ borderColor: '#e5e7eb', backgroundColor: r.police_report_status === 'modified' ? '#fffbeb' : (i % 2 === 0 ? '#ffffff' : '#f9fafb') }">
                                 <td class="py-2 px-2 text-gray-500">{{ i + 1 }}</td>
                                 <td class="py-2 px-2 font-mono font-semibold">{{ r.room_number }}</td>
                                 <td class="py-2 px-2"><div class="font-semibold">{{ r.guest?.full_name || '—' }}</div><div class="text-gray-500 text-[10px]">{{ r.reservation_number }}</div></td>
@@ -366,6 +492,12 @@ ${tableHtml}
                                 <td class="py-2 px-2"><div>{{ formatDate(r.check_in_date) }}</div><div v-if="r.actual_check_in" class="text-[10px] text-gray-500">{{ r.actual_check_in }}</div></td>
                                 <td class="py-2 px-2">{{ formatDate(r.check_out_date) }}<div class="text-[10px] text-gray-500">{{ r.nights }} night{{ r.nights !== 1 ? 's' : '' }}</div></td>
                                 <td class="py-2 px-2"><div>{{ r.guest?.phone || '—' }}</div><div v-if="r.guest?.emergency_contact_name" class="text-[10px] text-gray-500 mt-0.5">Emergency: {{ r.guest?.emergency_contact_name }}</div></td>
+                                <td class="py-2 px-2 no-print">
+                                    <span :class="['px-2 py-0.5 rounded-full text-[10px] font-semibold', statusBadge(r.police_report_status).cls]">
+                                        {{ statusBadge(r.police_report_status).label }}
+                                    </span>
+                                    <div v-if="r.police_reported_at" class="text-[9px] text-gray-400 mt-0.5">{{ r.police_reported_at }}</div>
+                                </td>
                             </tr>
                         </tbody>
                     </table>

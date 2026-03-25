@@ -37,10 +37,11 @@ class ReportController extends Controller
     {
         $dateRange = $this->getDateRange($filters['dateRange'] ?? 'month');
 
-        // Get room occupancy data
+        // Get room occupancy data — use LEFT JOINs so API bookings with room_id=null are included.
+        // room_type is derived from the pre-assigned room when available, otherwise from reservations.room_type_id.
         $occupancyData = DB::table('reservations')
-            ->join('rooms', 'reservations.room_id', '=', 'rooms.id')
-            ->join('room_types', 'rooms.room_type_id', '=', 'room_types.id')
+            ->leftJoin('rooms', 'reservations.room_id', '=', 'rooms.id')
+            ->leftJoin('room_types', 'room_types.id', '=', DB::raw('COALESCE(rooms.room_type_id, reservations.room_type_id)'))
             ->whereBetween('reservations.check_in_date', $dateRange)
             ->select(
                 DB::raw('DATE(reservations.check_in_date) as date'),

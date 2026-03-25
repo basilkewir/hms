@@ -166,6 +166,19 @@ export const getNavigationForRole = (role, userPermissions = []) => {
             ]
         },
 
+        // ==================== FRONT DESK REPORTS ====================
+        {
+            name: 'Front Desk Reports',
+            icon: 'ClipboardDocumentListIcon',
+            permission: null,
+            roles: ['front_desk'],
+            children: [
+                { name: 'Revenue Reports', href: '/front-desk/reports/revenue', permission: null, roles: ['front_desk'] },
+                { name: 'Folio Balance', href: '/front-desk/reports/folio-balance', permission: null, roles: ['front_desk'] },
+                { name: 'Unposted Charges', href: '/front-desk/reports/unposted-charges', permission: null, roles: ['front_desk'] },
+            ]
+        },
+
         // ==================== BUDGET ====================
         {
             name: 'Budget Management',
@@ -224,7 +237,18 @@ export const getNavigationForRole = (role, userPermissions = []) => {
                 { name: 'Profit & Loss', href: '/accountant/reports/profit-loss', permission: null, roles: ['accountant'] },
                 { name: 'Balance Sheet', href: '/accountant/reports/balance-sheet', permission: null, roles: ['accountant'] },
                 { name: 'Cash Flow', href: '/accountant/reports/cash-flow', permission: null, roles: ['accountant'] },
+                { name: 'Departmental Revenue', href: '/accountant/reports/departmental-revenue', permission: null, roles: ['accountant'] },
+                { name: 'Service Charge Distribution', href: '/accountant/reports/service-charge-distribution', permission: null, roles: ['accountant'] },
+                { name: 'Tax Reconciliation', href: '/accountant/reports/tax-reconciliation', permission: null, roles: ['accountant'] },
+                { name: 'Aging A/R', href: '/accountant/reports/aging-ar', permission: null, roles: ['accountant'] },
+                { name: 'Night Audit', href: '/accountant/reports/night-audit', permission: null, roles: ['accountant'] },
+                { name: 'Gratuity', href: '/accountant/reports/gratuity', permission: null, roles: ['accountant'] },
+                { name: 'Incidentals Analysis', href: '/accountant/reports/incidentals', permission: null, roles: ['accountant'] },
+                { name: 'Damage Frequency', href: '/accountant/reports/damage-frequency', permission: null, roles: ['accountant'] },
                 { name: 'Revenue Report', href: isAdmin ? '/admin/reports/revenue' : `/${normalizedRole}/reports/revenue`, permission: 'view_reports', roles: ['admin', 'manager'] },
+                { name: 'TRevPAR', href: '/manager/reports/trevpar', permission: 'view_reports', roles: ['manager'] },
+                { name: 'Incidentals Analysis', href: '/manager/reports/incidentals', permission: 'view_reports', roles: ['manager'] },
+                { name: 'Damage Frequency', href: '/manager/reports/damage-frequency', permission: 'view_reports', roles: ['manager'] },
                 { name: 'Financial Overview', href: '/admin/financial-reports', permission: 'view_reports', roles: ['admin'] },
             ]
         },
@@ -275,6 +299,8 @@ export const getNavigationForRole = (role, userPermissions = []) => {
             children: [
                 { name: 'All Reports', href: '/admin/reports', permission: 'view_reports', roles: ['admin'] },
                 { name: 'Occupancy', href: isAdmin ? '/admin/reports/occupancy' : `/${normalizedRole}/reports/occupancy`, permission: 'view_reports', roles: ['admin', 'manager'] },
+                { name: 'Folio Balance', href: '/front-desk/reports/folio-balance', permission: null, roles: ['front_desk'] },
+                { name: 'Unposted Charges', href: '/front-desk/reports/unposted-charges', permission: null, roles: ['front_desk'] },
                 { name: 'Staff Reports', href: '/admin/reports/staff', permission: 'view_reports', roles: ['admin'] },
                 { name: 'Analytics', href: '/admin/analytics', permission: 'view_reports', roles: ['admin'] },
             ]

@@ -75,7 +75,7 @@ class GuestChargeController extends Controller
                 'folio_number' => 'FOL-' . str_pad($reservation->id, 6, '0', STR_PAD_LEFT),
                 'reservation_id' => $reservation->id,
                 'guest_id' => $reservation->guest_id,
-                'room_id' => $reservation->room_id ?? 0,
+                'room_id' => $reservation->room_id ?? null,
                 'status' => 'open',
                 'folio_date' => now()->toDateString(),
                 'room_charges' => $reservation->total_room_charges ?? 0,

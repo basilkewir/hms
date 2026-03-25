@@ -13,6 +13,8 @@ class FolioCharge extends Model
     protected $fillable = [
         'guest_folio_id',
         'charge_code',
+        'charge_type',
+        'is_revenue',
         'description',
         'charge_date',
         'charge_time',
@@ -49,6 +51,7 @@ class FolioCharge extends Model
         'posted_at' => 'datetime',
         'is_voided' => 'boolean',
         'voided_at' => 'datetime',
+        'is_revenue' => 'boolean',
     ];
 
     public function folio(): BelongsTo

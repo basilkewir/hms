@@ -136,11 +136,8 @@ class ReservationController extends Controller
 
         // Get available rooms for today
         $availableRooms = Room::with('roomType')
-            ->where(function($query) {
-                $query->where('status', 'available')
-                      ->where('housekeeping_status', 'clean') // Only show rooms that are clean and ready
-                      ->orWhere('status', 'reserved');
-            })
+            ->where('status', 'available')
+            ->where('housekeeping_status', 'clean') // Only show rooms that are clean and ready
             ->get()
             ->map(fn($room) => [
                 'id' => $room->id,
@@ -394,6 +391,7 @@ class ReservationController extends Controller
         if ($status === 'checked_in') {
             $validated['actual_check_in'] = now();
             $validated['checked_in_by'] = auth()->id();
+            $validated['police_report_status'] = 'new';
         } elseif ($status === 'checked_out') {
             $validated['actual_check_out'] = now();
             $validated['checked_out_by'] = auth()->id();
@@ -401,11 +399,6 @@ class ReservationController extends Controller
             if (empty($validated['actual_check_in'] ?? null)) {
                 $validated['actual_check_in'] = Carbon::parse($validated['check_in_date'])->startOfDay();
             }
-        }
-
-        // If room is assigned, mark it as reserved
-        if (isset($validated['room_id'])) {
-            Room::where('id', $validated['room_id'])->update(['status' => 'reserved']);
         }
 
         // Map number_of_adults/number_of_children to the DB columns adults/children
@@ -448,11 +441,16 @@ class ReservationController extends Controller
                     'total_room_charges' => $roomTotalCharges,
                 ]);
 
-                // Mark the room as reserved if selected
-                if ($roomId) {
-                    Room::where('id', $roomId)->update(['status' => 'reserved']);
-                }
             }
+        }
+
+        $assignedRoomIds = collect([
+            $validated['room_id'] ?? null,
+            ...collect($selectedRooms)->pluck('room_id')->all(),
+        ])->filter()->unique();
+
+        foreach ($assignedRoomIds as $roomId) {
+            $this->refreshRoomOccupancyStatus((int) $roomId);
         }
 
         // Attach selected hotel services to the reservation
@@ -857,6 +855,26 @@ class ReservationController extends Controller
         $validated['adults'] = $validated['number_of_adults'] ?? 1;
         $validated['children'] = $validated['number_of_children'] ?? 0;
 
+        // Police report status lifecycle:
+        // - When a reservation transitions to checked_in for the first time, set 'new'
+        // - When a checked-in reservation that was already 'sent' to police has its
+        //   key stay-details changed, flip back to 'modified' so staff know to re-report
+        if (($validated['status'] ?? null) === 'checked_in' && $reservation->status !== 'checked_in') {
+            $validated['police_report_status'] = 'new';
+        } elseif (
+            $reservation->status === 'checked_in' &&
+            $reservation->police_report_status === 'sent'
+        ) {
+            $stayFieldsChanged =
+                ($validated['room_id'] ?? null) != $reservation->room_id ||
+                ($validated['check_in_date'] ?? null) != $reservation->check_in_date?->toDateString() ||
+                ($validated['check_out_date'] ?? null) != $reservation->check_out_date?->toDateString();
+
+            if ($stayFieldsChanged) {
+                $validated['police_report_status'] = 'modified';
+            }
+        }
+
         $reservation->update($validated);
 
         if (($validated['status'] ?? null) !== 'cancelled') {
@@ -1092,8 +1110,12 @@ class ReservationController extends Controller
             return;
         }
 
+        $today = Carbon::today()->toDateString();
+
         $activeReservedExists = Reservation::where('room_id', $roomId)
             ->whereIn('status', ['confirmed', 'pending', 'modified'])
+            ->whereDate('check_in_date', $today)
+            ->whereNull('actual_check_in')
             ->exists();
 
         $room->update([

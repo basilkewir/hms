@@ -45,6 +45,7 @@ Route::prefix('public')->middleware(['throttle:60,1'])->group(function () {
     Route::get('/room-types', [BookingController::class, 'roomTypes']);
     Route::get('/rooms',      [BookingController::class, 'rooms']);
     Route::get('/availability', [BookingController::class, 'availability']);
+    Route::post('/holds', [BookingController::class, 'createHold']);
     Route::post('/bookings', [BookingController::class, 'store']);
 });
 

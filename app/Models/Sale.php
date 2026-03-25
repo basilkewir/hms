@@ -23,6 +23,7 @@ class Sale extends Model
         'subtotal',
         'tax_amount',
         'discount_amount',
+        'tip_amount',
         'total_amount',
         'payment_method',
         'payment_status',
@@ -36,6 +37,7 @@ class Sale extends Model
         'subtotal' => 'decimal:2',
         'tax_amount' => 'decimal:2',
         'discount_amount' => 'decimal:2',
+        'tip_amount' => 'decimal:2',
         'total_amount' => 'decimal:2',
         'sale_date' => 'datetime'
     ];

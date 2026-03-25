@@ -510,66 +510,92 @@ class POSController extends Controller
 
     public function openDrawer(Request $request)
     {
-        $validated = $request->validate([
-            'opening_balance' => 'required|numeric|min:0'
-        ]);
+        try {
+            $validated = $request->validate([
+                'opening_balance' => 'required|numeric|min:0'
+            ]);
 
-        // Close any existing active session
-        CashDrawerSession::where('user_id', auth()->id())
-            ->where('is_active', true)
-            ->update(['is_active' => false]);
+            // Close any existing active session
+            CashDrawerSession::where('user_id', auth()->id())
+                ->where('is_active', true)
+                ->update(['is_active' => false]);
 
-        $session = CashDrawerSession::create([
-            'user_id' => auth()->id(),
-            'opening_balance' => $validated['opening_balance'],
-            'opened_at' => now(),
-            'is_active' => true
-        ]);
+            $session = CashDrawerSession::create([
+                'user_id' => auth()->id(),
+                'opening_balance' => $validated['opening_balance'],
+                'opened_at' => now(),
+                'is_active' => true
+            ]);
 
-        Log::info('Cash drawer opened by user: ' . auth()->user()->name . ' with balance: ' . $validated['opening_balance']);
+            $user = auth()->user();
+            $displayName = trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''));
+            Log::info('Cash drawer opened by user: ' . ($displayName ?: ('#' . $user->id)) . ' with balance: ' . $validated['opening_balance']);
 
-        return response()->json([
-            'success' => true,
-            'session' => $session,
-            'message' => 'Cash drawer opened successfully'
-        ]);
+            return response()->json([
+                'success' => true,
+                'session' => $session,
+                'message' => 'Cash drawer opened successfully'
+            ]);
+        } catch (\Throwable $exception) {
+            Log::error('Failed to open cash drawer', [
+                'user_id' => auth()->id(),
+                'error' => $exception->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to open cash drawer: ' . $exception->getMessage(),
+            ], 500);
+        }
     }
 
     public function closeDrawer(Request $request)
     {
-        $validated = $request->validate([
-            'closing_balance' => 'required|numeric|min:0',
-            'notes' => 'nullable|string'
-        ]);
+        try {
+            $validated = $request->validate([
+                'closing_balance' => 'required|numeric|min:0',
+                'notes' => 'nullable|string'
+            ]);
 
-        $session = CashDrawerSession::where('user_id', auth()->id())
-            ->where('is_active', true)
-            ->first();
+            $session = CashDrawerSession::where('user_id', auth()->id())
+                ->where('is_active', true)
+                ->first();
 
-        if (!$session) {
+            if (!$session) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No active cash drawer session found'
+                ], 400);
+            }
+
+            $expectedBalance = $session->calculateExpectedBalance();
+            $difference = $validated['closing_balance'] - $expectedBalance;
+
+            $session->update([
+                'closing_balance' => $validated['closing_balance'],
+                'expected_balance' => $expectedBalance,
+                'difference' => $difference,
+                'closed_at' => now(),
+                'notes' => $validated['notes'],
+                'is_active' => false
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'session' => $session,
+                'message' => 'Cash drawer closed successfully'
+            ]);
+        } catch (\Throwable $exception) {
+            Log::error('Failed to close cash drawer', [
+                'user_id' => auth()->id(),
+                'error' => $exception->getMessage(),
+            ]);
+
             return response()->json([
                 'success' => false,
-                'message' => 'No active cash drawer session found'
-            ], 400);
+                'message' => 'Failed to close cash drawer: ' . $exception->getMessage(),
+            ], 500);
         }
-
-        $expectedBalance = $session->calculateExpectedBalance();
-        $difference = $validated['closing_balance'] - $expectedBalance;
-
-        $session->update([
-            'closing_balance' => $validated['closing_balance'],
-            'expected_balance' => $expectedBalance,
-            'difference' => $difference,
-            'closed_at' => now(),
-            'notes' => $validated['notes'],
-            'is_active' => false
-        ]);
-
-        return response()->json([
-            'success' => true,
-            'session' => $session,
-            'message' => 'Cash drawer closed successfully'
-        ]);
     }
 
     // Inventory Management

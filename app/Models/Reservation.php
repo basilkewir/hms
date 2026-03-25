@@ -64,6 +64,8 @@ class Reservation extends Model
         'ota_confirmation_number',
         'adults',
         'children',
+        'police_report_status',
+        'police_reported_at',
     ];
 
     protected $casts = [
@@ -76,6 +78,7 @@ class Reservation extends Model
         'guest_preferences' => 'array',
         'room_preferences' => 'array',
         'iptv_preferences' => 'array',
+        'police_reported_at' => 'datetime',
         'early_check_in_requested' => 'boolean',
         'late_check_out_requested' => 'boolean',
         'iptv_adult_content' => 'boolean',

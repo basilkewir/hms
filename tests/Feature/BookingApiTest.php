@@ -264,6 +264,7 @@ class BookingApiTest extends TestCase
 
         $response->assertCreated()
             ->assertJsonPath('success', true)
+            ->assertJsonPath('data.room_assigned', false)
             ->assertJsonStructure(['data' => [
                 'reservation_id',
                 'reservation_number',
@@ -286,12 +287,19 @@ class BookingApiTest extends TestCase
 
         $this->assertDatabaseHas('rooms', [
             'id'     => $this->room->id,
-            'status' => 'reserved',
+            'status' => 'available',
         ]);
 
-        $this->getJson('/api/public/rooms')
+        $this->assertDatabaseHas('room_type_daily_inventories', [
+            'room_type_id' => $this->roomType->id,
+            'inventory_date' => $checkIn,
+            'reserved_count' => 1,
+            'available_count' => 0,
+        ]);
+
+        $this->getJson('/api/public/availability?room_type_id=' . $this->roomType->id . '&check_in_date=' . $checkIn . '&check_out_date=' . $checkOut)
             ->assertOk()
-            ->assertJsonCount(0, 'data');
+            ->assertJsonPath('data.available_rooms', 0);
     }
 
     /** A second website booking for the same room type/date range is rejected */
@@ -550,8 +558,8 @@ class BookingApiTest extends TestCase
             ->assertStatus(409);
     }
 
-    /** Booking sets room status to 'reserved' */
-    public function test_online_create_booking_sets_room_to_reserved(): void
+    /** Booking reserves inventory without forcing a physical room status change */
+    public function test_online_create_booking_reserves_inventory_without_changing_room_status(): void
     {
         $checkIn  = now()->addDays(1)->format('Y-m-d');
         $checkOut = now()->addDays(3)->format('Y-m-d');
@@ -579,7 +587,14 @@ class BookingApiTest extends TestCase
             ->assertCreated();
 
         $this->room->refresh();
-        $this->assertEquals('reserved', $this->room->status);
+        $this->assertEquals('available', $this->room->status);
+
+        $this->assertDatabaseHas('room_type_daily_inventories', [
+            'room_type_id' => $this->roomType->id,
+            'inventory_date' => $checkIn,
+            'reserved_count' => 1,
+            'available_count' => 0,
+        ]);
     }
 
     /** Reserved rooms are excluded from availability API */
@@ -621,8 +636,8 @@ class BookingApiTest extends TestCase
             ->assertJsonPath('success', true);
     }
 
-    /** Reserved rooms are hidden from public room listing */
-    public function test_public_rooms_excludes_reserved_rooms(): void
+    /** Public room listing remains physical-status based (not reservation-date based) */
+    public function test_public_rooms_still_lists_room_but_availability_blocks_dates(): void
     {
         $checkIn  = now()->addDays(1)->format('Y-m-d');
         $checkOut = now()->addDays(3)->format('Y-m-d');
@@ -654,10 +669,19 @@ class BookingApiTest extends TestCase
             ])
             ->assertCreated();
 
-        // Verify room is now hidden (reserved status filters it out)
+        // Room remains physically available, so it still appears in room listing
         $this->getJson('/api/public/rooms')
             ->assertOk()
-            ->assertJsonCount(0, 'data');
+            ->assertJsonCount(1, 'data');
+
+        // But date-based availability is now fully blocked by inventory reservation
+        $this->getJson('/api/public/availability?' . http_build_query([
+            'room_type_id' => $this->roomType->id,
+            'check_in_date' => $checkIn,
+            'check_out_date' => $checkOut,
+        ]))
+            ->assertOk()
+            ->assertJsonPath('data.available_rooms', 0);
     }
 
     /** Rooms in other statuses (maintenance, cleaning, out_of_order, occupied) are also excluded from availability */
