@@ -2621,6 +2621,9 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
         ]));
     })->name('guests.search');
 
+    Route::get('/quick-checkin', [\App\Http\Controllers\FrontDesk\QuickCheckInController::class, 'create'])->name('quick-checkin');
+    Route::post('/quick-checkin', [\App\Http\Controllers\FrontDesk\QuickCheckInController::class, 'store'])->name('quick-checkin.store');
+
     // Check-ins
     Route::get('/checkin', function (\Illuminate\Http\Request $request) {
         $user = auth()->user()->load('roles');
@@ -5882,6 +5885,9 @@ Route::middleware(['auth', 'role:front_desk'])->prefix('front-desk')->name('fron
     })->name('guests.edit');
 
     Route::put('/guests/{guest}', [GuestController::class, 'update'])->name('guests.update');
+
+    Route::get('/quick-checkin', [\App\Http\Controllers\FrontDesk\QuickCheckInController::class, 'create'])->name('quick-checkin');
+    Route::post('/quick-checkin', [\App\Http\Controllers\FrontDesk\QuickCheckInController::class, 'store'])->name('quick-checkin.store');
 
     // Check-in/Check-out
     Route::get('/checkin', function (\Illuminate\Http\Request $request) {
@@ -9983,6 +9989,9 @@ Route::middleware(['auth', 'role:manager'])->prefix('manager')->name('manager.')
         $role = $user->roles->first()?->name ?? 'manager';
         return Inertia::render('Manager/GuestTypes/Edit', ['user' => $user, 'navigation' => app(DashboardController::class)->getNavigationForRole($role), 'guestType' => \App\Models\GuestType::findOrFail($id)]);
     })->name('guest-types.edit');
+
+    Route::get('/quick-checkin', [\App\Http\Controllers\FrontDesk\QuickCheckInController::class, 'create'])->name('quick-checkin');
+    Route::post('/quick-checkin', [\App\Http\Controllers\FrontDesk\QuickCheckInController::class, 'store'])->name('quick-checkin.store');
 
     // Check-in / Check-out
     Route::get('/checkin', function (\Illuminate\Http\Request $request) {

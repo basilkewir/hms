@@ -372,7 +372,7 @@ const quickActions = computed(() => {
         { route: safeRoute('accountant.reports.profit-loss'), label: 'Financial Reports', icon: DocumentTextIcon },
     ]
     if (role === 'front_desk' || role === 'front-desk') return [
-        { route: safeRoute('front-desk.checkin'), label: 'Quick Check-in', icon: KeyIcon },
+        { route: safeRoute('front-desk.quick-checkin'), label: 'Quick Check-in', icon: KeyIcon },
         { route: safeRoute('front-desk.checkout'), label: 'Quick Check-out', icon: KeyIcon },
         { route: safeRoute('front-desk.reservations.create'), label: 'New Reservation', icon: PlusIcon },
         { route: safeRoute('front-desk.payments.process'), label: 'Process Payment', icon: CreditCardIcon },

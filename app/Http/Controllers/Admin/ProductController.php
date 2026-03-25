@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Product;
 use App\Models\ProductCategory;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -121,7 +122,17 @@ class ProductController extends Controller
 
     public function destroy(Product $product)
     {
-        $product->delete();
+        if ($this->hasDeleteDependencies($product)) {
+            return redirect()->back()
+                ->with('error', 'This product cannot be deleted because it is linked to sales or stock records.');
+        }
+
+        try {
+            $product->delete();
+        } catch (QueryException $exception) {
+            return redirect()->back()
+                ->with('error', 'This product cannot be deleted because it is linked to existing records.');
+        }
 
         return redirect()->back()
             ->with('success', 'Product deleted successfully.');
@@ -129,10 +140,34 @@ class ProductController extends Controller
 
     public function destroyAll()
     {
-        Product::query()->delete();
+        $products = Product::query()->get();
+
+        $deletedCount = 0;
+        $blockedCount = 0;
+
+        foreach ($products as $product) {
+            if ($this->hasDeleteDependencies($product)) {
+                $blockedCount++;
+                continue;
+            }
+
+            try {
+                $product->delete();
+                $deletedCount++;
+            } catch (QueryException $exception) {
+                $blockedCount++;
+            }
+        }
+
+        if ($blockedCount > 0) {
+            return redirect()->back()->with(
+                'error',
+                "Deleted {$deletedCount} product(s). {$blockedCount} product(s) were not deleted because they are linked to existing records."
+            );
+        }
 
         return redirect()->back()
-            ->with('success', 'All products deleted successfully.');
+            ->with('success', "Deleted {$deletedCount} product(s) successfully.");
     }
 
     public function destroyBulk(Request $request)
@@ -142,10 +177,43 @@ class ProductController extends Controller
             'ids.*' => 'integer|exists:products,id',
         ]);
 
-        $count = Product::whereIn('id', $validated['ids'])->delete();
+        $products = Product::whereIn('id', $validated['ids'])->get();
+
+        $deletedCount = 0;
+        $blockedCount = 0;
+
+        foreach ($products as $product) {
+            if ($this->hasDeleteDependencies($product)) {
+                $blockedCount++;
+                continue;
+            }
+
+            try {
+                $product->delete();
+                $deletedCount++;
+            } catch (QueryException $exception) {
+                $blockedCount++;
+            }
+        }
+
+        if ($blockedCount > 0) {
+            return redirect()->back()->with(
+                'error',
+                "Deleted {$deletedCount} product(s). {$blockedCount} product(s) were not deleted because they are linked to existing records."
+            );
+        }
 
         return redirect()->back()
-            ->with('success', $count . ' product(s) deleted successfully.');
+            ->with('success', $deletedCount . ' product(s) deleted successfully.');
+    }
+
+    private function hasDeleteDependencies(Product $product): bool
+    {
+        return $product->saleItems()->exists()
+            || $product->purchaseOrderItems()->exists()
+            || $product->stockMovements()->exists()
+            || $product->stockAdjustments()->exists()
+            || $product->stockBatches()->exists();
     }
 
     private function generateProductCode($categoryId)

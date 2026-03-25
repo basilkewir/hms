@@ -231,7 +231,7 @@
                                           :href="route('front-desk.checkout') + '?guest_id=' + guest.id"
                                           :style="{ color: themeColors.danger }">Check Out</Link>
                                     <Link v-else
-                                          :href="route('front-desk.checkin') + '?guest_id=' + guest.id"
+                                          :href="route('front-desk.quick-checkin') + '?guest_id=' + guest.id"
                                           :style="{ color: themeColors.success }">Check In</Link>
                                 </div>
                             </td>

@@ -14,7 +14,7 @@
                        :style="{ color: themeColors.textSecondary }">Process guest arrivals and room assignments.</p>
                 </div>
                 <div class="flex space-x-3">
-                    <Link :href="route('front-desk.reservations.create')"
+                    <Link :href="route('front-desk.quick-checkin')"
                           class="px-4 py-2 rounded-md transition-colors"
                           :style="{
                               backgroundColor: themeColors.primary,

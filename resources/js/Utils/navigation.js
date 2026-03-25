@@ -43,6 +43,7 @@ export const getNavigationForRole = (role, userPermissions = []) => {
                 { name: 'Check-ins Today',   href: `/${normalizedRole}/reservations/checkins`,   permission: 'manage_reservations', roles: ['manager'] },
                 { name: 'Check-outs Today',  href: `/${normalizedRole}/reservations/checkouts`,  permission: 'manage_reservations', roles: ['manager'] },
                 { name: 'New Reservation',   href: isAdmin ? '/admin/reservations/create' : `/${normalizedRole}/reservations/create`, permission: 'manage_reservations', roles: ['admin', 'manager', 'front_desk'] },
+                { name: 'Quick Check-In',    href: isAdmin ? '/admin/quick-checkin' : `/${normalizedRole}/quick-checkin`, permission: 'check_in_out', roles: ['admin', 'manager', 'front_desk'] },
                 { name: 'Check-in',          href: isAdmin ? '/admin/checkin'  : `/${normalizedRole}/checkin`,  permission: 'check_in_out', roles: ['admin', 'manager', 'front_desk'] },
                 { name: 'Check-out',         href: isAdmin ? '/admin/checkout' : `/${normalizedRole}/checkout`, permission: 'check_in_out', roles: ['admin', 'manager', 'front_desk'] },
                 { name: 'Online Payments',   href: isAdmin ? '/admin/payments/online-booking' : `/${normalizedRole}/payments/online-booking`, permission: null, roles: ['admin', 'manager', 'front_desk'] },

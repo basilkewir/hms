@@ -116,7 +116,7 @@
 
         <!-- Quick Actions -->
         <div class="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
-            <Link :href="route('front-desk.checkin')"
+            <Link :href="route('front-desk.quick-checkin')"
                   class="shadow rounded-lg p-6 text-center transition-colors"
                   :style="{ 
                       backgroundColor: themeColors.primary,

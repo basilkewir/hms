@@ -717,8 +717,8 @@ const quickCheckOut = (room) => {
 
 const quickCheckIn = (room) => {
     if (!room.pending_reservation) {
-        statusType.value = 'error'
-        statusMessage.value = 'No pending reservation found for this room.'
+        selectedRoom.value = null
+        router.get(route('manager.quick-checkin'), { room_id: room.id })
         return
     }
 

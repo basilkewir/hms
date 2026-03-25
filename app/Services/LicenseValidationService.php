@@ -21,9 +21,16 @@ class LicenseValidationService
         $this->loadStoredToken();
     }
 
+    private function currentLicense(): ?License
+    {
+        return License::whereIn('status', ['active', 'trial'])
+            ->latest('id')
+            ->first();
+    }
+
     private function loadStoredToken(): void
     {
-        $license = License::where('status', 'active')->latest('id')->first();
+        $license = $this->currentLicense();
 
         if ($license && is_array($license->license_data)) {
             $this->jwtToken = $license->license_data['token'] ?? null;
@@ -234,25 +241,66 @@ class LicenseValidationService
 
     public function getLicenseStatus(): array
     {
-        $license = License::where('status', 'active')->latest('id')->first();
+        $license = $this->currentLicense();
 
         if (!$license || !is_array($license->license_data)) {
             return ['licensed' => false, 'status' => null];
         }
 
-        return ['licensed' => true, 'status' => $license->license_data];
+        $status = array_merge($license->license_data, [
+            'license_key' => $license->license_key,
+            'license_type' => $license->license_type,
+            'status' => strtoupper((string) ($license->license_data['status'] ?? $license->status ?? 'ACTIVE')),
+            'expires_at' => optional($license->expires_at)->toISOString() ?? ($license->license_data['expires_at'] ?? null),
+            'validated_at' => optional($license->last_validated_at)->toISOString(),
+        ]);
+
+        return ['licensed' => !$this->licenseExpired($license), 'status' => $status];
+    }
+
+    public function getTrialStatus(): array
+    {
+        $license = License::where('status', 'trial')->latest('id')->first();
+
+        if (!$license) {
+            return [
+                'in_trial' => false,
+                'days_remaining' => 0,
+                'expires_at' => null,
+                'expired' => false,
+            ];
+        }
+
+        $expired = $this->licenseExpired($license);
+        $daysRemaining = $license->expires_at
+            ? max(0, now()->startOfDay()->diffInDays($license->expires_at->copy()->startOfDay(), false))
+            : 0;
+
+        return [
+            'in_trial' => !$expired,
+            'days_remaining' => $daysRemaining,
+            'expires_at' => optional($license->expires_at)->format('Y-m-d'),
+            'expired' => $expired,
+        ];
     }
 
     public function isSystemLicensed(): bool
     {
-        $license = License::where('status', 'active')->latest('id')->first();
+        $license = $this->currentLicense();
 
         if (!$license) {
             return false;
         }
 
-        if ($license->expires_at && now()->greaterThan($license->expires_at)) {
+        if ($this->licenseExpired($license)) {
+            if ($license->status !== 'expired') {
+                $license->update(['status' => 'expired']);
+            }
             return false;
+        }
+
+        if ($license->status === 'trial') {
+            return true;
         }
 
         return $this->periodicCheck();
@@ -260,10 +308,26 @@ class LicenseValidationService
 
     public function periodicCheck(bool $force = false): bool
     {
-        $license = License::where('status', 'active')->latest('id')->first();
+        $license = $this->currentLicense();
 
         if (!$license) {
             return false;
+        }
+
+        if ($this->licenseExpired($license)) {
+            if ($license->status !== 'expired') {
+                $license->update(['status' => 'expired']);
+            }
+            return false;
+        }
+
+        if ($license->status === 'trial') {
+            if (!$force && $license->last_validated_at && $license->last_validated_at->gt(now()->subDay())) {
+                return true;
+            }
+
+            $license->update(['last_validated_at' => now()]);
+            return true;
         }
 
         if (!$force && $license->last_validated_at && $license->last_validated_at->gt(now()->subMinutes(15))) {
@@ -433,7 +497,7 @@ class LicenseValidationService
 
     public function getLicenseLimits(): array
     {
-        $license = License::where('status', 'active')->latest('id')->first();
+        $license = $this->currentLicense();
 
         if (!$license || !is_array($license->license_data)) {
             return ['max_rooms' => -1];
@@ -476,8 +540,13 @@ class LicenseValidationService
 
     public function removeLicense(): void
     {
-        License::where('status', 'active')->update(['status' => 'inactive']);
+        License::whereIn('status', ['active', 'trial'])->update(['status' => 'inactive']);
         Cache::forget('license_valid');
         $this->jwtToken = null;
+    }
+
+    private function licenseExpired(License $license): bool
+    {
+        return (bool) ($license->expires_at && now()->greaterThan($license->expires_at));
     }
 }

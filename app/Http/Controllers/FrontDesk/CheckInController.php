@@ -13,6 +13,7 @@ use Inertia\Inertia;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 use Illuminate\Support\Str;
+use Illuminate\Http\RedirectResponse;
 
 class CheckInController extends Controller
 {
@@ -155,15 +156,29 @@ class CheckInController extends Controller
         $reservation = Reservation::with(['guest', 'room'])->findOrFail($validated['reservation_id']);
         $room = Room::where('room_number', $validated['room_number'])->firstOrFail();
 
-        // Verify the room is available and clean for this reservation
-        $canCheckIn = ($room->status === 'available' && $room->housekeeping_status === 'clean') ||
-                     ($room->status === 'reserved' && $reservation->room_id === $room->id);
-
-        if (!$canCheckIn) {
+        if (!$this->canCheckInToRoom($reservation, $room)) {
             return back()->withErrors([
                 'room_number' => "Room {$validated['room_number']} is not available or not clean. Please select a different room."
             ]);
         }
+
+        $outcome = $this->performCheckIn($reservation, $room, $validated);
+
+        return $this->buildCheckInRedirect(
+            $outcome['reservation'],
+            $outcome['payment_amount'],
+            $outcome['success_message']
+        );
+    }
+
+    protected function canCheckInToRoom(Reservation $reservation, Room $room): bool
+    {
+        return ($room->status === 'available' && $room->housekeeping_status === 'clean')
+            || ($room->status === 'reserved' && $reservation->room_id === $room->id);
+    }
+
+    protected function performCheckIn(Reservation $reservation, Room $room, array $validated): array
+    {
 
         // Late arrival adjustment: if the original check_in_date is earlier than today
         // AND the current time is at or after 12:00 noon, start billing from today
@@ -212,6 +227,15 @@ class CheckInController extends Controller
 
         // Create GuestFolio and record room charges at check-in
         $folio = $this->createGuestFolio($reservation, $room);
+
+        if ($folio) {
+            $reservation->update([
+                'total_room_charges' => $folio->room_charges ?? $reservation->total_room_charges,
+                'total_amount' => $folio->total_amount ?? $reservation->total_amount,
+                'balance_amount' => max(0, ($folio->total_amount ?? $reservation->total_amount ?? 0) - (float) ($reservation->paid_amount ?? 0)),
+            ]);
+            $reservation->refresh();
+        }
 
         // Record any payment made at check-in
         $paymentAmount = isset($validated['payment_amount']) ? (float) $validated['payment_amount'] : 0;
@@ -275,7 +299,19 @@ class CheckInController extends Controller
             : '';
         $successMsg  = 'Guest checked in successfully' . $keyCardMsg . $paymentMsg . $lateArrivalMsg;
 
-        // If a payment was made at check-in, redirect to the check-in receipt
+        return [
+            'reservation' => $reservation->fresh(['guest', 'room', 'roomType']),
+            'payment_amount' => $paymentAmount,
+            'success_message' => $successMsg,
+        ];
+    }
+
+    protected function buildCheckInRedirect(
+        Reservation $reservation,
+        float $paymentAmount,
+        string $successMsg,
+        ?string $defaultRouteName = null
+    ): RedirectResponse {
         if ($paymentAmount > 0) {
             $user = auth()->user();
             if ($user->hasRole('admin')) {
@@ -289,7 +325,10 @@ class CheckInController extends Controller
                 ->with('success', $successMsg);
         }
 
-        // Redirect based on user role (no payment)
+        if ($defaultRouteName) {
+            return redirect()->route($defaultRouteName)->with('success', $successMsg);
+        }
+
         $user = auth()->user();
         if ($user->hasRole('admin')) {
             return redirect()->route('admin.dashboard')->with('success', $successMsg);
@@ -365,7 +404,7 @@ class CheckInController extends Controller
      * Create GuestFolio and record room charges at check-in
      * This ensures room payments are tracked in transactions from check-in onwards
      */
-    private function createGuestFolio(Reservation $reservation, Room $room)
+    protected function createGuestFolio(Reservation $reservation, Room $room)
     {
         // Check if folio already exists
         $existingFolio = GuestFolio::where('reservation_id', $reservation->id)->first();
@@ -454,7 +493,7 @@ class CheckInController extends Controller
         return $folio;
     }
 
-    private function calculateReservationDiscount(Reservation $reservation, float $roomCharges): array
+    protected function calculateReservationDiscount(Reservation $reservation, float $roomCharges): array
     {
         $reservation->loadMissing('guest.guestType');
 

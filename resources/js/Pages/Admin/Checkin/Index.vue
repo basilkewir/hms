@@ -234,7 +234,7 @@ const assignRoom = (reservation) => {
                         <ShieldCheckIcon class="h-4 w-4 mr-2" />
                         Police Report
                     </Link>
-                    <Link :href="route('admin.reservations.create')"
+                    <Link :href="route('admin.quick-checkin')"
                           class="px-4 py-2 rounded-md transition-colors inline-flex items-center"
                           :style="{
                               backgroundColor: themeColors.primary,

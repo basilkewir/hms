@@ -125,13 +125,9 @@ class CheckOutController extends Controller
                 $serviceCharges = $allCharges->where('charge_code', 'SERVICE')->sum('net_amount');
                 $posCharges = $allCharges->where('charge_code', 'POS')->sum('net_amount');
 
-                // For early checkout, always use recalculated actual room charges.
-                // If folio has stale full-stay charges from before, ignore them for the bill preview.
-                $roomCharges = $actualNights < $scheduledNights
-                    ? $actualRoomCharges
-                    : ($folio && $folio->room_charges > 0
-                        ? $folio->room_charges
-                        : ($r->total_room_charges ?? $scheduledRoomCharges));
+                // Always derive room charges from the actual stayed nights.
+                // Stored folio/reservation totals can be stale and understate checkout bills.
+                $roomCharges = $actualRoomCharges;
 
                 // Recalculate taxes and service charges based on actual room charges
                 $taxRate = Setting::get('room_tax_rate', Setting::get('tax_rate', 0)) / 100; // Use room_tax_rate if set, fallback to tax_rate
@@ -174,7 +170,7 @@ class CheckOutController extends Controller
                     'actual_nights' => $actualNights,
                     'room_rate' => number_format($roomRate, 2),
                     'is_early_checkout' => $actualNights < $scheduledNights,
-                    'totalAmount' => number_format($r->total_price ?? $r->total_amount ?? 0, 2),
+                    'totalAmount' => number_format($unifiedTotal, 2),
                     'roomCharges' => number_format($roomCharges, 2),
                     'serviceCharges' => number_format($serviceCharges, 2),
                     'posCharges' => number_format($posCharges, 2),
@@ -286,13 +282,9 @@ class CheckOutController extends Controller
                 $serviceCharges = $allCharges->where('charge_code', 'SERVICE')->sum('net_amount');
                 $posCharges = $allCharges->where('charge_code', 'POS')->sum('net_amount');
 
-                // For early checkout, always use recalculated actual room charges.
-                // If folio has stale full-stay charges from before, ignore them for the bill preview.
-                $roomCharges = $actualNights < $scheduledNights
-                    ? $actualRoomCharges
-                    : ($folio && $folio->room_charges > 0
-                        ? $folio->room_charges
-                        : ($r->total_room_charges ?? $scheduledRoomCharges));
+                // Always derive room charges from the actual stayed nights.
+                // Stored folio/reservation totals can be stale and understate checkout bills.
+                $roomCharges = $actualRoomCharges;
 
                 // Recalculate taxes and service charges based on actual room charges
                 $taxRate = Setting::get('room_tax_rate', Setting::get('tax_rate', 0)) / 100; // Use room_tax_rate if set, fallback to tax_rate
@@ -335,7 +327,7 @@ class CheckOutController extends Controller
                     'actual_nights' => $actualNights,
                     'room_rate' => number_format($roomRate, 2),
                     'is_early_checkout' => $actualNights < $scheduledNights,
-                    'totalAmount' => number_format($r->total_price ?? $r->total_amount ?? 0, 2),
+                    'totalAmount' => number_format($unifiedTotal, 2),
                     'roomCharges' => number_format($roomCharges, 2),
                     'serviceCharges' => number_format($serviceCharges, 2),
                     'posCharges' => number_format($posCharges, 2),
