@@ -21,7 +21,6 @@ class User extends Authenticatable
     use HasRoles;
 
     protected $fillable = [
-        'name',
         'employee_id',
         'first_name',
         'last_name',
