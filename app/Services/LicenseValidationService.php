@@ -140,6 +140,17 @@ class LicenseValidationService
      */
     public function validateLicense(string $licenseKey, ?string $hotelName = null, array $deviceInfo = []): array
     {
+        // Check if we're rate limited
+        $rateLimitKey = 'license_rate_limit_' . md5($licenseKey);
+        $rateLimitCount = Cache::get($rateLimitKey, 0);
+        
+        if ($rateLimitCount >= 3) {
+            return [
+                'valid'   => false,
+                'message' => 'Too many license validation attempts in a short time. Please wait 10 minutes before trying again. If the problem persists, contact KewirDev support.',
+            ];
+        }
+
         $payload = $this->buildValidatePayload($licenseKey, $hotelName);
 
         try {
@@ -154,12 +165,18 @@ class LicenseValidationService
             ])->post($this->licenseServer . '/validate', $payload);
 
             if (!$response->successful()) {
+                // Increment rate limit counter on error (but allow some retries)
+                Cache::put($rateLimitKey, $rateLimitCount + 1, 600); // 10 minutes
+                
                 Log::warning('License server error', [
                     'status' => $response->status(),
                     'body'   => $response->body(),
                 ]);
                 return $this->mapHttpError($response->status(), $response->json() ?? []);
             }
+
+            // Reset rate limit on success
+            Cache::forget($rateLimitKey);
 
             $data = $response->json();
 
@@ -203,6 +220,8 @@ class LicenseValidationService
             $code === 403 => [
                 'valid'   => false,
                 'message' => match ($body['reason'] ?? '') {
+                    'rate_limiting' 
+                        => 'License server rate limit exceeded. Please wait 5 minutes before trying again. If this persists, contact KewirDev support.',
                     'device_mismatch', 'device_limit_exceeded', 'machine_conflict'
                         => 'This license is already activated on another machine. Only one installation is allowed per license. Please deactivate it on the other machine first or contact KewirDev support.',
                     default
