@@ -190,9 +190,11 @@ const props = defineProps({
     folio: Object,
     charges: Array,
     services: Array,
+    voidRouteName: { type: String, default: 'admin.folio-charges.void' },
+    storeRouteName: { type: String, default: 'admin.reservations.service-charges.store' },
 })
 
-const navigation = computed(() => getNavigationForRole('admin'))
+const navigation = computed(() => getNavigationForRole(props.user?.roles?.[0]?.name || 'admin'))
 const { notify } = useNotification()
 
 const showVoidModal = ref(false)
@@ -211,7 +213,7 @@ const voidForm = useForm({
 })
 
 const addCharge = () => {
-    chargeForm.post(route('admin.reservations.service-charges.store', props.reservation.id), {
+    chargeForm.post(route(props.storeRouteName, props.reservation.id), {
         onSuccess: () => {
             notify('success', 'Service charge added successfully')
             chargeForm.reset()
@@ -229,7 +231,7 @@ const voidCharge = (charge) => {
 }
 
 const confirmVoid = () => {
-    voidForm.post(route('admin.folio-charges.void', selectedCharge.value.id), {
+    voidForm.post(route(props.voidRouteName, selectedCharge.value.id), {
         onSuccess: () => {
             notify('success', 'Charge voided successfully')
             showVoidModal.value = false

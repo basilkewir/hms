@@ -19,6 +19,14 @@ class ServiceChargeController extends Controller
      */
     public function index(Request $request, Reservation $reservation)
     {
+        $user = auth()->user();
+        $role = $user->roles->first()?->name ?? 'admin';
+        $routePrefix = match($role) {
+            'manager'    => 'manager',
+            'front_desk' => 'front-desk',
+            default      => 'admin',
+        };
+
         $folio = GuestFolio::where('reservation_id', $reservation->id)
             ->where('status', 'open')
             ->first();
@@ -41,6 +49,8 @@ class ServiceChargeController extends Controller
             ->get();
 
         return Inertia::render('Admin/ServiceCharges/Index', [
+            'void_route_name'  => $routePrefix . '.folio-charges.void',
+            'store_route_name' => $routePrefix . '.reservations.service-charges.store',
             'reservation' => [
                 'id' => $reservation->id,
                 'reservation_number' => $reservation->reservation_number,
