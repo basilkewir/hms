@@ -1074,7 +1074,7 @@ const totalValue = computed(() => {
 })
 
 const lowStockCount = computed(() => {
-    return props.products.filter(product => product.stock_quantity <= 10 && product.stock_quantity > 0).length
+    return props.products.filter(product => product.stock_quantity <= (product.min_stock_level || 10) && product.stock_quantity > 0).length
 })
 
 // Live margin helpers
@@ -1089,7 +1089,7 @@ const editProductMargin  = computed(() => selectedProduct.value ? calcMargin(sel
 
 const totalProfit = computed(() => {
     return props.products.reduce((total, product) => {
-        return total + ((product.price - (product.cost || 0)) * product.stock_quantity)
+        return total + ((product.price - (product.cost_price || 0)) * product.stock_quantity)
     }, 0)
 })
 
