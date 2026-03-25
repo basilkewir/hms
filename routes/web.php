@@ -5446,10 +5446,10 @@ Route::middleware(['auth', 'role:front_desk'])->prefix('front-desk')->name('fron
 
         $today = today();
 
-        // Get today's arrivals (confirmed or already checked in today)
+        // Get today's arrivals that are still waiting to be checked in.
         $arrivalsRaw = \App\Models\Reservation::with(['guest', 'room', 'roomType'])
             ->whereDate('check_in_date', $today)
-            ->whereNotIn('status', ['cancelled', 'no_show'])
+            ->whereIn('status', ['confirmed', 'pending'])
             ->orderBy('check_in_date')
             ->get();
 
@@ -5479,7 +5479,7 @@ Route::middleware(['auth', 'role:front_desk'])->prefix('front-desk')->name('fron
                 'room_number' => $r->room?->room_number ?? 'TBD',
                 'room_type' => $r->roomType?->name ?? 'N/A',
                 'expected_arrival' => $expectedArrival,
-                'checked_in' => in_array($r->status, ['checked_in', 'checked_out']) || !empty($r->actual_check_in),
+                'checked_in' => false,
             ];
         });
 
@@ -12388,8 +12388,24 @@ Route::middleware(['auth', 'role:manager'])->prefix('manager')->name('manager.')
     })->name('locations.destroy');
 });
 
+// Staff Routes
+Route::middleware(['auth', 'role:staff'])->prefix('staff')->name('staff.')->group(function () use ($renderSelfSchedule) {
+    Route::get('/time-tracking/clock', [\App\Http\Controllers\Staff\TimeTrackingController::class, 'clock'])->name('time-tracking.clock');
+    Route::post('/time-tracking/clock-in', [\App\Http\Controllers\Staff\TimeTrackingController::class, 'clockIn'])->name('time-tracking.clock-in');
+    Route::post('/time-tracking/clock-out', [\App\Http\Controllers\Staff\TimeTrackingController::class, 'clockOut'])->name('time-tracking.clock-out');
+    Route::post('/time-tracking/break/start', [\App\Http\Controllers\Staff\TimeTrackingController::class, 'startBreak'])->name('time-tracking.break.start');
+    Route::post('/time-tracking/break/end', [\App\Http\Controllers\Staff\TimeTrackingController::class, 'endBreak'])->name('time-tracking.break.end');
+    Route::get('/time-tracking/timesheet', [\App\Http\Controllers\Staff\TimeTrackingController::class, 'timesheet'])->name('time-tracking.timesheet');
+    Route::get('/time-tracking/schedule', function () use ($renderSelfSchedule) {
+        $user = auth()->user()->load('roles');
+        $role = $user->roles->first()?->name ?? 'staff';
+
+        return $renderSelfSchedule($user, $role);
+    })->name('time-tracking.schedule');
+});
+
 // Maintenance Routes
-Route::middleware(['auth', 'role:maintenance'])->prefix('maintenance')->name('maintenance.')->group(function () {
+Route::middleware(['auth', 'role:maintenance'])->prefix('maintenance')->name('maintenance.')->group(function () use ($renderSelfSchedule) {
     Route::get('/dashboard', function () {
     // ... (rest of the code remains the same)
         $user = auth()->user()->load('roles');
@@ -12495,10 +12511,17 @@ Route::middleware(['auth', 'role:maintenance'])->prefix('maintenance')->name('ma
         $role = $user->roles->first()?->name ?? 'maintenance';
         return Inertia::render('Maintenance/TimeTracking', ['user' => $user, 'navigation' => app(DashboardController::class)->getNavigationForRole($role)]);
     })->name('time-tracking');
+
+    Route::get('/schedule', function () use ($renderSelfSchedule) {
+        $user = auth()->user()->load('roles');
+        $role = $user->roles->first()?->name ?? 'maintenance';
+
+        return $renderSelfSchedule($user, $role);
+    })->name('schedule');
 });
 
 // Housekeeping Routes
-Route::middleware(['auth', 'role:housekeeping'])->prefix('housekeeping')->name('housekeeping.')->group(function () {
+Route::middleware(['auth', 'role:housekeeping'])->prefix('housekeeping')->name('housekeeping.')->group(function () use ($renderSelfSchedule) {
     Route::get('/dashboard', function () {
         $user = auth()->user()->load('roles');
         $role = $user->roles->first()?->name ?? 'staff';
@@ -12568,6 +12591,13 @@ Route::middleware(['auth', 'role:housekeeping'])->prefix('housekeeping')->name('
     Route::get('/schedules', function () {
         return Inertia::render('Housekeeping/Schedules/Index');
     })->name('schedules.index');
+
+    Route::get('/schedule', function () use ($renderSelfSchedule) {
+        $user = auth()->user()->load('roles');
+        $role = $user->roles->first()?->name ?? 'housekeeping';
+
+        return $renderSelfSchedule($user, $role);
+    })->name('schedule');
 
     // Lost and Found
     Route::get('/lost-found', function () {

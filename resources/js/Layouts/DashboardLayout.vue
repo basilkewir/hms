@@ -234,6 +234,7 @@ const initializeActiveSubmenu = () => {
     else if (currentPath?.includes('/front-desk/services')) openSubmenus.value = ['frontdesk-services']
     else if (currentPath?.includes('/front-desk/reports')) openSubmenus.value = ['frontdesk-reports']
     else if (currentPath?.includes('/server/reports')) openSubmenus.value = ['server-operations']
+    else if (currentPath?.includes('/staff/time-tracking')) openSubmenus.value = ['staff-operations']
     else if (currentPath?.includes('/front-desk')) openSubmenus.value = ['frontdesk-operations']
     else if (currentPath?.includes('/maintenance')) openSubmenus.value = ['maintenance']
     else if (currentPath?.includes('/housekeeping')) openSubmenus.value = ['housekeeping']
@@ -278,6 +279,7 @@ const getSubmenuForCurrentRoute = () => {
     if (currentPath?.includes('/front-desk/services')) return 'frontdesk-services'
     if (currentPath?.includes('/front-desk/reports')) return 'frontdesk-reports'
     if (currentPath?.includes('/server/reports')) return 'server-operations'
+    if (currentPath?.includes('/staff/time-tracking')) return 'staff-operations'
     if (currentPath?.includes('/front-desk')) return 'frontdesk-operations'
     if (currentPath?.includes('/maintenance')) return 'maintenance'
     if (currentPath?.includes('/housekeeping')) return 'housekeeping'

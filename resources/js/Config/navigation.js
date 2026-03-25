@@ -811,6 +811,7 @@ export const navigationConfig = {
           label: 'Housekeeping',
           icon: 'home',
           items: [
+            { label: '📅 My Schedule',      routeName: 'housekeeping.schedule' },
             { label: 'Rooms',             routeName: 'housekeeping.rooms.index' },
             { label: 'To Clean',          routeName: 'housekeeping.rooms.to-clean' },
             { label: 'Daily Tasks',       routeName: 'housekeeping.tasks.daily' },
@@ -846,10 +847,39 @@ export const navigationConfig = {
           label: 'Maintenance',
           icon: 'wrench',
           items: [
+            { label: '📅 My Schedule', routeName: 'maintenance.schedule' },
             { label: 'Dashboard',  routeName: 'maintenance.dashboard' },
             { label: 'Requests',   routeName: 'admin.maintenance-requests.index' },
             { label: 'IPTV',       routeName: 'maintenance.iptv.devices' },
             { label: 'Preventive', routeName: 'maintenance.preventive.scheduled' },
+          ],
+        },
+      ],
+    },
+  ],
+
+  /* ─────────────────────────────── STAFF ─────────────────────────────── */
+  staff: [
+    {
+      section: 'Main',
+      condition: null,
+      flat: true,
+      items: [
+        { label: 'Dashboard', href: '/dashboard', icon: 'home' },
+      ],
+    },
+    {
+      section: 'Time Tracking',
+      condition: null,
+      groups: [
+        {
+          id: 'staff-operations',
+          label: 'Operations',
+          icon: 'users',
+          items: [
+            { label: '📅 My Schedule', routeName: 'staff.time-tracking.schedule' },
+            { label: 'My Timesheet', routeName: 'staff.time-tracking.timesheet' },
+            { label: 'Clock In/Out', routeName: 'staff.time-tracking.clock' },
           ],
         },
       ],
