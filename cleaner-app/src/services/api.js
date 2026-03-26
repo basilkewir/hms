@@ -2,7 +2,7 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const API = axios.create({
-  timeout: 10000,
+  timeout: 15000, // Increased to 15 seconds
 });
 
 const normalizeServerUrl = (value) => {

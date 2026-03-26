@@ -23,6 +23,8 @@ return [
         'api/public/*',
         'api/booking/*',
         'api/login',
+        'api/health',
+        'api/ping',
     ],
 
     'allowed_methods' => ['GET', 'POST', 'OPTIONS'],

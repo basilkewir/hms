@@ -73,14 +73,18 @@ export default function ServerConfigScreen({ navigation }) {
           <Text style={styles.title}>Server Setup</Text>
           <Text style={styles.subtitle}>
             Enter the URL of your hotel management server.{'\n\n'}
-            Example: http://10.0.0.10
+            Examples:{'\n'}
+            • Local network: http://192.168.1.100{'\n'}
+            • Local network: http://10.0.0.10{'\n'}
+            • Remote server: https://yourhotel.com{'\n\n'}
+            Make sure your device is on the same network as the server for local IPs.
           </Text>
 
           <View style={styles.inputContainer}>
             <Text style={styles.label}>Server URL</Text>
             <TextInput
               style={styles.input}
-              placeholder="http://10.0.0.10"
+              placeholder="http://192.168.1.100 or https://yourhotel.com"
               value={serverUrl}
               onChangeText={setServerUrl}
               autoCapitalize="none"
@@ -101,7 +105,12 @@ export default function ServerConfigScreen({ navigation }) {
 
           <View style={styles.hintBox}>
             <Text style={styles.hintText}>
-              💡 Ask your IT administrator for the correct server IP address
+              💡 Troubleshooting:{'\n'}
+              • Make sure your device and server are on the same WiFi network{'\n'}
+              • Check if the server is running (ask your IT administrator){'\n'}
+              • Try using the server's IP address instead of domain name{'\n'}
+              • For local servers, use http:// (not https://){'\n'}
+              • Common ports: :8000, :3000, :80 (if needed)
             </Text>
           </View>
         </View>

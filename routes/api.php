@@ -1106,10 +1106,15 @@ Route::get('/health', function () {
         'version' => '1.0.0',
         'services' => [
             'database' => 'connected',
-            'cache' => 'connected',
+            'cache' => 'connected', 
             'storage' => 'accessible',
         ]
     ]);
+});
+
+// Simple health check for mobile apps
+Route::get('/ping', function () {
+    return response()->json(['status' => 'ok', 'timestamp' => now()->toISOString()]);
 });
 
 // API documentation endpoint

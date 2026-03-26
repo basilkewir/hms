@@ -16,16 +16,29 @@ export const checkServerConnection = async () => {
     }
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // Increased to 10 seconds
 
     try {
-      const response = await fetch(`${serverUrl}/api/health`, {
-        method: 'GET',
-        headers: {
-          Accept: 'application/json',
-        },
-        signal: controller.signal,
-      });
+      // Try ping endpoint first (simpler)
+      let response;
+      try {
+        response = await fetch(`${serverUrl}/api/ping`, {
+          method: 'GET',
+          headers: {
+            Accept: 'application/json',
+          },
+          signal: controller.signal,
+        });
+      } catch (pingError) {
+        // Fallback to health endpoint
+        response = await fetch(`${serverUrl}/api/health`, {
+          method: 'GET',
+          headers: {
+            Accept: 'application/json',
+          },
+          signal: controller.signal,
+        });
+      }
 
       clearTimeout(timeoutId);
 
@@ -37,7 +50,7 @@ export const checkServerConnection = async () => {
       } else {
         return {
           connected: false,
-          error: 'Server returned an error',
+          error: `Server returned status ${response.status}`,
         };
       }
     } catch (error) {
@@ -46,7 +59,7 @@ export const checkServerConnection = async () => {
       if (error.name === 'AbortError') {
         return {
           connected: false,
-          error: 'Connection timeout. Check your network and server URL.',
+          error: 'Connection timeout (10s). Check network and server URL.',
         };
       }
       
@@ -71,22 +84,35 @@ export const testServerUrl = async (url) => {
     const formattedUrl = formatServerUrl(url);
     
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // Increased timeout
 
     try {
-      const response = await fetch(`${formattedUrl}/api/health`, {
-        method: 'GET',
-        headers: {
-          Accept: 'application/json',
-        },
-        signal: controller.signal,
-      });
+      // Try ping endpoint first (simpler)
+      let response;
+      try {
+        response = await fetch(`${formattedUrl}/api/ping`, {
+          method: 'GET',
+          headers: {
+            Accept: 'application/json',
+          },
+          signal: controller.signal,
+        });
+      } catch (pingError) {
+        // Fallback to health endpoint
+        response = await fetch(`${formattedUrl}/api/health`, {
+          method: 'GET',
+          headers: {
+            Accept: 'application/json',
+          },
+          signal: controller.signal,
+        });
+      }
 
       clearTimeout(timeoutId);
 
       return {
         success: response.ok,
-        error: response.ok ? null : 'Server returned an error',
+        error: response.ok ? null : `Server returned status ${response.status}`,
       };
     } catch (error) {
       clearTimeout(timeoutId);
@@ -94,7 +120,7 @@ export const testServerUrl = async (url) => {
       if (error.name === 'AbortError') {
         return {
           success: false,
-          error: 'Connection timeout',
+          error: 'Connection timeout (10s)',
         };
       }
       

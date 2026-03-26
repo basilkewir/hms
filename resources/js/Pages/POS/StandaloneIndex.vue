@@ -236,6 +236,8 @@
           <label>Closing Balance</label>
           <input type="number" v-model.number="closingBalance" min="0" step="0.01" class="drawer-input" placeholder="0.00" autofocus />
           <p class="expected-balance">Expected: {{ formatCurrency(expectedBalance) }}</p>
+          <label style="margin-top:10px;">Notes (optional)</label>
+          <textarea v-model="closingNotes" class="drawer-input" rows="2" placeholder="Add closing notes..." style="resize:vertical;"></textarea>
           <div class="drawer-actions">
             <button @click="showDrawerModal = false" class="btn-cancel">Cancel</button>
             <button @click="closeDrawer" class="btn-confirm">Close Drawer</button>
@@ -548,6 +550,7 @@ const showReturnModal = ref(false)
 const isProcessing = ref(false)
 const openingBalance = ref(0)
 const closingBalance = ref(0)
+const closingNotes = ref('')
 const lastSale = ref(null)
 const calcExpression = ref('')
 const calcResult = ref('')
@@ -646,6 +649,7 @@ const closeDrawer = async () => {
   try {
     const response = await axios.post('/pos/close-drawer', {
       closing_balance: closingBalance.value,
+      notes: closingNotes.value || null,
     })
 
     const result = response?.data
@@ -656,6 +660,7 @@ const closeDrawer = async () => {
 
     activeSession.value = null
     showDrawerModal.value = false
+    closingNotes.value = ''
   } catch (e) {
     const apiMessage = e?.response?.data?.message
     const validationMessage = e?.response?.data?.errors

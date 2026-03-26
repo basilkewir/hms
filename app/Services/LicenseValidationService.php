@@ -98,6 +98,81 @@ class LicenseValidationService
         ];
     }
 
+    private function offlineActivationEnabled(): bool
+    {
+        return filter_var(env('LICENSE_ENABLE_OFFLINE_ACTIVATION', false), FILTER_VALIDATE_BOOL);
+    }
+
+    private function canActivateOffline(string $licenseKey): bool
+    {
+        if (!$this->offlineActivationEnabled()) {
+            return false;
+        }
+
+        $normalized = strtoupper(trim($licenseKey));
+
+        return str_contains($normalized, 'DEMO') || $normalized === 'DEMO-HMS-ENTERPRISE';
+    }
+
+    private function persistOfflineActivation(string $licenseKey, ?string $hotelName, ?string $reason = null): array
+    {
+        $maxRooms = 999999;
+        $deviceId = $this->getDeviceId();
+
+        $licenseData = [
+            'license_key' => $licenseKey,
+            'hotel_name' => $hotelName ?: config('app.name'),
+            'license_type' => 'DEMO',
+            'status' => 'ACTIVE',
+            'expires_at' => null,
+            'features' => [
+                'offline_mode' => true,
+                'max_users' => $maxRooms,
+            ],
+            'max_rooms' => $maxRooms,
+            'rooms_used' => Room::count(),
+            'rooms_limit' => $maxRooms,
+            'device_allocation' => [
+                ['type' => 'Rooms', 'used' => Room::count(), 'limit' => $maxRooms],
+            ],
+            'total_used' => Room::count(),
+            'total_limit' => $maxRooms,
+            'validated_at' => now()->toISOString(),
+            'token' => null,
+            'device_id' => $deviceId,
+            'token_expires_at' => null,
+            'offline_activated' => true,
+            'offline_reason' => $reason,
+        ];
+
+        License::updateOrCreate(
+            ['license_key' => $licenseKey],
+            [
+                'license_data' => $licenseData,
+                'product_name' => 'Hotel Management System',
+                'customer_name' => $licenseData['hotel_name'],
+                'customer_email' => 'admin@hotel.com',
+                'license_type' => 'DEMO',
+                'status' => 'active',
+                'issued_at' => now(),
+                'activated_at' => now(),
+                'last_validated_at' => now(),
+                'expires_at' => null,
+                'hardware_fingerprint' => $deviceId,
+                'max_rooms' => $maxRooms,
+            ]
+        );
+
+        Cache::forget('license_valid');
+
+        return [
+            'valid' => true,
+            'message' => 'Offline demo license activated successfully.',
+            'license' => $licenseData,
+            'token' => null,
+        ];
+    }
+
     private function client()
     {
         return Http::withOptions([
@@ -126,6 +201,11 @@ class LicenseValidationService
                 ->post($this->licenseServer . '/validate', $payload);
 
             if (!$response->successful()) {
+                if ($response->status() >= 500 && $this->canActivateOffline($licenseKey)) {
+                    Log::warning('License server unavailable (5xx); using offline activation fallback.');
+                    return $this->persistOfflineActivation($licenseKey, $hotelName, 'server_unavailable');
+                }
+
                 Log::warning('License validation failed', [
                     'status' => $response->status(),
                     'body' => $response->body(),
@@ -146,6 +226,12 @@ class LicenseValidationService
             return $this->persistValidatedLicense($licenseKey, $hotelName, $body);
         } catch (\Throwable $e) {
             Log::error('License validation exception: ' . $e->getMessage());
+
+            if ($this->canActivateOffline($licenseKey)) {
+                Log::warning('License server unreachable; using offline activation fallback.');
+                return $this->persistOfflineActivation($licenseKey, $hotelName, 'network_unreachable');
+            }
+
             return [
                 'valid' => false,
                 'message' => 'Could not reach the license server. Please try again.',
@@ -333,6 +419,13 @@ class LicenseValidationService
             }
 
             $license->update(['last_validated_at' => now()]);
+            return true;
+        }
+
+        if (($license->license_data['offline_activated'] ?? false) && $this->offlineActivationEnabled()) {
+            if (!$force) {
+                $license->update(['last_validated_at' => now()]);
+            }
             return true;
         }
 
