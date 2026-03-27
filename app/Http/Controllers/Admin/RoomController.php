@@ -15,6 +15,7 @@ use App\Models\GuestFolio;
 use App\Models\HousekeepingTask;
 use App\Models\MaintenanceRequest;
 use App\Services\LicenseValidationService;
+use App\Models\Setting;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Schema;
@@ -576,7 +577,12 @@ class RoomController extends Controller
         }
 
         $effectiveStatus = function($room) {
-            return $room->currentReservation ? 'occupied' : $room->status;
+            if ($room->currentReservation) {
+                return 'occupied';
+            }
+
+            // Keep room available until actual check-in date; pending_reservation drives the reserved badge.
+            return $room->status === 'reserved' ? 'available' : $room->status;
         };
 
         $roomStatus = [
@@ -605,7 +611,7 @@ class RoomController extends Controller
             ->get()
             ->keyBy('reservation_id');
 
-        $mapRoomData = function ($room) use ($foliosByReservationId) {
+        $mapRoomData = function ($room) use ($foliosByReservationId, $effectiveStatus) {
             $activeReservation = $room->currentReservation
                 ?? ($room->status === 'occupied' && $room->reservations->isNotEmpty() ? $room->reservations->first() : null);
             $pendingReservation = $room->pendingReservations->first();
@@ -637,7 +643,7 @@ class RoomController extends Controller
                 'floor' => $room->floor ? ($room->floor->name ?? "Floor {$room->floor->floor_number}") : ($room->floor ?? 'Unknown'),
                 'floor_number' => $room->floor?->floor_number ?? $room->floor ?? 0,
                 'type' => $room->roomType->name ?? 'N/A',
-                'status' => $room->currentReservation ? 'occupied' : $room->status,
+                    'status' => $effectiveStatus($room),
                 'housekeeping_status' => $room->housekeeping_status,
                 'price' => $roomRate,
                 'capacity' => $room->roomType->max_occupancy ?? 0,
@@ -694,6 +700,9 @@ class RoomController extends Controller
 
         $posProducts = Product::query()
             ->where('is_active', true)
+            ->where(function ($q) {
+                $q->where('is_service', true)->orWhere('stock_quantity', '>', 0);
+            })
             ->orderBy('name')
             ->get(['id', 'name', 'code', 'price', 'stock_quantity', 'is_service'])
             ->map(fn($product) => [
@@ -705,6 +714,10 @@ class RoomController extends Controller
                 'is_service' => (bool) ($product->is_service ?? false),
             ])
             ->values();
+
+        $roomServiceName = Setting::get('room_service_charge_name', 'Room Service');
+        $roomServicePrice = (float) Setting::get('room_service_charge_price', 0);
+        $roomServiceEnabled = (bool) Setting::get('room_service_charge_enabled', true);
 
         $routeName = request()->route()->getName() ?? '';
         $viewPath = str_starts_with($routeName, 'manager.') ? 'Manager/Rooms/Status' : 'Admin/Rooms/Status';
@@ -719,6 +732,9 @@ class RoomController extends Controller
             'rooms' => $rooms->map($mapRoomData),
             'roomStatus' => $roomStatus,
             'posProducts' => $posProducts,
+            'roomServiceName' => $roomServiceName,
+            'roomServicePrice' => $roomServicePrice,
+            'roomServiceEnabled' => $roomServiceEnabled,
         ]);
     }
 

@@ -2121,8 +2121,17 @@ class POSController extends Controller
 
     public function salesReport(Request $request)
     {
+        $user = auth()->user()->load('roles');
+        $role = $user->roles->first()?->name ?? 'staff';
+
+        if ($role === 'front_desk') {
+            abort(403, 'Front desk users do not have access to sales report. Use POS Sales for return requests.');
+        }
+
         $startDate = $request->start_date ?? now()->startOfMonth()->toDateString();
         $endDate = $request->end_date ?? now()->endOfMonth()->toDateString();
+        $startDateTime = \Carbon\Carbon::parse($startDate)->startOfDay();
+        $endDateTime = \Carbon\Carbon::parse($endDate)->endOfDay();
 
         $query = Sale::with(['user:id,first_name,last_name,email', 'customer:id,first_name,last_name,customer_code', 'items.product:id,name,code'])
             ->whereBetween('sale_date', [$startDate, $endDate]);
@@ -2293,6 +2302,54 @@ class POSController extends Controller
 
         $uniqueCustomers = $sales->whereNotNull('customer_id')->pluck('customer_id')->unique()->count();
 
+        // Cash drawer sessions (open/close register trail)
+        $drawerSessionsQuery = CashDrawerSession::with(['user.roles'])
+            ->whereBetween('opened_at', [$startDateTime, $endDateTime]);
+
+        if ($request->filled('user_id')) {
+            $drawerSessionsQuery->where('user_id', $request->user_id);
+        }
+
+        $drawerSessions = $drawerSessionsQuery
+            ->orderByDesc('opened_at')
+            ->get()
+            ->map(function ($session) {
+                $opening = (float) ($session->opening_balance ?? 0);
+                $closing = (float) ($session->closing_balance ?? 0);
+                $expected = (float) ($session->expected_balance ?? 0);
+                $difference = (float) ($session->difference ?? 0);
+                $isClosed = !$session->is_active && !is_null($session->closed_at);
+
+                return [
+                    'id' => $session->id,
+                    'user_id' => $session->user_id,
+                    'user_name' => trim(($session->user->first_name ?? '') . ' ' . ($session->user->last_name ?? '')) ?: 'Unknown',
+                    'user_roles' => $session->user?->roles?->pluck('name')?->values() ?? [],
+                    'opened_at' => optional($session->opened_at)?->toDateTimeString(),
+                    'closed_at' => optional($session->closed_at)?->toDateTimeString(),
+                    'is_active' => (bool) $session->is_active,
+                    'opening_balance' => $opening,
+                    'closing_balance' => $isClosed ? $closing : null,
+                    'expected_balance' => $isClosed ? $expected : null,
+                    'difference' => $isClosed ? $difference : null,
+                    'notes' => $session->notes,
+                ];
+            })
+            ->values();
+
+        $drawerStats = [
+            'total_sessions' => $drawerSessions->count(),
+            'open_sessions' => $drawerSessions->where('is_active', true)->count(),
+            'closed_sessions' => $drawerSessions->where('is_active', false)->count(),
+            'total_difference' => (float) $drawerSessions
+                ->where('is_active', false)
+                ->sum(fn ($session) => (float) ($session['difference'] ?? 0)),
+            'total_opening_balance' => (float) $drawerSessions->sum(fn ($session) => (float) ($session['opening_balance'] ?? 0)),
+            'total_closing_balance' => (float) $drawerSessions
+                ->where('is_active', false)
+                ->sum(fn ($session) => (float) ($session['closing_balance'] ?? 0)),
+        ];
+
         return Inertia::render('POS/Sales/Report', [
             'user' => $user,
             'navigation' => app(\App\Http\Controllers\DashboardController::class)->getNavigationForRole($role),
@@ -2320,7 +2377,7 @@ class POSController extends Controller
             'users' => \App\Models\User::where(function($query) {
                 $query->whereHas('sales')
                     ->orWhereHas('roles', function($q) {
-                        $q->whereIn('name', ['admin', 'manager', 'front_desk', 'staff', 'accountant']);
+                        $q->whereIn('name', ['admin', 'manager', 'front_desk', 'bartender', 'server', 'staff', 'accountant']);
                     });
             })
             ->orderBy('first_name')
@@ -2334,6 +2391,8 @@ class POSController extends Controller
                 ];
             })
             ->values(),
+            'drawerSessions' => $drawerSessions,
+            'drawerStats' => $drawerStats,
             'filters' => $request->only(['start_date', 'end_date', 'payment_method', 'customer_id', 'user_id', 'status', 'min_amount', 'max_amount'])
         ]);
     }

@@ -1282,6 +1282,7 @@ class DashboardController extends Controller
                     'current' => false,
                     'children' => [
                         ['name' => 'General Settings', 'href' => '/admin/settings', 'icon' => 'Cog6ToothIcon'],
+                        ['name' => 'Room Service Charge', 'href' => '/admin/room-service-settings', 'icon' => 'SparklesIcon'],
                         ['name' => 'Email Settings', 'href' => '/admin/settings/email', 'icon' => 'Cog6ToothIcon'],
                         ['name' => 'Backup & Restore', 'href' => '/admin/settings/backup', 'icon' => 'Cog6ToothIcon'],
                         ['name' => 'System Logs', 'href' => '/admin/settings/logs', 'icon' => 'Cog6ToothIcon']
@@ -1402,6 +1403,16 @@ class DashboardController extends Controller
                     'children' => [
                         ['name' => 'All Services', 'href' => '/manager/services', 'icon' => 'ClipboardDocumentListIcon'],
                         ['name' => 'Concierge',    'href' => '/manager/services/concierge', 'icon' => 'BellIcon'],
+                        ['name' => 'Room Service Charge', 'href' => '/manager/room-service-settings', 'icon' => 'SparklesIcon'],
+                    ]
+                ],
+                [
+                    'name' => 'Settings',
+                    'icon' => 'Cog6ToothIcon',
+                    'current' => false,
+                    'children' => [
+                        ['name' => 'General Settings', 'href' => '/manager/settings', 'icon' => 'Cog6ToothIcon'],
+                        ['name' => 'Room Service Charge', 'href' => '/manager/room-service-settings', 'icon' => 'SparklesIcon'],
                     ]
                 ],
                 [

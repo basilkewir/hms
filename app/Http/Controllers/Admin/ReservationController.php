@@ -941,18 +941,34 @@ class ReservationController extends Controller
             ->orderBy('id')
             ->first();
 
+        $roomChargePayload = [
+            'description' => 'Room charges - ' . max(1, (int) ($reservation->nights ?? 1)) . ' night(s)',
+            'quantity' => max(1, (int) ($reservation->nights ?? 1)),
+            'unit_price' => (float) ($reservation->room_rate ?? 0),
+            'total_amount' => (float) ($reservation->total_room_charges ?? 0),
+            'tax_amount' => (float) ($reservation->taxes ?? 0),
+            'discount_amount' => (float) ($reservation->discount_amount ?? 0),
+            'net_amount' => $baseReservationTotal,
+            'reference_id' => $reservation->id,
+        ];
+
         if ($roomCharge) {
-            $roomCharge->update([
-                'description' => 'Room charges - ' . max(1, (int) ($reservation->nights ?? 1)) . ' night(s)',
-                'quantity' => max(1, (int) ($reservation->nights ?? 1)),
-                'unit_price' => (float) ($reservation->room_rate ?? 0),
-                'total_amount' => (float) ($reservation->total_room_charges ?? 0),
-                'tax_amount' => (float) ($reservation->taxes ?? 0),
-                'discount_amount' => (float) ($reservation->discount_amount ?? 0),
-                'net_amount' => $baseReservationTotal,
-                'reference_id' => $reservation->id,
-            ]);
+            $roomCharge->update($roomChargePayload);
+            return;
         }
+
+        FolioCharge::create(array_merge($roomChargePayload, [
+            'guest_folio_id' => $folio->id,
+            'charge_code' => 'ROOM',
+            'charge_date' => now()->toDateString(),
+            'charge_time' => now()->format('H:i:s'),
+            'tax_rate' => 0,
+            'discount_rate' => 0,
+            'reference_type' => 'reservation',
+            'department' => 'Front Desk',
+            'posted_by' => auth()->id() ?? $reservation->updated_by ?? $reservation->created_by,
+            'posted_at' => now(),
+        ]));
     }
 
     public function confirm(Reservation $reservation)

@@ -14,9 +14,11 @@ NC='\033[0m'
 
 # Configuration
 INSTALL_DIR="/opt/hms"
+STAGING_DIR="/root/hms"
 BACKUP_DIR="/root/hms_backups"
 DATE=$(date +%Y%m%d_%H%M%S)
 SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+EFFECTIVE_SOURCE_DIR="$SOURCE_DIR"
 
 # Helper functions
 info()    { echo -e "${BLUE}[INFO]${NC} $1"; }
@@ -43,8 +45,9 @@ step "HMS Update Script"
 
 info "Install directory: $INSTALL_DIR"
 info "Source directory : $SOURCE_DIR"
+info "Staging directory: $STAGING_DIR"
 info ""
-info "Code sync is MANUAL: push to git, pull on server, then run this script."
+info "Code flow: source directory -> $STAGING_DIR -> $INSTALL_DIR"
 info "Your database and .env file will NOT be modified by this script."
 info ""
 
@@ -100,16 +103,40 @@ else
     info "Current commit: $CURRENT_COMMIT"
 fi
 
+step "Staging Source Code"
+
+if [ "$SOURCE_DIR" != "$STAGING_DIR" ]; then
+    if ! command -v rsync >/dev/null 2>&1; then
+        error "rsync is required for safe source staging. Install it with: apt-get install -y rsync"
+    fi
+
+    mkdir -p "$STAGING_DIR"
+    info "Syncing source from $SOURCE_DIR to $STAGING_DIR"
+
+    rsync -a --delete \
+        --exclude '.env' \
+        --exclude 'storage/' \
+        --exclude 'bootstrap/cache/' \
+        --exclude 'node_modules/' \
+        "$SOURCE_DIR/" "$STAGING_DIR/"
+
+    success "Source staged in $STAGING_DIR"
+    EFFECTIVE_SOURCE_DIR="$STAGING_DIR"
+else
+    info "Source is already in $STAGING_DIR"
+    EFFECTIVE_SOURCE_DIR="$STAGING_DIR"
+fi
+
 step "Syncing Application Code"
 
-if [ "$SOURCE_DIR" = "$INSTALL_DIR" ]; then
+if [ "$EFFECTIVE_SOURCE_DIR" = "$INSTALL_DIR" ]; then
     info "Source and install directory are the same. No sync needed."
 else
     if ! command -v rsync >/dev/null 2>&1; then
         error "rsync is required for safe code sync. Install it with: apt-get install -y rsync"
     fi
 
-    info "Syncing code from $SOURCE_DIR to $INSTALL_DIR"
+    info "Syncing code from $EFFECTIVE_SOURCE_DIR to $INSTALL_DIR"
     info "Preserving: .env, storage/, bootstrap/cache/, node_modules/, .git/"
 
     rsync -a --delete \
@@ -118,7 +145,7 @@ else
         --exclude 'storage/' \
         --exclude 'bootstrap/cache/' \
         --exclude 'node_modules/' \
-        "$SOURCE_DIR/" "$INSTALL_DIR/"
+        "$EFFECTIVE_SOURCE_DIR/" "$INSTALL_DIR/"
 
     success "Application code synced"
 fi
@@ -166,6 +193,22 @@ if php artisan db:seed --class=RoomAmenitiesSeeder --force 2>&1 | tee -a /var/lo
     success "Room amenities seeded"
 else
     warning "Room amenities seeding failed — check /var/log/hms_update.log"
+fi
+
+step "Optional Financial Reset"
+
+read -p "Clear registered financial transactions (sales, folios, payments, expenses, procurement history) and set product stock to zero? (y/n) [n]: " RESET_FINANCIALS
+RESET_FINANCIALS=${RESET_FINANCIALS:-n}
+
+if [[ $RESET_FINANCIALS == "y" || $RESET_FINANCIALS == "Y" ]]; then
+    cd "$INSTALL_DIR"
+    if php artisan hms:reset-financials --force 2>&1 | tee -a /var/log/hms_update.log; then
+        success "Financial data reset completed"
+    else
+        warning "Financial reset failed — check /var/log/hms_update.log"
+    fi
+else
+    info "Financial reset skipped"
 fi
 
 step "Clearing Caches"
@@ -220,8 +263,10 @@ echo "✓ HMS has been successfully updated!"
 echo ""
 echo "Summary:"
 echo "  - Source code from : $SOURCE_DIR"
+echo "  - Staged in        : $STAGING_DIR"
 echo "  - Updated code in  : $INSTALL_DIR"
 echo "  - Migrations run"
+[[ $RESET_FINANCIALS == "y" || $RESET_FINANCIALS == "Y" ]] && echo "  - Registered financial transaction data reset"
 echo "  - Caches cleared"
 echo "  - Services restarted"
 [[ $BACKUP_DB == "y" || $BACKUP_DB == "Y" ]] && echo "  - DB backup: $BACKUP_FILE"

@@ -496,9 +496,12 @@
                                             @change="onServiceProductChange"
                                             class="w-full bg-kotel-black border border-kotel-yellow/30 rounded-md px-3 py-2 text-white text-sm focus:outline-none focus:ring-1 focus:ring-kotel-yellow">
                                         <option :value="null" class="bg-kotel-dark">Select product</option>
+                                        <option v-if="roomServiceEnabled" :value="roomServiceOptionValue" class="bg-kotel-dark">
+                                            🛎️ {{ roomServiceName || 'Room Service' }}{{ roomServicePrice > 0 ? ' - ' + formatCurrency(roomServicePrice) : '' }}
+                                        </option>
                                         <option :value="customServiceOptionValue" class="bg-kotel-dark">Custom service</option>
                                         <option v-for="product in posProducts" :key="product.id" :value="product.id" class="bg-kotel-dark">
-                                            {{ product.name }} <span v-if="product.code">({{ product.code }})</span>
+                                            {{ product.name }}{{ product.code ? ' (' + product.code + ')' : '' }}{{ !product.is_service ? ' – Stock: ' + product.stock_quantity : '' }}
                                         </option>
                                     </select>
                                 </div>
@@ -515,8 +518,12 @@
                                            placeholder="0.00">
                                 </div>
                                 <div>
-                                    <label class="text-kotel-sky-blue/90 text-sm block mb-1">Qty</label>
+                                    <label class="text-kotel-sky-blue/90 text-sm block mb-1">
+                                        Qty
+                                        <span v-if="selectedServiceProduct && !selectedServiceProduct.is_service" class="text-kotel-yellow/70 text-xs ml-1">(max {{ selectedServiceProduct.stock_quantity }})</span>
+                                    </label>
                                     <input v-model.number="serviceChargeForm.quantity" type="number" min="1" step="1"
+                                           :max="selectedServiceProduct && !selectedServiceProduct.is_service ? selectedServiceProduct.stock_quantity : undefined"
                                            class="w-full bg-kotel-black border border-kotel-yellow/30 rounded-md px-3 py-2 text-white text-sm focus:outline-none focus:ring-1 focus:ring-kotel-yellow">
                                 </div>
                             </div>
@@ -594,6 +601,9 @@ const props = defineProps({
     roomStatus: Object,
     availableKeyCards: Array,
     posProducts: { type: Array, default: () => [] },
+    roomServiceName: { type: String, default: 'Room Service' },
+    roomServicePrice: { type: Number, default: 0 },
+    roomServiceEnabled: { type: Boolean, default: true },
 })
 
 const selectedRoom = ref(null)
@@ -847,10 +857,22 @@ const markRoomDirty = (room) => {
 const serviceChargeForm = ref({ product_id: null, description: '', amount: null, quantity: 1 })
 const isAddingServiceCharge = ref(false)
 const customServiceOptionValue = 'custom'
+const roomServiceOptionValue = 'room_service'
+
+const selectedServiceProduct = computed(() => {
+    if (!serviceChargeForm.value.product_id || [customServiceOptionValue, roomServiceOptionValue].includes(serviceChargeForm.value.product_id)) return null
+    return (props.posProducts || []).find(p => Number(p.id) === Number(serviceChargeForm.value.product_id)) || null
+})
 
 const onServiceProductChange = () => {
     if (!serviceChargeForm.value.product_id) return
     if (serviceChargeForm.value.product_id === customServiceOptionValue) return
+    if (serviceChargeForm.value.product_id === roomServiceOptionValue) {
+        serviceChargeForm.value.description = props.roomServiceName || 'Room Service'
+        serviceChargeForm.value.amount = Number(props.roomServicePrice || 0)
+        serviceChargeForm.value.quantity = 1
+        return
+    }
     const selectedProduct = (props.posProducts || []).find(product => Number(product.id) === Number(serviceChargeForm.value.product_id))
     if (!selectedProduct) return
 
@@ -861,12 +883,29 @@ const onServiceProductChange = () => {
     if (!serviceChargeForm.value.amount || Number(serviceChargeForm.value.amount) <= 0) {
         serviceChargeForm.value.amount = Number(selectedProduct.price || 0)
     }
+
+    // Reset qty to 1 (or max stock) when product changes
+    if (!selectedProduct.is_service && serviceChargeForm.value.quantity > selectedProduct.stock_quantity) {
+        serviceChargeForm.value.quantity = selectedProduct.stock_quantity
+    }
 }
 
 const addServiceCharge = () => {
     if (!serviceChargeForm.value.description || !serviceChargeForm.value.amount || serviceChargeForm.value.amount <= 0) return
+
+    // Client-side stock guard
+    const product = selectedServiceProduct.value
+    if (product && !product.is_service) {
+        const qty = parseInt(serviceChargeForm.value.quantity || 1, 10)
+        if (qty > product.stock_quantity) {
+            statusType.value = 'error'
+            statusMessage.value = `Only ${product.stock_quantity} unit(s) in stock for "${product.name}".`
+            return
+        }
+    }
+
     isAddingServiceCharge.value = true
-    const selectedProductId = serviceChargeForm.value.product_id === customServiceOptionValue
+    const selectedProductId = [customServiceOptionValue, roomServiceOptionValue].includes(serviceChargeForm.value.product_id)
         ? null
         : serviceChargeForm.value.product_id
 

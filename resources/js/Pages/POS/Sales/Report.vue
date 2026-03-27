@@ -358,6 +358,80 @@
         </div>
       </div>
 
+      <!-- Cash Drawer Sessions -->
+      <div v-if="drawerSessions && drawerSessions.length > 0" class="report-section">
+        <h2>
+          <i class="fa-solid fa-cash-register"></i> Cash Drawer Sessions
+        </h2>
+        <div class="stats-grid" style="margin-bottom: 16px;">
+          <div class="stat-card" style="padding: 16px;">
+            <div class="stat-content">
+              <label>Total Sessions</label>
+              <h2>{{ drawerStats.total_sessions || 0 }}</h2>
+            </div>
+          </div>
+          <div class="stat-card" style="padding: 16px;">
+            <div class="stat-content">
+              <label>Closed Sessions</label>
+              <h2>{{ drawerStats.closed_sessions || 0 }}</h2>
+            </div>
+          </div>
+          <div class="stat-card" style="padding: 16px;">
+            <div class="stat-content">
+              <label>Open Sessions</label>
+              <h2>{{ drawerStats.open_sessions || 0 }}</h2>
+            </div>
+          </div>
+          <div class="stat-card" style="padding: 16px;">
+            <div class="stat-content">
+              <label>Total Difference</label>
+              <h2 :class="(drawerStats.total_difference || 0) >= 0 ? 'profit-positive' : 'profit-negative'">
+                {{ formatCurrency(drawerStats.total_difference || 0) }}
+              </h2>
+            </div>
+          </div>
+        </div>
+
+        <div class="staff-performance-table">
+          <table>
+            <thead>
+              <tr>
+                <th>Staff</th>
+                <th>Roles</th>
+                <th>Opened</th>
+                <th>Closed</th>
+                <th>Opening</th>
+                <th>Closing</th>
+                <th>Expected</th>
+                <th>Difference</th>
+                <th>Status</th>
+                <th>Notes</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="session in drawerSessions" :key="session.id">
+                <td class="staff-name">{{ session.user_name || 'Unknown' }}</td>
+                <td>{{ (session.user_roles || []).join(', ') || 'N/A' }}</td>
+                <td>{{ formatDateTime(session.opened_at) }}</td>
+                <td>{{ formatDateTime(session.closed_at) }}</td>
+                <td>{{ formatCurrency(session.opening_balance || 0) }}</td>
+                <td>{{ session.closing_balance === null ? '-' : formatCurrency(session.closing_balance) }}</td>
+                <td>{{ session.expected_balance === null ? '-' : formatCurrency(session.expected_balance) }}</td>
+                <td :class="(session.difference || 0) >= 0 ? 'profit-positive' : 'profit-negative'">
+                  {{ session.difference === null ? '-' : formatCurrency(session.difference) }}
+                </td>
+                <td>
+                  <span :class="session.is_active ? 'badge-payment badge-mobile' : 'badge-payment badge-cash'">
+                    {{ session.is_active ? 'Open' : 'Closed' }}
+                  </span>
+                </td>
+                <td>{{ session.notes || '-' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       <!-- Customer Analysis -->
       <div v-if="byCustomer && Object.keys(byCustomer).length > 0" class="report-section">
         <h2>
@@ -427,6 +501,14 @@ const props = defineProps({
     type: Array,
     default: () => []
   },
+  drawerSessions: {
+    type: Array,
+    default: () => []
+  },
+  drawerStats: {
+    type: Object,
+    default: () => ({})
+  },
   customers: {
     type: Array,
     default: () => []
@@ -492,6 +574,22 @@ const formatDate = (dateString) => {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
   } catch (e) {
     return dateString
+  }
+}
+
+const formatDateTime = (dateTimeString) => {
+  if (!dateTimeString) return '-'
+  try {
+    const date = new Date(dateTimeString)
+    return date.toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+  } catch (e) {
+    return dateTimeString
   }
 }
 
@@ -593,6 +691,21 @@ const exportReport = () => {
       data.count || 0,
       data.total || 0,
       props.stats.total_sales > 0 ? (((data.total || 0) / props.stats.total_sales) * 100).toFixed(1) + '%' : '0%'
+    ]),
+    [''],
+    ['Cash Drawer Sessions', ''],
+    ['Staff', 'Roles', 'Opened', 'Closed', 'Opening', 'Closing', 'Expected', 'Difference', 'Status', 'Notes'],
+    ...(props.drawerSessions || []).map((session) => [
+      session.user_name || 'Unknown',
+      (session.user_roles || []).join(' | ') || 'N/A',
+      formatDateTime(session.opened_at),
+      formatDateTime(session.closed_at),
+      session.opening_balance || 0,
+      session.closing_balance ?? '',
+      session.expected_balance ?? '',
+      session.difference ?? '',
+      session.is_active ? 'Open' : 'Closed',
+      session.notes || ''
     ])
   ].map(row => row.join(',')).join('\n')
 

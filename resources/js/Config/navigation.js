@@ -306,6 +306,7 @@ export const navigationConfig = {
           icon: 'cog',
           items: [
             { label: '⚙️ General Settings', routeName: 'admin.settings' },
+            { label: '🛎️ Room Service Charge', routeName: 'admin.room-service-settings', href: '/admin/room-service-settings' },
             { label: '💾 System Backup',    routeName: 'admin.settings.backup' },
             { label: '🔑 License',          routeName: 'admin.settings.license' },
           ],
@@ -447,6 +448,7 @@ export const navigationConfig = {
             { label: '🛎️ Services',        routeName: 'manager.services.index' },
             { label: '🔔 Concierge',       routeName: 'manager.services.concierge' },
             { label: '💰 Service Charges', href: '/manager/reservations/service-charges' },
+            { label: '🛎️ Room Service Charge', routeName: 'manager.room-service-settings', href: '/manager/room-service-settings' },
             { label: '👕 Laundry',         routeName: 'manager.laundry.index' },
             { label: '📦 Packages',        href: '/manager/packages' },
             { label: '👥 Group Bookings',  routeName: 'manager.group-bookings.index' },
@@ -460,6 +462,21 @@ export const navigationConfig = {
             { label: '↩️ Request Return', href: '/pos/sales/report' },
             { label: '↩️ Return Reports', href: '/pos/returns/report' },
           ],
+            section: 'Settings',
+            condition: 'isManager',
+            groups: [
+              {
+                id: 'manager-settings',
+                label: 'Settings',
+                icon: 'cog',
+                items: [
+                  { label: '⚙️ General Settings', href: '/manager/settings' },
+                  { label: '🛎️ Room Service Charge', routeName: 'manager.room-service-settings', href: '/manager/room-service-settings' },
+                ],
+              },
+            ],
+          },
+          {
         },
       ],
     },
@@ -794,7 +811,7 @@ export const navigationConfig = {
           label: 'Returns & Adjustments',
           icon: 'undo',
           items: [
-            { label: '↩️ Request Product Return', href: '/pos/sales/report' },
+            { label: '↩️ Request Product Return', href: '/pos/sales' },
             { label: '↩️ Return Reports', href: '/pos/returns/report' },
           ],
         },

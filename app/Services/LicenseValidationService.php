@@ -443,9 +443,10 @@ class LicenseValidationService
         }
 
         // If the failure was a network/connectivity error (not a deliberate server rejection),
-        // grant a 30-day offline grace period so users are not locked out due to server downtime.
+        // continue trusting the last online-verified active license while offline.
+        // This prevents repeated license activation prompts during server/network outages.
         if (!empty($result['network_error'])) {
-            if ($license->last_validated_at && $license->last_validated_at->gt(now()->subDays(30))) {
+            if ($license->last_validated_at) {
                 Log::info('License server unreachable; using stored verification (grace period active).');
                 return true;
             }

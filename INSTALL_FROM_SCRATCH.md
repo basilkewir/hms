@@ -572,19 +572,23 @@ Instead of reinstalling from scratch, you can update your existing HMS installat
 ### Update Only (Recommended)
 
 ```bash
+# If your latest files are in another folder, transfer them to /root/hms first
+# Example: rsync -a --delete /path/to/new-hms/ /root/hms/
+
 cd /root/hms
 git pull origin master
 sudo bash update.sh
 ```
 
 The update script will:
-1. Use code already pulled/cloned in your current directory
+1. Stage/update source code in `/root/hms`
 2. Sync application files into `/opt/hms` (keeps `.env` and `storage/` intact)
 3. Run database migrations
 4. Update dependencies
 5. Rebuild assets
 6. Restart services
-7. **Preserve your database and .env file**
+7. Optionally clear registered financial transactions (sales, folios, payments, expenses, procurement history) and set product stock quantities to zero
+8. **Preserve your database and .env file**
 
 **Time**: ~5-10 minutes
 
@@ -623,11 +627,12 @@ sudo bash update.sh
 ```
 
 Features:
-- Uses code you already pulled/cloned
+- Stages source in `/root/hms` before deployment
 - Syncs application files to `/opt/hms`
 - Runs new migrations
 - Updates dependencies
 - Restarts services
+- Optional prompt to clear registered financial transaction history and zero product stock
 - **Preserves database and .env**
 
 ### 2. Backup Script (`backup.sh`)
@@ -680,22 +685,32 @@ Features:
 # 1. Backup database
 sudo bash backup.sh "before_update"
 
-# 2. Pull latest code
+# 2. Transfer/refresh latest code in /root/hms
+# Example transfer from another folder:
+# rsync -a --delete /path/to/new-hms/ /root/hms/
+
+# 3. Pull latest code
 cd /root/hms
 git pull origin master
 
-# 3. Update application
+# 4. Update application
 sudo bash update.sh
+# During prompts, choose "y" for financial reset if you want to clear
+# registered financial transaction history and keep products with 0 stock.
 
-# 4. Verify
+# 5. Verify
 curl -I http://192.168.20.85
 
-# 5. Check logs if issues
+# 6. Check logs if issues
 tail -50 /opt/hms/storage/logs/laravel.log
 
-# 6. If problems, restore
+# 7. If problems, restore
 sudo bash restore.sh /root/hms_backups/hms_db_before_update_[timestamp].sql
 ```
+
+### License Behavior During Offline Use
+
+If your license was already verified online at least once, HMS keeps working while offline and will not keep showing activation popup due to temporary license-server/network outages.
 
 ---
 

@@ -394,11 +394,12 @@ class CheckOutController extends Controller
     {
         $validated = $request->validate([
             'reservation_id' => 'required|exists:reservations,id',
-            'description' => 'required|string|max:1000',
-            'amount' => 'required|numeric|min:0.01',
-            'quantity' => 'nullable|integer|min:1|max:100',
-            'department' => 'nullable|string|max:100',
-            'charge_date' => 'nullable|date',
+            'product_id'     => 'nullable|exists:products,id',
+            'description'    => 'required|string|max:1000',
+            'amount'         => 'required|numeric|min:0.01',
+            'quantity'       => 'nullable|integer|min:1|max:100',
+            'department'     => 'nullable|string|max:100',
+            'charge_date'    => 'nullable|date',
         ]);
 
         $reservation = Reservation::with(['guest', 'room'])->findOrFail($validated['reservation_id']);
@@ -407,6 +408,20 @@ class CheckOutController extends Controller
             return back()->withErrors([
                 'description' => 'Service charges can only be added while the guest is checked in.'
             ]);
+        }
+
+        // Stock check for physical (non-service) products
+        $physicalProduct = null;
+        if (!empty($validated['product_id'])) {
+            $physicalProduct = \App\Models\Product::find($validated['product_id']);
+            if ($physicalProduct && !$physicalProduct->is_service) {
+                $requestedQty = (int) ($validated['quantity'] ?? 1);
+                if ($physicalProduct->stock_quantity < $requestedQty) {
+                    return back()->withErrors([
+                        'quantity' => "Insufficient stock. Only {$physicalProduct->stock_quantity} unit(s) available for \"{$physicalProduct->name}\".",
+                    ]);
+                }
+            }
         }
 
         $folio = GuestFolio::where('reservation_id', $reservation->id)
@@ -460,6 +475,11 @@ class CheckOutController extends Controller
             'posted_by' => auth()->id(),
             'posted_at' => now(),
         ]);
+
+        // Deduct stock for physical (non-service) products
+        if ($physicalProduct && !$physicalProduct->is_service) {
+            $physicalProduct->decrement('stock_quantity', $quantity);
+        }
 
         $charges = FolioCharge::where('guest_folio_id', $folio->id)
             ->where('is_voided', false)

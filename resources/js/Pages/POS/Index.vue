@@ -306,6 +306,14 @@
             placeholder="0.00"
             :style="{ backgroundColor: themeColors.background, borderColor: themeColors.border, color: themeColors.textPrimary }"
           />
+          <p class="mt-4 mb-2" :style="{ color: themeColors.textSecondary }">Notes (optional)</p>
+          <textarea
+            v-model="closingNotes"
+            rows="2"
+            class="form-input w-full"
+            placeholder="Add closing notes..."
+            :style="{ backgroundColor: themeColors.background, borderColor: themeColors.border, color: themeColors.textPrimary }"
+          ></textarea>
           <p class="mt-2 text-sm" :style="{ color: themeColors.textTertiary }">
             Expected: {{ formatCurrency(activeSession.opening_balance + todaySales) }}
           </p>
@@ -482,6 +490,7 @@ const showSuccessModal = ref(false)
 const isProcessing = ref(false)
 const openingBalance = ref(0)
 const closingBalance = ref(0)
+const closingNotes = ref("")
 const lastSale = ref(null)
 
 const cart = ref({
@@ -700,6 +709,7 @@ const handleDrawerAction = async () => {
     if (props.activeSession) {
       response = await axios.post("/pos/close-drawer", {
         closing_balance: closingBalance.value,
+        notes: closingNotes.value || null,
       })
     } else {
       response = await axios.post("/pos/open-drawer", {
@@ -714,6 +724,7 @@ const handleDrawerAction = async () => {
     }
 
     showDrawerModal.value = false
+    closingNotes.value = ""
     window.location.reload()
   } catch (error) {
     console.error('Drawer action failed:', error)

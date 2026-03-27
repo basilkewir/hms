@@ -2962,15 +2962,18 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
 
                 // Get pending reservation for check-in (if room is available)
                 $pendingReservation = null;
-                if ($room->status === 'available') {
+                if (in_array($room->status, ['available', 'reserved'], true)) {
                     $pendingReservation = \App\Models\Reservation::where('room_id', $room->id)
                         ->whereIn('status', ['confirmed', 'pending'])
-                        ->whereDate('check_in_date', '<=', now()->addDay())
+                        ->whereDate('check_in_date', today())
                         ->whereDate('check_out_date', '>', now())
                         ->with('guest')
                         ->orderBy('check_in_date')
                         ->first();
                 }
+
+                // Keep room available until actual check-in date; pending_reservation drives the reserved badge.
+                $displayStatus = $room->status === 'reserved' ? 'available' : $room->status;
 
                 // Get key card info if occupied
                 $keyCard = null;
@@ -3019,7 +3022,7 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
                 return [
                     'id' => $room->id,
                     'number' => $room->room_number,
-                    'status' => $room->status,
+                    'status' => $displayStatus,
                     'type' => $room->roomType ? $room->roomType->name : 'Standard',
                     'floor' => $room->floorRelation ? 'Floor ' . $room->floorRelation->name : ($room->floor ? 'Floor ' . $room->floor : 'Ground Floor'),
                     'guest' => $currentReservation && $currentReservation->guest
@@ -3061,7 +3064,7 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
                 ];
             });
 
-        // Calculate room status counts
+        // Calculate room status counts using normalized status used by the UI.
         $roomStatus = [
             'available' => $rooms->where('status', 'available')->count(),
             'occupied' => $rooms->whereIn('status', ['occupied', 'checked_in'])->count(),
@@ -3071,6 +3074,9 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
 
         $posProducts = \App\Models\Product::query()
             ->where('is_active', true)
+            ->where(function ($q) {
+                $q->where('is_service', true)->orWhere('stock_quantity', '>', 0);
+            })
             ->orderBy('name')
             ->get(['id', 'name', 'code', 'price', 'stock_quantity', 'is_service'])
             ->map(fn($product) => [
@@ -3096,6 +3102,9 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
             'roomStatus' => $roomStatus,
             'availableKeyCards' => $availableKeyCards,
             'posProducts' => $posProducts,
+            'roomServiceName' => \App\Models\Setting::get('room_service_charge_name', 'Room Service'),
+            'roomServicePrice' => (float) \App\Models\Setting::get('room_service_charge_price', 0),
+            'roomServiceEnabled' => (bool) \App\Models\Setting::get('room_service_charge_enabled', true),
         ]);
     })->name('rooms.status');
 
@@ -4085,6 +4094,31 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
             ]
         ]);
     })->name('settings');
+
+    // Room Service Charge Settings
+    Route::get('/room-service-settings', function () {
+        $user = auth()->user()->load('roles');
+        return Inertia::render('Admin/RoomServiceSettings', [
+            'user'               => $user,
+            'roomServiceName'    => \App\Models\Setting::get('room_service_charge_name', 'Room Service'),
+            'roomServicePrice'   => (float) \App\Models\Setting::get('room_service_charge_price', 0),
+            'roomServiceEnabled' => (bool) \App\Models\Setting::get('room_service_charge_enabled', true),
+            'saveRoute'          => route('admin.room-service-settings.update'),
+            'backHref'           => '/admin/settings/main',
+        ]);
+    })->name('room-service-settings');
+
+    Route::post('/room-service-settings', function (\Illuminate\Http\Request $request) {
+        $validated = $request->validate([
+            'name'    => 'required|string|max:100',
+            'price'   => 'required|numeric|min:0',
+            'enabled' => 'boolean',
+        ]);
+        \App\Models\Setting::set('room_service_charge_name',    $validated['name'],                 'string',  'general');
+        \App\Models\Setting::set('room_service_charge_price',   (string) $validated['price'],       'string',  'general');
+        \App\Models\Setting::set('room_service_charge_enabled', $validated['enabled'] ? '1' : '0', 'boolean', 'general');
+        return back()->with('success', 'Room service charge settings saved successfully.');
+    })->name('room-service-settings.update');
 
     // Reports Dashboard - Comprehensive Analytics
     Route::get('/reports', function () {
@@ -6129,7 +6163,7 @@ Route::middleware(['auth', 'role:front_desk'])->prefix('front-desk')->name('fron
                 $currentReservation = $room->currentReservation;
                 $pendingReservation = null;
                 $upcomingReservation = null;
-                if ($room->status === 'available') {
+                if (in_array($room->status, ['available', 'reserved'], true)) {
                     $pendingReservation = \App\Models\Reservation::where('room_id', $room->id)
                         ->whereIn('status', ['confirmed', 'pending', 'modified'])
                         ->whereDate('check_in_date', today())
@@ -6172,10 +6206,13 @@ Route::middleware(['auth', 'role:front_desk'])->prefix('front-desk')->name('fron
                 if (!$housekeepingStatus) {
                     $housekeepingStatus = $room->status === 'occupied' ? 'occupied' : ($room->status === 'available' ? 'clean' : null);
                 }
+
+                // Keep room available until actual check-in date; pending_reservation drives the reserved badge.
+                $displayStatus = $room->status === 'reserved' ? 'available' : $room->status;
                 return [
                     'id'                  => $room->id,
                     'number'              => $room->room_number,
-                    'status'              => $room->status,
+                    'status'              => $displayStatus,
                     'type'                => $room->roomType ? $room->roomType->name : 'Standard',
                     'floor'               => $room->floorRelation ? 'Floor ' . $room->floorRelation->name : ($room->floor ? 'Floor ' . $room->floor : 'Ground Floor'),
                     'guest'               => $currentReservation && $currentReservation->guest
@@ -6225,6 +6262,9 @@ Route::middleware(['auth', 'role:front_desk'])->prefix('front-desk')->name('fron
 
         $posProducts = \App\Models\Product::query()
             ->where('is_active', true)
+            ->where(function ($q) {
+                $q->where('is_service', true)->orWhere('stock_quantity', '>', 0);
+            })
             ->orderBy('name')
             ->get(['id', 'name', 'code', 'price', 'stock_quantity', 'is_service'])
             ->map(fn($product) => [
@@ -6249,6 +6289,9 @@ Route::middleware(['auth', 'role:front_desk'])->prefix('front-desk')->name('fron
             'roomStatus'        => $roomStatus,
             'availableKeyCards' => $availableKeyCards,
             'posProducts'       => $posProducts,
+            'roomServiceName'   => \App\Models\Setting::get('room_service_charge_name', 'Room Service'),
+            'roomServicePrice'  => (float) \App\Models\Setting::get('room_service_charge_price', 0),
+            'roomServiceEnabled'=> (bool) \App\Models\Setting::get('room_service_charge_enabled', true),
         ]);
     })->name('rooms.index');
 
@@ -9334,9 +9377,36 @@ Route::middleware(['auth', 'role:manager'])->prefix('manager')->name('manager.')
     // Tunnel / Application URL update (manager can also trigger this)
     Route::post('/settings/tunnel-url', [\App\Http\Controllers\SettingsController::class, 'updateTunnelUrl'])->name('settings.tunnel-url.update');
 
+    // Room Service Charge Settings
+    Route::get('/room-service-settings', function () {
+        $user = auth()->user()->load('roles');
+        return Inertia::render('Admin/RoomServiceSettings', [
+            'user'               => $user,
+            'roomServiceName'    => \App\Models\Setting::get('room_service_charge_name', 'Room Service'),
+            'roomServicePrice'   => (float) \App\Models\Setting::get('room_service_charge_price', 0),
+            'roomServiceEnabled' => (bool) \App\Models\Setting::get('room_service_charge_enabled', true),
+            'saveRoute'          => route('manager.room-service-settings.update'),
+            'backHref'           => '/manager/settings',
+        ]);
+    })->name('room-service-settings');
+
+    Route::post('/room-service-settings', function (\Illuminate\Http\Request $request) {
+        $validated = $request->validate([
+            'name'    => 'required|string|max:100',
+            'price'   => 'required|numeric|min:0',
+            'enabled' => 'boolean',
+        ]);
+        \App\Models\Setting::set('room_service_charge_name',    $validated['name'],                 'string',  'general');
+        \App\Models\Setting::set('room_service_charge_price',   (string) $validated['price'],       'string',  'general');
+        \App\Models\Setting::set('room_service_charge_enabled', $validated['enabled'] ? '1' : '0', 'boolean', 'general');
+        return back()->with('success', 'Room service charge settings saved successfully.');
+    })->name('room-service-settings.update');
+
+
     Route::get('/dashboard', function () {
         $user = auth()->user()->load('roles');
         $role = $user->roles->first()?->name ?? 'manager';
+
         $today = now()->toDateString();
 
         // ── Today's Stats ──────────────────────────────────────────────────────
@@ -13349,21 +13419,41 @@ Route::middleware(['auth', 'verified'])->prefix('pos')->name('pos.')->group(func
         $user = auth()->user()->load('roles');
         $role = $user->roles->first()?->name ?? 'staff';
 
-        $totalCount     = \App\Models\Sale::count();
-        $completedCount = \App\Models\Sale::where('payment_status', 'paid')->count();
-        $cashCount      = \App\Models\Sale::where('payment_method', 'cash')->count();
-        $cardCount      = \App\Models\Sale::where('payment_method', 'card')->count();
-        $totalRevenue   = \App\Models\Sale::sum('total_amount');
+        $employeeSaleIds = \App\Models\PosTransaction::where('user_id', $user->id)
+            ->whereNotNull('sale_id')
+            ->pluck('sale_id');
+
+        $salesQuery = \App\Models\Sale::where(function ($query) use ($user, $employeeSaleIds) {
+            $query->where('user_id', $user->id);
+
+            if ($employeeSaleIds->isNotEmpty()) {
+                $query->orWhereIn('id', $employeeSaleIds);
+            }
+        });
+
+        $totalCount     = (clone $salesQuery)->count();
+        $completedCount = (clone $salesQuery)->where('payment_status', 'paid')->count();
+        $cashCount      = (clone $salesQuery)->where('payment_method', 'cash')->count();
+        $cardCount      = (clone $salesQuery)->where('payment_method', 'card')->count();
+        $totalRevenue   = (clone $salesQuery)->sum('total_amount');
 
         $totalProfit = \DB::table('sale_items')
-            ->selectRaw('SUM(total_price - COALESCE(discount_amount, 0) - (unit_cost * quantity)) as profit')
+            ->join('sales', 'sales.id', '=', 'sale_items.sale_id')
+            ->where(function ($query) use ($user, $employeeSaleIds) {
+                $query->where('sales.user_id', $user->id);
+
+                if ($employeeSaleIds->isNotEmpty()) {
+                    $query->orWhereIn('sales.id', $employeeSaleIds);
+                }
+            })
+            ->selectRaw('SUM(sale_items.total_price - COALESCE(sale_items.discount_amount, 0) - (sale_items.unit_cost * sale_items.quantity)) as profit')
             ->value('profit') ?? 0;
 
         return Inertia::render('POS/Sales/Index', [
             'user'       => $user,
             'role'       => $role,
             'navigation' => app(DashboardController::class)->getNavigationForRole($role),
-            'sales'      => \App\Models\Sale::with('customer', 'user', 'items')->orderBy('created_at', 'desc')->get(),
+            'sales'      => (clone $salesQuery)->with('customer', 'user', 'items')->orderBy('created_at', 'desc')->get(),
             'customers'  => \App\Models\Customer::orderBy('first_name')->get(),
             'stats'      => [
                 'total_count'     => $totalCount,
