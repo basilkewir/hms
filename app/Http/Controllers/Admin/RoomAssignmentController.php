@@ -19,7 +19,7 @@ class RoomAssignmentController extends Controller
         
         // Get pending reservations with more detailed data
         $pendingReservations = Reservation::with(['guest', 'roomType'])
-            ->where('status', 'confirmed')
+            ->whereIn('status', ['pending', 'confirmed'])
             ->whereNull('room_id')
             ->orderBy('check_in_date', 'asc')
             ->get()
@@ -88,14 +88,14 @@ class RoomAssignmentController extends Controller
             return redirect()->back()->with('error', 'Selected room is not available for assignment.');
         }
         
-        // Check if reservation is confirmed and doesn't have a room
-        if ($reservation->status !== 'confirmed' || $reservation->room_id) {
+        // Allow staff to assign a room before check-in for pending or confirmed bookings.
+        if (!in_array($reservation->status, ['pending', 'confirmed'], true) || $reservation->room_id) {
             return redirect()->back()->with('error', 'Reservation cannot be assigned a room.');
         }
         
-        // Update room status to occupied
+        // Assignment reserves the room for arrival; check-in will mark it occupied.
         $room->update([
-            'status' => 'occupied',
+            'status' => 'reserved',
             'housekeeping_status' => 'clean', // Keep it clean until guest checks in
         ]);
         

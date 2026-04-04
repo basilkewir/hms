@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
 use App\Models\Setting;
+use App\Support\MoneyInput;
+use App\Services\SystemActivityNotifier;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\DB;
@@ -119,6 +121,8 @@ class ExpenseController extends Controller
             'guest_id' => 'nullable|exists:guests,id',
         ]);
 
+        $validated['amount'] = MoneyInput::fromRequest($request, 'amount');
+
         // Generate expense number
         $expenseNumber = $this->generateExpenseNumber();
 
@@ -151,6 +155,28 @@ class ExpenseController extends Controller
             'budget_id' => $validated['budget_id'] ?? null,
             'guest_id' => $validated['guest_id'] ?? null,
         ]);
+
+        app(SystemActivityNotifier::class)->notifyRoles(
+            ['admin', 'manager', 'accountant'],
+            'expense.created',
+            'New expense submitted',
+            sprintf(
+                'Expense %s for %s was submitted by %s.',
+                $expense->expense_number,
+                MoneyInput::format($expense->amount),
+                auth()->user()?->full_name ?? auth()->user()?->email ?? 'Staff'
+            ),
+            [
+                'manager' => route('manager.expenses.show', $expense),
+                'accountant' => route('accountant.expenses.show', $expense),
+                'default' => route('admin.expenses.show', $expense),
+            ],
+            [
+                'expense_id' => $expense->id,
+                'expense_number' => $expense->expense_number,
+                'expense_status' => $expense->status,
+            ],
+        );
 
         $routeName = request()->route()->getName() ?? '';
         $indexRoute = str_starts_with($routeName, 'manager.') ? 'manager.expenses.index' : 'admin.expenses.index';
@@ -189,6 +215,8 @@ class ExpenseController extends Controller
             'budget_id' => 'nullable|exists:budgets,id',
             'guest_id' => 'nullable|exists:guests,id',
         ]);
+
+        $validated['amount'] = MoneyInput::fromRequest($request, 'amount');
 
         // Handle file upload if a new file is provided
         $receiptFilePath = $expense->receipt_file_path; // Keep existing file by default

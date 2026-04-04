@@ -116,6 +116,12 @@
                             <span class="font-medium text-green-400">{{ formatCurrencyWithProps(profitLossData.revenue?.room_revenue || 0) }}</span>
                         </div>
                         <div class="flex justify-between py-1">
+                            <span class="text-gray-300">Bill Adjustments</span>
+                            <span class="font-medium" :class="(profitLossData.revenue?.bill_adjustments || 0) >= 0 ? 'text-green-400' : 'text-red-400'">
+                                {{ formatCurrencyWithProps(profitLossData.revenue?.bill_adjustments || 0) }}
+                            </span>
+                        </div>
+                        <div class="flex justify-between py-1">
                             <span class="text-gray-300">POS Sales</span>
                             <span class="font-medium text-green-400">{{ formatCurrencyWithProps(profitLossData.revenue?.pos_sales || 0) }}</span>
                         </div>

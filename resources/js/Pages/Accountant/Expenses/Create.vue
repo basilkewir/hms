@@ -61,7 +61,7 @@
                                :style="{ color: themeColors.textPrimary }">Amount *</label>
                         <div class="relative">
                             <span class="absolute left-3 top-2" :style="{ color: themeColors.textTertiary }">{{ currencySymbol }}</span>
-                            <input type="number" v-model="form.amount" required step="0.01" min="0"
+                            <input type="text" v-model="form.amount" required inputmode="decimal"
                                    class="w-full rounded-md pl-8 pr-3 py-2 focus:outline-none transition-colors"
                                    :style="{ 
                                        backgroundColor: themeColors.background,
@@ -333,6 +333,7 @@ onMounted(() => {
 const submitExpense = () => {
     errors.value = {}
     processing.value = true
+    form.value.amount = String(form.value.amount || '').trim()
     const formData = new FormData()
     formData.append('description', form.value.description)
     formData.append('amount', form.value.amount)

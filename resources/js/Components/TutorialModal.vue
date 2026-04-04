@@ -10,6 +10,7 @@ const page = usePage()
 const user = computed(() => page.props.auth?.user || {})
 const userRoles = computed(() => user.value?.roles?.map(r => r.name) || [])
 const hasRole = (r) => userRoles.value.includes(r)
+const hasAnyRole = (roles) => roles.some((role) => hasRole(role))
 
 const { } = useTheme()
 const themeColors = computed(() => ({
@@ -28,14 +29,16 @@ const activeSection = ref(0)
 
 // ─── Tutorial content per role ────────────────────────────────────────────────
 const tutorials = computed(() => {
-    if (hasRole('admin'))       return adminTutorial
-    if (hasRole('manager'))     return managerTutorial
-    if (hasRole('front_desk') || hasRole('frontdesk')) return frontDeskTutorial
-    if (hasRole('housekeeping')) return housekeepingTutorial
-    if (hasRole('maintenance')) return maintenanceTutorial
-    if (hasRole('hr'))          return hrTutorial
-    if (hasRole('bartender') || hasRole('server')) return bartenderTutorial
-    if (hasRole('accountant'))  return accountantTutorial
+    if (hasAnyRole(['admin'])) return adminTutorial
+    if (hasAnyRole(['manager', 'assistant_manager'])) return managerTutorial
+    if (hasAnyRole(['front_desk', 'frontdesk', 'front_desk_manager'])) return frontDeskTutorial
+    if (hasAnyRole(['housekeeping', 'housekeeping_manager'])) return housekeepingTutorial
+    if (hasAnyRole(['maintenance', 'maintenance_manager'])) return maintenanceTutorial
+    if (hasAnyRole(['hr'])) return hrTutorial
+    if (hasAnyRole(['bartender'])) return bartenderTutorial
+    if (hasAnyRole(['server'])) return serverTutorial
+    if (hasAnyRole(['accountant', 'junior_accountant'])) return accountantTutorial
+    if (hasAnyRole(['staff'])) return staffTutorial
     return defaultTutorial
 })
 
@@ -50,6 +53,7 @@ const adminTutorial = [
             'The Revenue chart in the middle shows daily income for the current month. Hover over a bar to see the exact day\'s total.',
             'Room Status at a glance: the coloured room grid shows which rooms are Available (green), Occupied (blue), Dirty (orange), or Out of Order (grey).',
             'Pending tasks panel: any unresolved maintenance requests or unassigned housekeeping tasks appear here as action items.',
+            'Use the notification bell in the top bar to monitor new reservations, expense submissions, quotes, purchase activity, purchase receiving, and bill-adjustment requests without leaving the dashboard.',
             'Use the date selector at the top right of any widget to switch between Today, This Week, This Month, or a custom range.',
         ],
     },
@@ -60,7 +64,9 @@ const adminTutorial = [
             'Go to Operations → Reservations to see every booking. The status column shows Confirmed, Checked-In, Checked-Out, Cancelled, or No-Show.',
             'Filter reservations by guest name, room type, status, or date range using the toolbar. Results update instantly as you type.',
             'Click "+ New Reservation" to create a booking: search for an existing guest or fill in new guest details, pick a room type, set arrival and departure dates, add any extras (services, packages), then click Save.',
+            'Website bookings now enter the system without a physical room assigned. Review them from Reservations or Room Assignment, then let staff choose the exact room later when one is ready.',
             'To edit a reservation, click its row → Edit. You can change dates, room, extras, or special requests. The folio updates automatically with any rate differences.',
+            'Open a reservation to review bill-modification requests submitted by front desk. Admin and manager users can approve or reject them, and approved requests post directly to folio charges and balances.',
             'Attach a Quote to a reservation: open the reservation → Attach Quote. Once a quote is accepted and linked, it converts the quote status to "Converted".',
             'Hall Bookings (Operations → Hall Bookings): works identically to room reservations but for event spaces. Set setup time, breakdown time, catering options, and client details.',
             'Waitlist (Operations → Waitlist): when no rooms are available, add the guest here. When a room opens, click "Convert to Reservation" to move them from the waitlist automatically.',
@@ -171,6 +177,7 @@ const adminTutorial = [
             'Financial → Invoices: all guest invoices. Click an invoice to view, download as PDF, or resend by email. Click "+ New Invoice" on any reservation folio to generate one.',
             'Financial → Quotes: create and send price proposals to prospective guests. Fill in room type, dates, services, discounts, and validity date. Once approved, convert the quote to a full reservation in one click.',
             'Financial → Expenses: log and review operating costs (supplies, repairs, utilities…). Each expense can be attached to a department and an approval request.',
+            'Purchase Management covers suppliers, purchase orders, received stock, and related notifications. Use the bell to jump directly to new purchase submissions or received orders that need review.',
             'Budget → Create Budget: set monthly or annual spending allocations per department (e.g. Housekeeping: 500,000 FCFA/month). The system tracks actual spend against each allocation.',
             'Budget → Dashboard: real-time comparison of budget vs actual per department. Bars turn red when overspent, amber when approaching the limit.',
             'Budget → Pending Approvals: expense requests from other staff land here for your sign-off. Approve, reject (with reason), or request more info.',
@@ -217,6 +224,7 @@ const managerTutorial = [
             'Click any KPI number (e.g. "Departures Today: 4") to jump directly to that filtered list — no need to navigate through menus.',
             'The pending approvals badge in the sidebar shows budget requests awaiting your decision. Address these regularly to unblock other departments.',
             'Room Status grid at the bottom of the dashboard colour-codes every room. A quick glance tells you if housekeeping is falling behind or if a room needs urgent attention.',
+            'The notification bell is your review queue for new reservations, expense requests, quotes, purchase activity, purchase receiving, and front-desk bill-adjustment requests.',
         ],
     },
     {
@@ -225,7 +233,9 @@ const managerTutorial = [
         steps: [
             'Operations → Reservations: full list of all bookings. Filter by date range, room type, status (Confirmed, Checked-In, Checked-Out, Cancelled, No-Show), or guest name.',
             'Create a new reservation: click "+ New Reservation", search for or create a guest profile, select a room type, set check-in and check-out dates, add extras, and Save.',
+            'Website reservations remain unassigned to a physical room until staff choose one. Use Room Assignment when the stay is ready to be attached to a specific clean room.',
             'Modify a reservation: click its row → Edit. Change dates, upgrade the room, add services, or apply a managerial discount. All changes log to the reservation history.',
+            'Reservation detail pages now include bill-adjustment requests. Review the request notes, approve or reject it, and the folio updates automatically if you approve.',
             'Cancellations: open the reservation → Cancel. Select the cancellation reason and whether to apply a fee. The room returns to available immediately.',
             'Financial → Quotes: create price quotes for prospective guests or corporate clients. Set the room type, dates, inclusions, discount, and validity period. Once the client approves, convert to a reservation in one click.',
             'Hall Bookings: manage event-space reservations including setup/breakdown time, catering add-ons, and AV requirements.',
@@ -331,7 +341,7 @@ const frontDeskTutorial = [
             'The Arrivals list on the left and Departures list on the right update in real time as check-ins and check-outs are processed.',
             'Room Status grid at the bottom shows every room\'s colour-coded state: green (Available), blue (Occupied), orange (Dirty), teal (Clean/Ready), grey (Out of Order).',
             'Click any room in the grid to see its current guest, reservation number, and a quick link to that reservation.',
-            'Notifications bell: alerts appear here for VIP arrivals, overdue checkouts, maintenance issues reported by housekeeping, and new online bookings.',
+            'Notifications bell: front desk only sees operational alerts that support the shift, such as new online bookings, bill-adjustment decisions, overdue departures, and room-assignment or room-readiness issues.',
         ],
     },
     {
@@ -345,7 +355,18 @@ const frontDeskTutorial = [
             'Adults and Children: enter the correct count for the record and for billing (some services charge per person).',
             'Add extras: click "+ Add Service" to attach pre-booked services (airport pickup, breakfast package, spa treatment) that will appear on the folio.',
             'Special Requests: note preferences in the Special Requests field (e.g. "high floor, twin beds, champagne on arrival"). Housekeeping can see this when preparing the room.',
+            'Website reservations can appear in the same queue, but they do not lock a physical room automatically. Confirm the booking first, then assign a clean room later from Room Assignment.',
             'Save the reservation. The guest receives a confirmation email automatically if their email was entered.',
+        ],
+    },
+    {
+        title: '🏛️ Hall Bookings',
+        icon: '🏛️',
+        steps: [
+            'Use Hall Bookings when a guest or client needs an event space instead of a guest room. Open Operations → Hall Bookings to see all current and upcoming event reservations.',
+            'Create a hall booking by selecting the hall, event date, start and end times, organiser details, and any setup or breakdown notes.',
+            'Add service details like catering, projector setup, seating style, or extra staffing in the notes so operations teams can prepare correctly.',
+            'Review the hall booking before confirmation to avoid time clashes with existing events, then update the status as the event moves from enquiry to confirmed or completed.',
         ],
     },
     {
@@ -359,6 +380,7 @@ const frontDeskTutorial = [
             'Early Check-in: if the guest arrives before standard check-in time and the room is ready, you can check in normally. If not ready, tick "Pre-Checked In (awaiting room)" and the room is assigned when it becomes clean.',
             'Click "Confirm Check In". The room status changes to Occupied instantly. Housekeeping sees it as occupied and will not enter without a do-not-disturb override.',
             'Key Cards: after check-in, go to Key Cards → "+ New Card". Select the room and set the expiry date (usually check-out date). Hand the physical card to the guest.',
+            'If the reservation came from the website and still has no room, use Room Assignment before final check-in. The room is chosen by staff at the desk, not by the online booking itself.',
             'Tip: use the "Add Note" field on the checked-in reservation to record anything unusual — e.g. "Guest brought extra luggage, stored in room 102 storage".',
         ],
     },
@@ -387,6 +409,7 @@ const frontDeskTutorial = [
             'Room Assignment for walk-ins: go to Reservations, find the walk-in booking, click Edit → assign a specific clean room from the available list.',
             'Do Not Disturb: if a guest has a DND request active, their room shows a DND badge on the status board. Do not send housekeeping until the badge is cleared.',
             'Blocked rooms: rooms set to Out of Order or Under Maintenance show as grey and cannot be assigned to new reservations.',
+            'Use Room Assignment for website bookings and unassigned reservations. Those bookings stay pending until you choose a physical room, so the online booking does not occupy inventory by itself.',
         ],
     },
     {
@@ -397,8 +420,10 @@ const frontDeskTutorial = [
             'Pre-authorisation: for guests paying by card, you can record a pre-auth (hold) on the folio. This reserves funds without charging yet.',
             'Record a payment at any point during the stay: Folio → Add Payment → select method → enter amount → Save.',
             'Partial payments are fully supported. The folio shows "Amount Paid", "Balance Due", and "Total Charges" clearly.',
+            'If a guest disputes a bill, use "Request Bill Adjustment" from the reservation page. Front desk can submit requests for active stays, checked-out stays, and even fully paid folios; admin or manager must validate the change before it applies.',
             'Refunds: if a charge needs reversing, open the payment record → Refund → enter the amount and a reason. The refund appears as a negative entry on the folio.',
             'Folio split: for guests who want separate bills (e.g. business vs personal expenses), use "Split Folio" to create a second folio for the same reservation.',
+            'Watch the notification bell for bill-adjustment approvals or rejections so you can update the guest immediately without refreshing several pages.',
             'All Payments (Financial → Transactions): see every payment processed across all reservations, filterable by date, type, and amount.',
         ],
     },
@@ -417,12 +442,14 @@ const frontDeskTutorial = [
         title: '🛎️ Services & Concierge',
         icon: '🛎️',
         steps: [
+            'Services is the operational catalogue for guest extras like airport pickup, room service, spa, laundry, transfers, and ad-hoc charges that must reach the folio correctly.',
             'Services → Concierge: all active guest requests appear here. Each request has a status — New, In Progress, Completed.',
             'To add a service request from a guest: click "+ New Request", select the reservation, choose the service type, and add any notes.',
             'Assign the request to the appropriate department (Housekeeping for extra towels, Room Service for food, Maintenance for a broken item).',
             'The assigned department sees the task in their dashboard. Mark the request Complete once you confirm it has been handled.',
             'Add a service charge to the folio: open the reservation → Folio → Add Service → select from the service catalogue → confirm. The charge appears on the checkout bill.',
-            'Laundry requests: go to Services → Laundry → "+ New Order". Select the room, log each garment type and quantity, then set the status to Collected. Update to Ready when returned.',
+            'Laundry requests: go to Services → Laundry → "+ New Order". Select the room, log each garment type and quantity, then set the status to Collected. Update to Ready when returned and Delivered once the guest receives the items.',
+            'Use concierge notes to record timing, guest preferences, and follow-up instructions so another front desk agent can continue the request without losing context.',
         ],
     },
     {
@@ -449,6 +476,7 @@ const housekeepingTutorial = [
             'Colour legend: 🟠 Dirty (needs cleaning), 🟡 In Progress (being cleaned), 🟢 Clean (completed), 🔵 Occupied (guest still in room — clean only if assigned), ⚫ Out of Order (skip).',
             'Priority tasks are highlighted at the top: checkout rooms need to be turned over first so front desk can re-assign them to arriving guests.',
             'Your schedule for the week is visible on the dashboard — check it at the start of every shift to know which rooms are yours.',
+            'Check the notification bell during your shift for re-clean requests, maintenance follow-up cleared by engineering, and any special room-preparation notes coming from front desk.',
             'If you see a room in "Dirty" status that was not assigned to you but other cleaners are busy, you can still take it — just update the task to put your name on it.',
         ],
     },
@@ -526,6 +554,7 @@ const maintenanceTutorial = [
             'The Urgent counter at the top requires immediate attention — these are safety-critical issues. Address them before anything else.',
             'The "My Tasks" section shows only requests assigned directly to you today. Work through these in priority order.',
             'Completed tasks counter shows how many requests you have resolved this week — useful for your performance record.',
+            'Use the notification bell for newly assigned jobs, reopened issues, and front-desk escalations tied to occupied or soon-to-arrive rooms.',
             'Overdue tasks (past expected resolution time) are shown in red. If you cannot resolve by the deadline, update the status with a progress note so management is aware.',
         ],
     },
@@ -603,6 +632,7 @@ const hrTutorial = [
             'The attendance widget shows a live count of who has clocked in vs who was scheduled. Click it to see exactly who is absent and whether it is approved leave or unexplained.',
             'Pending leave requests badge: address these quickly — staff need decisions before they can finalise personal plans.',
             'Anniversary and birthday alerts appear in the notification panel — a simple acknowledgement boosts morale significantly.',
+            'Use the notification bell for leave requests, onboarding tasks, review reminders, and other HR actions that need attention between payroll or recruitment work.',
             'Quick links at the top of the dashboard take you directly to the most common HR tasks: Add Employee, Approve Leave, Run Payroll.',
         ],
     },
@@ -707,6 +737,7 @@ const bartenderTutorial = [
             'Your dashboard shows today\'s total sales, number of transactions processed in your shift, revenue generated, and stock alerts for items running low.',
             'The Recent Sales list shows the last 10 transactions — useful to quickly confirm the last order if a customer queries something.',
             'Low Stock Alerts appear prominently on the dashboard when any product drops below its minimum threshold. Notify your manager to reorder before you run out.',
+            'Check the notification bell for return requests, room-charge follow-up, and restocking updates that affect your bar shift.',
             'Your shift summary (if timekeeping is used) shows your clock-in time and hours worked so far.',
         ],
     },
@@ -786,6 +817,40 @@ const bartenderTutorial = [
     },
 ]
 
+// ─── SERVER ─────────────────────────────────────────────────────────────────
+const serverTutorial = [
+    {
+        title: '🏠 Dashboard',
+        icon: '📊',
+        steps: [
+            'Your dashboard shows today\'s service revenue, recent orders, return activity, and your current shift schedule.',
+            'Use the notification bell for return updates, room-charge issues, and service items that need quick follow-up during active meal periods.',
+            'Recent Sales helps you confirm the last order quickly when a guest asks about an item or receipt.',
+            'Revenue and sales widgets are live, so you can monitor how service periods are performing without leaving your dashboard.',
+        ],
+    },
+    {
+        title: '🍽️ POS Terminal & Orders',
+        icon: '🛒',
+        steps: [
+            'Open POS Terminal to create restaurant and room-service orders. Add items by tapping the product tiles or searching by name.',
+            'Adjust quantities, add order notes like allergies or special preparation requests, and confirm the order before taking payment.',
+            'For hotel guests, use Charge to Room after verifying the room number and guest name. The order posts directly to the reservation folio.',
+            'If an order needs correction after payment, notify your manager and use the return flow rather than editing a completed sale directly.',
+        ],
+    },
+    {
+        title: '📊 Reports & Schedule',
+        icon: '📅',
+        steps: [
+            'Use Sales Reports to review your shift totals, item performance, and payment-method mix for the day.',
+            'Revenue Reports help supervisors compare meal periods and room-service activity. Review them when preparing for busy service windows.',
+            'My Schedule shows upcoming shifts and any changes made by management, so check it before clocking out.',
+            'Return Reports list product returns and adjustments. Review them to make sure incorrect charges were handled properly and consistently.',
+        ],
+    },
+]
+
 // ─── ACCOUNTANT ───────────────────────────────────────────────────────────────
 const accountantTutorial = [
     {
@@ -797,6 +862,7 @@ const accountantTutorial = [
             'Outstanding invoices widget: the dollar amount here represents money owed by guests. Click it to see the aged debtor list and chase overdue accounts.',
             'Cash flow summary: shows cash inflows (payments received) vs outflows (expenses paid) for the selected period. Negative cash flow days are highlighted in red.',
             'Pending budget approvals badge: flags expense requests from departments awaiting your review — address these to keep operations running smoothly.',
+            'The notification bell helps you monitor new expenses, quotes, reservation activity, purchase orders, purchase receiving, and bill-adjustment events that affect financial records.',
         ],
     },
     {
@@ -833,6 +899,7 @@ const accountantTutorial = [
             'Review submitted expenses: click any expense to see the amount, description, supporting documents (receipts, invoices), and the submitting employee.',
             'Approve a legitimate expense: click "Approve". The amount is posted to the relevant cost centre and shows in Financial reports.',
             'Reject a questionable expense: click "Reject" → add a clear explanation. The submitting staff member receives the reason.',
+            'Purchase orders and received stock should be reviewed alongside expenses so incoming stock and outgoing cash stay aligned. Use purchase notifications to jump into those records from the bell.',
             'Flag anomalies: repeated expense submissions for the same category, unusually large amounts, or expenses without receipts — these need investigation before approval.',
             'Monthly expense vs budget: compare total expenses by department against that department\'s budget using the Budget → Dashboard view.',
         ],
@@ -883,6 +950,38 @@ const accountantTutorial = [
             'Customer Groups: groups of guests (travel agents, corporates) may have negotiated rates. Verify that invoices generated for group bookings use the correct contracted rate.',
             'Credit notes: if a guest overpaid or is owed a refund, a credit note should be issued from their account. The credit note reduces the next invoice total.',
             'Audit: periodically cross-check that every guest who checked out has a paid or partially paid invoice — no checkouts should have a completely open invoice older than 7 days.',
+        ],
+    },
+]
+
+// ─── STAFF ──────────────────────────────────────────────────────────────────
+const staffTutorial = [
+    {
+        title: '🏠 Dashboard',
+        icon: '📊',
+        steps: [
+            'Your staff dashboard is focused on attendance and time tracking rather than hotel operations. Use it to see your current shift status and quick links to schedule tools.',
+            'Check the notification bell for schedule changes, attendance reminders, and approvals that affect your working day.',
+            'If you need access to operational screens like reservations or POS, ask an administrator to assign the correct role instead of sharing accounts.',
+        ],
+    },
+    {
+        title: '📅 My Schedule',
+        icon: '📅',
+        steps: [
+            'Open My Schedule to see your upcoming shifts and assigned working days.',
+            'Review schedule changes before each shift, especially if your department swaps coverage at short notice.',
+            'If a shift looks incorrect, report it to your manager early so the change can be made before payroll or attendance discrepancies appear.',
+        ],
+    },
+    {
+        title: '⏱️ Timesheet & Clock In/Out',
+        icon: '⏰',
+        steps: [
+            'Use Clock In/Out at the start and end of every shift. Missed punches create payroll corrections and should be avoided.',
+            'My Timesheet shows your recorded hours, late marks, and any attendance adjustments already applied.',
+            'If you forgot to clock in or out, notify your manager or HR so they can correct the record with a note rather than sharing someone else\'s login.',
+            'Review your timesheet before the pay period closes to catch mistakes while they are still easy to correct.',
         ],
     },
 ]

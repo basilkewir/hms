@@ -62,7 +62,7 @@ cd /root/hms
 
 # Verify files are present
 ls -la
-# Should show: install.sh, cleanup.sh, etc.
+# Should show: update.sh, install.sh, cleanup.sh, etc.
 ```
 
 **Time**: ~1 minute
@@ -98,14 +98,14 @@ sudo composer cache clear 2>/dev/null || true
 
 ---
 
-## Step 5: Run the Installation Script
+## Step 5: Run the Update Script
 
 ```bash
 cd /root/hms
-sudo bash install.sh
+sudo bash update.sh
 ```
 
-The script will now guide you through 8 steps. Here's what to expect:
+The script will now update the existing HMS installation on the server. Here's what to expect:
 
 ---
 

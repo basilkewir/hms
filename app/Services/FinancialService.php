@@ -95,7 +95,16 @@ class FinancialService
             'HOTEL_ROOM', 'GUEST_ROOM', 'LODGING', 'OCCUPANCY', 'DAILY_RATE',
             'ROOM_TAX', 'ROOM_FEE'
         ];
+        $billAdjustmentChargeCodes = ['ADJUSTMENT'];
         $roomRevenue = FolioCharge::whereIn('charge_code', $roomChargeCodes)
+            ->where(function($query) {
+                $query->where('is_voided', false)
+                      ->orWhereNull('is_voided');
+            })
+            ->whereBetween('charge_date', [$startDate, $endDate])
+            ->sum('net_amount');
+
+        $billAdjustmentRevenue = FolioCharge::whereIn('charge_code', $billAdjustmentChargeCodes)
             ->where(function($query) {
                 $query->where('is_voided', false)
                       ->orWhereNull('is_voided');
@@ -197,6 +206,7 @@ class FinancialService
         // Other Services Revenue should exclude POS-related charge codes and only include services like laundry, carwash, spa, etc.
         $posChargeCodes = ['POS_SALE', 'RETAIL', 'GIFT_SHOP', 'SOUVENIR'];
         $otherServicesRevenue = FolioCharge::whereNotIn('charge_code', $roomChargeCodes)
+            ->whereNotIn('charge_code', $billAdjustmentChargeCodes)
             ->whereNotIn('charge_code', $posChargeCodes)
             ->where(function($query) {
                 $query->where('is_voided', false)
@@ -205,10 +215,11 @@ class FinancialService
             ->whereBetween('charge_date', [$startDate, $endDate])
             ->sum('net_amount');
 
-        $totalRevenue = $roomRevenue + $posSalesRevenue + $otherServicesRevenue;
+        $totalRevenue = $roomRevenue + $billAdjustmentRevenue + $posSalesRevenue + $otherServicesRevenue;
 
         // Debug: Check the breakdown
         \Log::info('Room Revenue: ' . $roomRevenue);
+        \Log::info('Bill Adjustment Revenue: ' . $billAdjustmentRevenue);
         \Log::info('POS Sales Revenue: ' . $posSalesRevenue);
         \Log::info('Other Services Revenue: ' . $otherServicesRevenue);
         \Log::info('Total Revenue: ' . $totalRevenue);
@@ -228,6 +239,14 @@ class FinancialService
                 ->whereBetween('charge_date', [$startDate, $endDate])
                 ->sum('net_amount');
 
+            $billAdjustmentRevenue = FolioCharge::whereIn('charge_code', $billAdjustmentChargeCodes)
+                ->where(function($query) {
+                    $query->where('is_voided', false)
+                          ->orWhereNull('is_voided');
+                })
+                ->whereBetween('charge_date', [$startDate, $endDate])
+                ->sum('net_amount');
+
             $posSalesRevenue = Sale::whereBetween('sale_date', [$startDate, $endDate])
                 ->where(function($query) {
                     $query->where('payment_status', 'completed')
@@ -238,12 +257,13 @@ class FinancialService
                 ->sum('total_amount');
 
             $otherServicesRevenue = FolioCharge::whereNotIn('charge_code', $roomChargeCodes)
+                ->whereNotIn('charge_code', $billAdjustmentChargeCodes)
                 ->whereNotIn('charge_code', $posChargeCodes)
                 ->notVoided()
                 ->byDateRange($startDate, $endDate)
                 ->sum('net_amount');
 
-            $totalRevenue = $roomRevenue + $posSalesRevenue + $otherServicesRevenue;
+            $totalRevenue = $roomRevenue + $billAdjustmentRevenue + $posSalesRevenue + $otherServicesRevenue;
         }
 
         // Revenue by category (from folio charges) - ensure all categories are shown
@@ -331,17 +351,23 @@ class FinancialService
             ->byDateRange($previousPeriodStart, $previousPeriodEnd)
             ->sum('net_amount');
 
+        $previousBillAdjustmentRevenue = FolioCharge::whereIn('charge_code', $billAdjustmentChargeCodes)
+            ->notVoided()
+            ->byDateRange($previousPeriodStart, $previousPeriodEnd)
+            ->sum('net_amount');
+
         $previousPosRevenue = Sale::whereBetween('sale_date', [$previousPeriodStart, $previousPeriodEnd])
             ->where('payment_status', 'paid')
             ->sum('total_amount');
 
         $previousOtherServicesRevenue = FolioCharge::whereNotIn('charge_code', $roomChargeCodes)
+            ->whereNotIn('charge_code', $billAdjustmentChargeCodes)
             ->whereNotIn('charge_code', $posChargeCodes)
             ->notVoided()
             ->byDateRange($previousPeriodStart, $previousPeriodEnd)
             ->sum('net_amount');
 
-        $previousTotalRevenue = $previousRoomRevenue + $previousPosRevenue + $previousOtherServicesRevenue;
+        $previousTotalRevenue = $previousRoomRevenue + $previousBillAdjustmentRevenue + $previousPosRevenue + $previousOtherServicesRevenue;
 
         $growthRate = $previousTotalRevenue > 0
             ? (($totalRevenue - $previousTotalRevenue) / $previousTotalRevenue) * 100
@@ -352,11 +378,14 @@ class FinancialService
             'formatted_total_revenue' => $this->formatCurrency($totalRevenue),
             'room_revenue' => $roomRevenue,
             'formatted_room_revenue' => $this->formatCurrency($roomRevenue),
+            'bill_adjustment_revenue' => $billAdjustmentRevenue,
+            'formatted_bill_adjustment_revenue' => $this->formatCurrency($billAdjustmentRevenue),
             'pos_sales_revenue' => $posSalesRevenue,
             'formatted_pos_sales_revenue' => $this->formatCurrency($posSalesRevenue),
             'other_services_revenue' => $otherServicesRevenue,
             'formatted_other_services_revenue' => $this->formatCurrency($otherServicesRevenue),
             'room_revenue_percentage' => $totalRevenue > 0 ? ($roomRevenue / $totalRevenue) * 100 : 0,
+            'bill_adjustment_revenue_percentage' => $totalRevenue > 0 ? ($billAdjustmentRevenue / $totalRevenue) * 100 : 0,
             'pos_sales_percentage' => $totalRevenue > 0 ? ($posSalesRevenue / $totalRevenue) * 100 : 0,
             'other_services_revenue_percentage' => $totalRevenue > 0 ? ($otherServicesRevenue / $totalRevenue) * 100 : 0,
             'average_daily_rate' => $averageDailyRate,
@@ -439,6 +468,7 @@ class FinancialService
         // Revenue breakdown
         $revenue = [
             'room_revenue' => $revenueData['room_revenue'],
+            'bill_adjustments' => $revenueData['bill_adjustment_revenue'] ?? 0,
             'pos_sales' => $posSalesRevenue,
             'food_beverage' => $this->getRevenueByChargeCode('FOOD', $startDate, $endDate) +
                              $this->getRevenueByChargeCode('BEVERAGE', $startDate, $endDate),
@@ -613,6 +643,9 @@ class FinancialService
             'LUGGAGE' => 'Other Services',
             'SAFE_DEPOSIT' => 'Other Services',
             'WAKE_UP_CALL' => 'Other Services',
+
+            // Bill Adjustments
+            'ADJUSTMENT' => 'Bill Adjustments',
             
             // Fees & Charges
             'SERVICE_CHARGE' => 'Service Charges',

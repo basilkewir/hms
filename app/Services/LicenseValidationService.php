@@ -23,9 +23,34 @@ class LicenseValidationService
 
     private function currentLicense(): ?License
     {
-        return License::whereIn('status', ['active', 'trial'])
-            ->latest('id')
+        return License::query()
+            ->whereIn('status', ['active', 'trial'])
+            ->orderByRaw("CASE WHEN status = 'active' THEN 0 ELSE 1 END")
+            ->orderByDesc('last_validated_at')
+            ->orderByDesc('activated_at')
+            ->orderByDesc('id')
             ->first();
+    }
+
+    private function normalizePersistedExpiry(array $serverResponse): ?string
+    {
+        $status = strtoupper((string) ($serverResponse['status'] ?? 'ACTIVE'));
+        $licenseType = strtoupper((string) ($serverResponse['license_type'] ?? ''));
+        $expiresAt = $serverResponse['expires_at'] ?? null;
+
+        if ($expiresAt === null || $expiresAt === '' || $expiresAt === 'Never Expires') {
+            return null;
+        }
+
+        if ($status === 'ACTIVE') {
+            return null;
+        }
+
+        if (in_array($licenseType, ['PERPETUAL', 'LIFETIME'], true)) {
+            return null;
+        }
+
+        return $expiresAt;
     }
 
     private function loadStoredToken(): void
@@ -245,6 +270,8 @@ class LicenseValidationService
         $maxRooms = (int) ($features['max_users'] ?? $serverResponse['max_rooms'] ?? -1);
         $deviceId = $this->getDeviceId();
 
+        $persistedExpiry = $this->normalizePersistedExpiry($serverResponse);
+
         $licenseData = [
             'license_key' => $licenseKey,
             'hotel_name' => $hotelName ?: ($serverResponse['hotel_name'] ?? config('app.name')),
@@ -278,7 +305,7 @@ class LicenseValidationService
                 'issued_at' => now(),
                 'activated_at' => now(),
                 'last_validated_at' => now(),
-                'expires_at' => $licenseData['expires_at'],
+                'expires_at' => $persistedExpiry,
                 'hardware_fingerprint' => $deviceId,
                 'max_rooms' => $maxRooms,
             ]
@@ -663,6 +690,10 @@ class LicenseValidationService
 
     private function licenseExpired(License $license): bool
     {
+        if ($license->status === 'active') {
+            return false;
+        }
+
         return (bool) ($license->expires_at && now()->greaterThan($license->expires_at));
     }
 }

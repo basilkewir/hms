@@ -129,7 +129,7 @@
         </div>
 
         <!-- Revenue Summary Cards -->
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
             <!-- Total Revenue Card -->
             <div class="rounded-lg p-6 border shadow-sm"
                  :style="{ 
@@ -228,6 +228,29 @@
                            :style="{ color: themeColors.textPrimary }">{{ revenueData.formatted_average_daily_rate }}</p>
                         <p class="text-xs mt-1"
                            :style="{ color: themeColors.textTertiary }">Per occupied room</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="rounded-lg p-6 border shadow-sm"
+                 :style="{
+                     backgroundColor: themeColors.card,
+                     borderColor: themeColors.border,
+                     borderStyle: 'solid',
+                     borderWidth: '1px'
+                 }">
+                <div class="flex items-center">
+                    <div class="w-12 h-12 rounded-lg flex items-center justify-center mr-4"
+                         :style="{ backgroundColor: (revenueData.bill_adjustment_revenue || 0) >= 0 ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)' }">
+                        <ChartPieIcon class="h-6 w-6" :style="{ color: (revenueData.bill_adjustment_revenue || 0) >= 0 ? themeColors.success : themeColors.danger }" />
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium mb-1"
+                           :style="{ color: themeColors.textSecondary }">Bill Adjustments</p>
+                        <p class="text-2xl font-bold"
+                           :style="{ color: themeColors.textPrimary }">{{ revenueData.formatted_bill_adjustment_revenue || formatCurrency(0) }}</p>
+                        <p class="text-xs mt-1"
+                           :style="{ color: themeColors.textTertiary }">Approved billing impact</p>
                     </div>
                 </div>
             </div>

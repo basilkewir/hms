@@ -9,6 +9,7 @@ use App\Models\Room;
 use App\Models\Guest;
 use App\Models\HotelService;
 use App\Models\Setting;
+use App\Services\SystemActivityNotifier;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Mail;
@@ -478,6 +479,30 @@ class ReservationController extends Controller
                 $emailWarning = ' Reservation saved, but confirmation email could not be sent.';
             }
         }
+
+        app(SystemActivityNotifier::class)->notifyRoles(
+            ['admin', 'manager', 'front_desk', 'frontdesk'],
+            'reservation.created',
+            'New reservation created',
+            sprintf(
+                'Reservation %s for %s was created by %s.',
+                $reservation->reservation_number,
+                $guest->full_name,
+                auth()->user()?->full_name ?? auth()->user()?->email ?? 'Staff'
+            ),
+            [
+                'manager' => route('manager.reservations.show', $reservation),
+                'front_desk' => route('front-desk.reservations.show', $reservation),
+                'frontdesk' => route('front-desk.reservations.show', $reservation),
+                'default' => route('admin.reservations.show', $reservation),
+            ],
+            [
+                'reservation_id' => $reservation->id,
+                'reservation_number' => $reservation->reservation_number,
+                'booking_source' => $reservation->booking_source,
+            ],
+            auth()->user(),
+        );
 
         return redirect()->route('front-desk.reservations.index')
             ->with('success', 'Reservation created successfully!' . ($emailWarning ?? ''));

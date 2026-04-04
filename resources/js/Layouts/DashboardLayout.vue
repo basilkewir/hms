@@ -1,6 +1,6 @@
 ﻿<script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { Link, usePage } from '@inertiajs/vue3'
+import { Link, router, usePage } from '@inertiajs/vue3'
 import { useTheme } from '@/Composables/useTheme.js'
 import { navigationConfig, iconPaths } from '@/Config/navigation.js'
 import LanguageSwitcher from '@/Components/LanguageSwitcher.vue'
@@ -183,6 +183,7 @@ const isMaintenance = computed(() => hasRole(['maintenance']))
 const isHR = computed(() => hasRole(['hr']))
 
 const profileMenuOpen = ref(false)
+const notificationsOpen = ref(false)
 const userInitial = computed(() => {
     const name = user.value?.name || user.value?.full_name || ''
     const trimmed = String(name).trim()
@@ -293,11 +294,18 @@ const handleMouseEnter = () => { if (typeof window !== 'undefined' && !sidebarEx
 const handleMouseLeave = () => { sidebarHovered.value = false }
 
 const handleClickOutsideProfileMenu = (event) => {
-    if (!profileMenuOpen.value) return
     const target = event?.target
     if (!(target instanceof Element)) return
-    const container = document.getElementById('profile-menu-container')
-    if (container && !container.contains(target)) profileMenuOpen.value = false
+
+    const profileContainer = document.getElementById('profile-menu-container')
+    if (profileMenuOpen.value && profileContainer && !profileContainer.contains(target)) {
+        profileMenuOpen.value = false
+    }
+
+    const notificationsContainer = document.getElementById('notifications-menu-container')
+    if (notificationsOpen.value && notificationsContainer && !notificationsContainer.contains(target)) {
+        notificationsOpen.value = false
+    }
 }
 
 onMounted(() => {
@@ -306,6 +314,8 @@ onMounted(() => {
     loadSubmenuState();
     initializeActiveSubmenu();
     loadTheme();
+    refreshNotifications();
+    notificationsRefreshInterval = window.setInterval(refreshNotifications, 30000)
     if (typeof window !== 'undefined') {
         window.addEventListener('resize', updateWindowWidth)
         window.addEventListener('click', handleClickOutsideProfileMenu)
@@ -313,6 +323,10 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+    if (notificationsRefreshInterval) {
+        window.clearInterval(notificationsRefreshInterval)
+    }
+
     if (typeof window !== 'undefined') {
         window.removeEventListener('resize', updateWindowWidth)
         window.removeEventListener('click', handleClickOutsideProfileMenu)
@@ -369,6 +383,79 @@ const roleLabel = computed(() => {
     const map = { admin: 'Admin', manager: 'Manager', accountant: 'Accountant', front_desk: 'Front Desk', housekeeping: 'Housekeeping', maintenance: 'Maintenance', bartender: 'Bartender', server: 'Server', hr: 'HR' }
     return map[primaryRole.value] || (primaryRole.value.charAt(0).toUpperCase() + primaryRole.value.slice(1))
 })
+
+const liveNotifications = ref(page.props.notifications || { unread_count: 0, items: [] })
+const notifications = computed(() => liveNotifications.value || { unread_count: 0, items: [] })
+let notificationsRefreshInterval = null
+
+const refreshNotifications = async () => {
+    try {
+        const response = await fetch(route('notifications.index'), {
+            method: 'GET',
+            headers: {
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            credentials: 'same-origin',
+        })
+
+        if (!response.ok) return
+
+        liveNotifications.value = await response.json()
+    } catch (error) {
+        // Keep the last successful bell state if refresh fails.
+    }
+}
+
+const formatNotificationTime = (dateString) => {
+    if (!dateString) return ''
+    return new Date(dateString).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
+
+const toggleNotifications = async () => {
+    if (!notificationsOpen.value) {
+        await refreshNotifications()
+    }
+
+    notificationsOpen.value = !notificationsOpen.value
+    if (notificationsOpen.value) profileMenuOpen.value = false
+}
+
+const markAllNotificationsAsRead = () => {
+    router.post(route('notifications.read-all'), {}, {
+        preserveScroll: true,
+        preserveState: true,
+        onSuccess: () => {
+            refreshNotifications()
+            notificationsOpen.value = false
+        },
+    })
+}
+
+const openNotification = (notification) => {
+    const visitTarget = () => {
+        notificationsOpen.value = false
+
+        if (notification.action_url) {
+            router.visit(notification.action_url)
+        }
+    }
+
+    if (notification.is_read) {
+        visitTarget()
+        return
+    }
+
+    router.post(route('notifications.read', notification.id), {}, {
+        preserveScroll: true,
+        preserveState: true,
+        onSuccess: () => {
+            refreshNotifications()
+            visitTarget()
+        },
+        onError: visitTarget,
+    })
+}
 </script>
 
 <template>
@@ -503,9 +590,53 @@ const roleLabel = computed(() => {
                             <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
                         </button>
                         <LanguageSwitcher :style="{ color: themeColors.textPrimary }" />
-                        <button class="p-1.5 rounded" :style="{ color: themeColors.textTertiary }" title="Notifications">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>
-                        </button>
+                        <div id="notifications-menu-container" class="relative">
+                            <button @click="toggleNotifications" class="relative p-1.5 rounded" :style="{ color: themeColors.textTertiary }" title="Notifications">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>
+                                <span v-if="notifications.unread_count > 0"
+                                      class="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full text-[9px] font-bold flex items-center justify-center text-white"
+                                      :style="{ backgroundColor: themeColors.danger }">
+                                    {{ notifications.unread_count > 99 ? '99+' : notifications.unread_count }}
+                                </span>
+                            </button>
+                            <div v-show="notificationsOpen" class="absolute right-0 mt-1 w-80 rounded border shadow-lg overflow-hidden z-50"
+                                 :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }">
+                                <div class="flex items-center justify-between px-3 py-2 border-b" :style="{ borderColor: themeColors.border }">
+                                    <div>
+                                        <p class="text-[11px] font-semibold" :style="{ color: themeColors.textPrimary }">Notifications</p>
+                                        <p class="text-[10px]" :style="{ color: themeColors.textTertiary }">{{ notifications.unread_count }} unread</p>
+                                    </div>
+                                    <button v-if="notifications.unread_count > 0"
+                                            @click="markAllNotificationsAsRead"
+                                            class="text-[10px] font-medium"
+                                            :style="{ color: themeColors.primary }">
+                                        Mark all read
+                                    </button>
+                                </div>
+                                <div v-if="notifications.items?.length" class="max-h-80 overflow-y-auto">
+                                    <button v-for="notification in notifications.items"
+                                            :key="notification.id"
+                                            @click="openNotification(notification)"
+                                            class="w-full text-left px-3 py-2 border-b transition-colors"
+                                            :style="{
+                                                borderColor: themeColors.border,
+                                                backgroundColor: notification.is_read ? themeColors.card : 'rgba(59, 130, 246, 0.06)'
+                                            }">
+                                        <div class="flex items-start justify-between gap-3">
+                                            <div class="min-w-0">
+                                                <p class="text-[11px] font-semibold truncate" :style="{ color: themeColors.textPrimary }">{{ notification.title }}</p>
+                                                <p class="text-[10px] mt-0.5 leading-4" :style="{ color: themeColors.textSecondary }">{{ notification.body }}</p>
+                                                <p class="text-[9px] mt-1" :style="{ color: themeColors.textTertiary }">{{ formatNotificationTime(notification.created_at) }}</p>
+                                            </div>
+                                            <span v-if="!notification.is_read" class="mt-1 w-2 h-2 rounded-full flex-shrink-0" :style="{ backgroundColor: themeColors.primary }"></span>
+                                        </div>
+                                    </button>
+                                </div>
+                                <div v-else class="px-3 py-4 text-[11px]" :style="{ color: themeColors.textTertiary }">
+                                    No notifications.
+                                </div>
+                            </div>
+                        </div>
                         <!-- Thin divider -->
                         <span class="w-px h-5 mx-1" :style="{ backgroundColor: themeColors.border }"></span>
                         <div id="profile-menu-container" class="relative">

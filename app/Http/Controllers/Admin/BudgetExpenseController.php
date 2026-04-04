@@ -7,6 +7,7 @@ use App\Models\Budget;
 use App\Models\BudgetExpense;
 use App\Models\Department;
 use App\Models\ExpenseCategory;
+use App\Services\SystemActivityNotifier;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -124,6 +125,28 @@ class BudgetExpenseController extends Controller
         $expense = BudgetExpense::create($validated);
 
         $this->updateBudgetSpentAmount($expense->budget_id);
+
+        app(SystemActivityNotifier::class)->notifyRoles(
+            ['admin', 'manager'],
+            'budget_expense.created',
+            'New expense submitted',
+            sprintf(
+                'Budget expense %s for %s was submitted by %s and is pending approval.',
+                $expense->description,
+                number_format((float) $expense->amount, 2),
+                auth()->user()?->full_name ?? auth()->user()?->email ?? 'Staff'
+            ),
+            [
+                'manager' => route('manager.budget.expenses.show', $expense),
+                'default' => route('admin.budget.expenses.pending-approvals'),
+            ],
+            [
+                'budget_expense_id' => $expense->id,
+                'budget_id' => $expense->budget_id,
+                'amount' => (float) $expense->amount,
+            ],
+            auth()->user(),
+        );
 
         $routeName = request()->route()->getName() ?? '';
         $indexRoute = str_starts_with($routeName, 'manager.') ? 'manager.budget.expenses.index' : 'admin.budget.expenses.index';

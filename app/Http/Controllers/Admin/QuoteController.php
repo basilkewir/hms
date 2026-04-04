@@ -7,6 +7,7 @@ use App\Models\Quote;
 use App\Models\Reservation;
 use App\Models\GuestFolio;
 use App\Models\FolioCharge;
+use App\Services\SystemActivityNotifier;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
@@ -167,6 +168,28 @@ class QuoteController extends Controller
                 }
             }
         }
+
+        app(SystemActivityNotifier::class)->notifyRoles(
+            ['admin', 'manager'],
+            'quote.created',
+            'New estimate created',
+            sprintf(
+                'Estimate %s for %s was created by %s.',
+                $quote->quote_number,
+                $quote->customer_name ?: ($quote->reservation_id ? ('reservation ' . $quote->reservation_id) : 'a guest'),
+                auth()->user()?->full_name ?? auth()->user()?->email ?? 'Staff'
+            ),
+            [
+                'manager' => route('manager.quotes.show', $quote->id),
+                'default' => route('admin.quotes.show', $quote->id),
+            ],
+            [
+                'quote_id' => $quote->id,
+                'quote_number' => $quote->quote_number,
+                'quote_status' => $quote->status,
+            ],
+            auth()->user(),
+        );
 
         // Redirect based on role
         if (request()->is('front-desk/*')) {

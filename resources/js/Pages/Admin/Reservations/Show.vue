@@ -44,6 +44,14 @@
                             @mouseleave="$event.target.style.backgroundColor = themeColors.secondary">
                         Send Email
                     </button>
+                    <Link v-if="!reservation.room"
+                          :href="route('admin.room-assignment')"
+                          class="px-4 py-2 rounded-md transition-colors font-medium text-white"
+                          :style="{ backgroundColor: themeColors.secondary }"
+                          @mouseenter="$event.target.style.backgroundColor = themeColors.hover"
+                          @mouseleave="$event.target.style.backgroundColor = themeColors.secondary">
+                        Assign Room
+                    </Link>
                     <Link :href="route('admin.reservations.service-charges', reservation.id)"
                           class="px-4 py-2 rounded-md transition-colors font-medium text-white"
                           :style="{ 
@@ -212,6 +220,10 @@
                                     {{ reservation.room?.room_number || 'Not yet assigned' }}
                                 </span>
                             </div>
+                                <div v-if="!reservation.room" class="rounded-md px-3 py-2 text-sm"
+                                   :style="{ backgroundColor: 'rgba(250, 204, 21, 0.12)', color: themeColors.textPrimary }">
+                                  Room assignment is pending. Use Assign Room to choose the actual room for this reservation.
+                                </div>
                             <div v-if="reservation.room_type" class="flex items-start">
                                 <span class="text-sm font-medium mr-3"
                                       :style="{ color: themeColors.textSecondary, minWidth: '100px' }">Capacity:</span>
@@ -262,6 +274,11 @@
                                 <span class="font-medium"
                                       :style="{ color: themeColors.textPrimary }">{{ formatCurrency(reservation.service_charges) }}</span>
                             </div>
+                            <div v-if="(reservation.adjustment_charges || 0) !== 0" class="flex justify-between text-sm">
+                                <span :style="{ color: themeColors.textSecondary }">Bill Adjustments:</span>
+                                <span class="font-medium"
+                                      :style="{ color: reservation.adjustment_charges > 0 ? themeColors.warning : themeColors.success }">{{ formatCurrency(reservation.adjustment_charges) }}</span>
+                            </div>
                             <div v-if="(reservation.pos_charges || 0) > 0" class="flex justify-between text-sm">
                                 <span :style="{ color: themeColors.textSecondary }">POS / Restaurant Charges:</span>
                                 <span class="font-medium"
@@ -287,6 +304,74 @@
                                 }">{{ formatCurrency(reservation.balance_amount) }}</span>
                             </div>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mb-8">
+                <h3 class="text-lg font-medium mb-4"
+                    :style="{ color: themeColors.textPrimary }">Bill Modification Requests</h3>
+                <div class="rounded-lg p-4 border"
+                     :style="{ backgroundColor: themeColors.background, borderColor: themeColors.border, borderStyle: 'solid', borderWidth: '1px' }">
+                    <div v-if="isPostStayBillAdjustmentContext" class="mb-4 rounded-md px-3 py-2 text-sm"
+                         :style="{ backgroundColor: 'rgba(59, 130, 246, 0.08)', color: themeColors.textPrimary }">
+                        This reservation is already paid or checked out. Approving a request here will still update the final bill and related folio records.
+                    </div>
+                    <div v-if="reservation.bill_adjustment_requests?.length" class="space-y-4">
+                        <div v-for="adjustmentRequest in reservation.bill_adjustment_requests" :key="adjustmentRequest.id"
+                             class="rounded-lg p-4 border"
+                             :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border, borderStyle: 'solid', borderWidth: '1px' }">
+                            <div class="flex items-start justify-between gap-4">
+                                <div>
+                                    <div class="text-sm font-medium" :style="{ color: themeColors.textPrimary }">
+                                        {{ formatAdjustmentType(adjustmentRequest.adjustment_type) }}
+                                        <span class="ml-2" :style="{ color: adjustmentRequest.signed_amount > 0 ? themeColors.warning : themeColors.success }">
+                                            {{ formatCurrency(adjustmentRequest.signed_amount) }}
+                                        </span>
+                                    </div>
+                                    <div class="text-sm mt-1" :style="{ color: themeColors.textSecondary }">{{ adjustmentRequest.reason }}</div>
+                                </div>
+                                <span class="px-2 py-1 text-xs rounded-full" :style="getRequestStatusStyle(adjustmentRequest.status)">
+                                    {{ formatStatus(adjustmentRequest.status) }}
+                                </span>
+                            </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3 text-sm">
+                                <div :style="{ color: themeColors.textSecondary }">Requested: <span :style="{ color: themeColors.textPrimary }">{{ formatDateTime(adjustmentRequest.requested_at) }}</span></div>
+                                <div :style="{ color: themeColors.textSecondary }">Requested By: <span :style="{ color: themeColors.textPrimary }">{{ adjustmentRequest.requested_by?.name || 'N/A' }}</span></div>
+                                <div v-if="adjustmentRequest.request_notes" class="md:col-span-2" :style="{ color: themeColors.textSecondary }">Notes: <span :style="{ color: themeColors.textPrimary }">{{ adjustmentRequest.request_notes }}</span></div>
+                                <div v-if="adjustmentRequest.reviewed_by" :style="{ color: themeColors.textSecondary }">Reviewed By: <span :style="{ color: themeColors.textPrimary }">{{ adjustmentRequest.reviewed_by.name }}</span></div>
+                                <div v-if="adjustmentRequest.reviewed_at" :style="{ color: themeColors.textSecondary }">Reviewed: <span :style="{ color: themeColors.textPrimary }">{{ formatDateTime(adjustmentRequest.reviewed_at) }}</span></div>
+                                <div v-if="adjustmentRequest.review_notes" class="md:col-span-2" :style="{ color: themeColors.textSecondary }">Review Notes: <span :style="{ color: themeColors.textPrimary }">{{ adjustmentRequest.review_notes }}</span></div>
+                            </div>
+
+                            <div v-if="reservation.can_validate_bill_adjustment && adjustmentRequest.status === 'pending'" class="mt-4 border-t pt-4"
+                                 :style="{ borderTopColor: themeColors.border, borderTopWidth: '1px' }">
+                                <label class="block text-xs mb-1" :style="{ color: themeColors.textSecondary }">Validation Notes</label>
+                                <textarea v-model="reviewNotes[adjustmentRequest.id]"
+                                          rows="3"
+                                          class="w-full rounded-md px-3 py-2 text-sm border focus:outline-none"
+                                          :style="{ backgroundColor: themeColors.background, borderColor: themeColors.border, color: themeColors.textPrimary }"
+                                          placeholder="Optional notes for approval or rejection"></textarea>
+                                <div class="mt-3 flex justify-end gap-3">
+                                    <button type="button"
+                                            @click="rejectBillAdjustmentRequest(adjustmentRequest)"
+                                            class="px-4 py-2 rounded-md text-sm font-medium text-white"
+                                            :style="{ backgroundColor: themeColors.danger }">
+                                        Reject
+                                    </button>
+                                    <button type="button"
+                                            @click="approveBillAdjustmentRequest(adjustmentRequest)"
+                                            class="px-4 py-2 rounded-md text-sm font-medium text-white"
+                                            :style="{ backgroundColor: themeColors.success }">
+                                        Approve
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div v-else class="text-sm" :style="{ color: themeColors.textTertiary }">
+                        No bill modification requests for this reservation.
                     </div>
                 </div>
             </div>
@@ -613,6 +698,11 @@ const hasCheckOutInfo = computed(() => {
            props.reservation.checked_out_by
 })
 
+const isPostStayBillAdjustmentContext = computed(() =>
+    props.reservation.status === 'checked_out' ||
+    Number(props.reservation.paid_amount || 0) >= Number(props.reservation.total_amount || 0)
+)
+
 const hasAdditionalPreferences = computed(() => {
     return props.reservation.early_check_in_requested ||
            props.reservation.late_check_out_requested ||
@@ -700,6 +790,42 @@ const confirmReservation = () => {
 
 const sendConfirmationEmail = () => {
     router.post(route('admin.reservations.send-confirmation', props.reservation.id))
+}
+
+const reviewNotes = ref({})
+
+const formatAdjustmentType = (type) => type === 'decrease' ? 'Bill Reduction Request' : 'Bill Increase Request'
+
+const getRequestStatusStyle = (status) => {
+    const styles = {
+        pending: { backgroundColor: themeColors.value.warning, color: 'white' },
+        approved: { backgroundColor: themeColors.value.success, color: 'white' },
+        rejected: { backgroundColor: themeColors.value.danger, color: 'white' },
+    }
+
+    return styles[status] || styles.pending
+}
+
+const approveBillAdjustmentRequest = (adjustmentRequest) => {
+    router.post(route('admin.reservations.bill-adjustment-requests.approve', {
+        reservation: props.reservation.id,
+        billAdjustmentRequest: adjustmentRequest.id,
+    }), {
+        review_notes: reviewNotes.value[adjustmentRequest.id] || '',
+    }, {
+        preserveScroll: true,
+    })
+}
+
+const rejectBillAdjustmentRequest = (adjustmentRequest) => {
+    router.post(route('admin.reservations.bill-adjustment-requests.reject', {
+        reservation: props.reservation.id,
+        billAdjustmentRequest: adjustmentRequest.id,
+    }), {
+        review_notes: reviewNotes.value[adjustmentRequest.id] || '',
+    }, {
+        preserveScroll: true,
+    })
 }
 
 const serviceChargeForm = ref({ description: '', amount: null, quantity: 1 })
