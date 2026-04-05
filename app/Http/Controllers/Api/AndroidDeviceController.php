@@ -287,30 +287,66 @@ class AndroidDeviceController extends Controller
     private function buildSettingsPayload(IptvDevice $device): array
     {
         $db = $this->getDbSettings([
-            'xtream_url', 'xtream_username', 'xtream_password',
-            'hotel_name', 'hotel_logo', 'hotel_primary_color',
-            'hotel_welcome_message', 'admin_pin',
+            // Xtream Codes
+            'xtream_url', 'xtream_username', 'xtream_password', 'xtream_use_https',
+            // Hotel branding
+            'hotel_name', 'hotel_logo', 'hotel_address', 'hotel_phone',
+            'hotel_primary_color', 'hotel_welcome_message',
+            // Weather widget
+            'weather_api_key', 'weather_city', 'weather_units', 'weather_enabled',
+            // TV UI behaviour
             'iptv_ui_theme', 'iptv_show_epg', 'iptv_auto_launch_seconds',
+            'iptv_show_clock', 'iptv_show_room_number',
+            'iptv_enable_vod', 'iptv_enable_series', 'iptv_enable_radio',
+            'iptv_parental_pin',
+            // Security
+            'admin_pin',
         ]);
 
-        // Per-device overrides take precedence over global settings
+        // Per-device overrides take precedence over global settings.
+        // Each device has its OWN xtream_username/password stored in pushed_settings.
         $pushed = $device->pushed_settings ?? [];
 
         return array_merge([
-            'xtream_url'               => $db['xtream_url'] ?? '',
-            'xtream_username'          => $db['xtream_username'] ?? '',
-            'xtream_password'          => $db['xtream_password'] ?? '',
-            'hotel_name'               => $db['hotel_name'] ?? '',
-            'hotel_logo_url'           => $db['hotel_logo'] ?? '',
-            'hotel_primary_color'      => $db['hotel_primary_color'] ?? '#1C88FF',
-            'hotel_welcome_message'    => $db['hotel_welcome_message'] ?? '',
-            'admin_pin'                => $db['admin_pin'] ?? '1234',
-            'ui_theme'                 => $db['iptv_ui_theme'] ?? 'dark',
-            'show_epg'                 => (bool)($db['iptv_show_epg'] ?? true),
-            'auto_launch_seconds'      => (int)($db['iptv_auto_launch_seconds'] ?? 15),
-            'room_number'              => $device->room?->room_number ?? '',
-            'package'                  => $device->package ?? 'basic',
-        ], $pushed);
+            // ── Xtream Codes ──────────────────────────────────────────────
+            'xtream_url'              => $db['xtream_url'] ?? '',
+            'xtream_username'         => $db['xtream_username'] ?? '',   // overridden per-device
+            'xtream_password'         => $db['xtream_password'] ?? '',   // overridden per-device
+            'xtream_use_https'        => (bool)($db['xtream_use_https'] ?? false),
+
+            // ── Hotel branding ────────────────────────────────────────────
+            'hotel_name'              => $db['hotel_name'] ?? '',
+            'hotel_logo_url'          => $db['hotel_logo'] ?? '',
+            'hotel_address'           => $db['hotel_address'] ?? '',
+            'hotel_phone'             => $db['hotel_phone'] ?? '',
+            'hotel_primary_color'     => $db['hotel_primary_color'] ?? '#FFD700',
+            'hotel_welcome_message'   => $db['hotel_welcome_message'] ?? 'Welcome',
+
+            // ── Weather widget ────────────────────────────────────────────
+            'weather_enabled'         => (bool)($db['weather_enabled'] ?? true),
+            'weather_api_key'         => $db['weather_api_key'] ?? '',
+            'weather_city'            => $db['weather_city'] ?? '',
+            'weather_units'           => $db['weather_units'] ?? 'metric',
+
+            // ── TV UI & behaviour ─────────────────────────────────────────
+            'ui_theme'                => $db['iptv_ui_theme'] ?? 'dark',
+            'show_epg'                => (bool)($db['iptv_show_epg'] ?? true),
+            'auto_launch_seconds'     => (int)($db['iptv_auto_launch_seconds'] ?? 15),
+            'show_clock'              => (bool)($db['iptv_show_clock'] ?? true),
+            'show_room_number'        => (bool)($db['iptv_show_room_number'] ?? true),
+            'enable_vod'              => (bool)($db['iptv_enable_vod'] ?? true),
+            'enable_series'           => (bool)($db['iptv_enable_series'] ?? true),
+            'enable_radio'            => (bool)($db['iptv_enable_radio'] ?? true),
+            'parental_pin'            => $db['iptv_parental_pin'] ?? '',
+
+            // ── Security ──────────────────────────────────────────────────
+            'admin_pin'               => $db['admin_pin'] ?? '1234',
+
+            // ── Device context ────────────────────────────────────────────
+            'room_number'             => $device->room?->room_number ?? '',
+            'package'                 => $device->package ?? 'basic',
+            'settings_version'        => $device->settings_version ?? 0,
+        ], $pushed);  // pushed_settings (per-device username/password etc.) win
     }
 
     private function getDbSettings(array $keys): array

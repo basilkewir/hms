@@ -155,12 +155,41 @@ class SettingsSeeder extends Seeder
             ['key' => 'force_password_change', 'value' => '1', 'type' => 'boolean', 'group' => 'security', 'description' => 'Force password change on first login'],
             ['key' => 'max_login_attempts', 'value' => '5', 'type' => 'integer', 'group' => 'security', 'description' => 'Maximum login attempts before lockout'],
 
-            // IPTV Settings
-            ['key' => 'iptv_server_url', 'value' => 'http://iptv.grandhotel.com', 'type' => 'string', 'group' => 'iptv', 'description' => 'IPTV server URL'],
-            ['key' => 'default_channel_package', 'value' => 'premium', 'type' => 'string', 'group' => 'iptv', 'description' => 'Default channel package'],
-            ['key' => 'enable_vod', 'value' => '1', 'type' => 'boolean', 'group' => 'iptv', 'description' => 'Enable video on demand'],
-            ['key' => 'enable_parental_controls', 'value' => '1', 'type' => 'boolean', 'group' => 'iptv', 'description' => 'Enable parental controls'],
-            ['key' => 'auto_provision_rooms', 'value' => '1', 'type' => 'boolean', 'group' => 'iptv', 'description' => 'Auto-provision IPTV for new rooms'],
+            // IPTV Settings — Xtream Codes server
+            ['key' => 'xtream_url',              'value' => '',        'type' => 'string',  'group' => 'iptv', 'description' => 'Xtream Codes server base URL (e.g. http://xtream.example.com:8080)'],
+            ['key' => 'xtream_use_https',        'value' => '0',       'type' => 'boolean', 'group' => 'iptv', 'description' => 'Use HTTPS for Xtream Codes API'],
+            // Default/global Xtream credentials — per-device overrides stored in iptv_devices.pushed_settings
+            ['key' => 'xtream_username',         'value' => '',        'type' => 'string',  'group' => 'iptv', 'description' => 'Default Xtream Codes username (per-device can override)'],
+            ['key' => 'xtream_password',         'value' => '',        'type' => 'string',  'group' => 'iptv', 'description' => 'Default Xtream Codes password (per-device can override)'],
+
+            // IPTV Settings — Weather widget
+            ['key' => 'weather_api_key',         'value' => '',        'type' => 'string',  'group' => 'iptv', 'description' => 'OpenWeatherMap API key for TV weather widget'],
+            ['key' => 'weather_city',            'value' => '',        'type' => 'string',  'group' => 'iptv', 'description' => 'Default city for weather widget (e.g. Dubai)'],
+            ['key' => 'weather_units',           'value' => 'metric',  'type' => 'string',  'group' => 'iptv', 'description' => 'Temperature units: metric (°C) or imperial (°F)'],
+            ['key' => 'weather_enabled',         'value' => '1',       'type' => 'boolean', 'group' => 'iptv', 'description' => 'Show weather widget on TV home screen'],
+
+            // IPTV Settings — Hotel branding on TV
+            ['key' => 'hotel_welcome_message',   'value' => 'Welcome to our Hotel', 'type' => 'string',  'group' => 'iptv', 'description' => 'Welcome message shown on TV home screen'],
+            ['key' => 'hotel_primary_color',     'value' => '#FFD700', 'type' => 'string',  'group' => 'iptv', 'description' => 'Primary accent color on TV UI (hex)'],
+
+            // IPTV Settings — TV UI & behaviour
+            ['key' => 'iptv_ui_theme',           'value' => 'dark',    'type' => 'string',  'group' => 'iptv', 'description' => 'TV app UI theme: dark or light'],
+            ['key' => 'iptv_show_epg',           'value' => '1',       'type' => 'boolean', 'group' => 'iptv', 'description' => 'Show Electronic Programme Guide on TV'],
+            ['key' => 'iptv_auto_launch_seconds','value' => '15',      'type' => 'integer', 'group' => 'iptv', 'description' => 'Seconds before auto-launching IPTV player on boot'],
+            ['key' => 'iptv_show_clock',         'value' => '1',       'type' => 'boolean', 'group' => 'iptv', 'description' => 'Show clock on TV home screen'],
+            ['key' => 'iptv_show_room_number',   'value' => '1',       'type' => 'boolean', 'group' => 'iptv', 'description' => 'Show room number on TV home screen'],
+            ['key' => 'iptv_enable_vod',         'value' => '1',       'type' => 'boolean', 'group' => 'iptv', 'description' => 'Enable Video On Demand tab in TV app'],
+            ['key' => 'iptv_enable_series',      'value' => '1',       'type' => 'boolean', 'group' => 'iptv', 'description' => 'Enable Series tab in TV app'],
+            ['key' => 'iptv_enable_radio',       'value' => '1',       'type' => 'boolean', 'group' => 'iptv', 'description' => 'Enable Radio tab in TV app'],
+            ['key' => 'iptv_parental_pin',       'value' => '',        'type' => 'string',  'group' => 'iptv', 'description' => 'Global parental control PIN (4 digits) – empty = disabled'],
+            ['key' => 'admin_pin',               'value' => '1234',    'type' => 'string',  'group' => 'iptv', 'description' => 'Admin PIN to access TV settings panel'],
+
+            // IPTV Settings — Legacy (kept for compatibility)
+            ['key' => 'iptv_server_url',         'value' => '',        'type' => 'string',  'group' => 'iptv', 'description' => 'Legacy IPTV server URL (use xtream_url instead)'],
+            ['key' => 'default_channel_package', 'value' => 'premium', 'type' => 'string',  'group' => 'iptv', 'description' => 'Default channel package'],
+            ['key' => 'enable_vod',              'value' => '1',       'type' => 'boolean', 'group' => 'iptv', 'description' => 'Enable video on demand'],
+            ['key' => 'enable_parental_controls','value' => '1',       'type' => 'boolean', 'group' => 'iptv', 'description' => 'Enable parental controls'],
+            ['key' => 'auto_provision_rooms',    'value' => '1',       'type' => 'boolean', 'group' => 'iptv', 'description' => 'Auto-provision IPTV for new rooms'],
 
             // Backup Settings
             ['key' => 'backup_frequency', 'value' => 'daily', 'type' => 'string', 'group' => 'backup', 'description' => 'Backup frequency'],

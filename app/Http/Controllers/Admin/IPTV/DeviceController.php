@@ -18,6 +18,20 @@ class DeviceController extends Controller
 
     public function index()
     {
+        // Guard: if migration hasn't run yet, show empty state gracefully
+        if (!Schema::hasTable('iptv_devices')) {
+            return Inertia::render('Admin/IPTV/Devices/Index', [
+                'user'           => auth()->user()->load('roles'),
+                'navigation'     => app(\App\Http\Controllers\DashboardController::class)->getNavigationForRole('admin'),
+                'devices'        => [],
+                'stats'          => ['total' => 0, 'online' => 0, 'idle' => 0, 'offline' => 0, 'issues' => 0, 'uptime' => 0],
+                'availableRooms' => [],
+                'globalSettings' => $this->getGlobalSettings(),
+                'serverUrl'      => url('/'),
+                'migrationNeeded' => true,
+            ]);
+        }
+
         $all = IptvDevice::with(['room.roomType'])->orderBy('last_heartbeat', 'desc')->get();
 
         $devices = $all->map(fn($d) => $this->deviceResource($d));
@@ -152,14 +166,34 @@ class DeviceController extends Controller
     public function pushSettings(Request $request, IptvDevice $device)
     {
         $request->validate([
-            'xtream_url'      => 'nullable|url|max:500',
+            // Per-device Xtream credentials (override global)
             'xtream_username' => 'nullable|string|max:128',
             'xtream_password' => 'nullable|string|max:128',
+            // Optional override for Xtream URL on this device
+            'xtream_url'      => 'nullable|url|max:500',
+            // Security
             'admin_pin'       => 'nullable|string|max:16',
+            // TV UI overrides
+            'ui_theme'               => 'nullable|in:dark,light',
+            'auto_launch_seconds'    => 'nullable|integer|min:0|max:300',
+            'show_epg'               => 'nullable|boolean',
+            'show_clock'             => 'nullable|boolean',
+            'show_room_number'       => 'nullable|boolean',
+            'enable_vod'             => 'nullable|boolean',
+            'enable_series'          => 'nullable|boolean',
+            'enable_radio'           => 'nullable|boolean',
+            'parental_pin'           => 'nullable|string|max:8',
         ]);
-        $settings = array_filter($request->only(['xtream_url', 'xtream_username', 'xtream_password', 'admin_pin']));
+
+        $overrides = array_filter($request->only([
+            'xtream_username', 'xtream_password', 'xtream_url',
+            'admin_pin', 'ui_theme', 'auto_launch_seconds',
+            'show_epg', 'show_clock', 'show_room_number',
+            'enable_vod', 'enable_series', 'enable_radio', 'parental_pin',
+        ]), fn($v) => $v !== null && $v !== '');
+
         $device->update([
-            'pushed_settings'  => array_merge($device->pushed_settings ?? [], $settings),
+            'pushed_settings'  => array_merge($device->pushed_settings ?? [], $overrides),
             'settings_version' => ($device->settings_version ?? 0) + 1,
         ]);
         $device->dispatchCommand('push_settings', ['settings_version' => $device->settings_version], auth()->user()?->name);
@@ -171,16 +205,32 @@ class DeviceController extends Controller
     public function pushSettingsAll(Request $request)
     {
         $request->validate([
-            'xtream_url'      => 'nullable|url|max:500',
-            'xtream_username' => 'nullable|string|max:128',
-            'xtream_password' => 'nullable|string|max:128',
-            'admin_pin'       => 'nullable|string|max:16',
+            'xtream_url'             => 'nullable|url|max:500',
+            'xtream_username'        => 'nullable|string|max:128',
+            'xtream_password'        => 'nullable|string|max:128',
+            'admin_pin'              => 'nullable|string|max:16',
+            'ui_theme'               => 'nullable|in:dark,light',
+            'auto_launch_seconds'    => 'nullable|integer|min:0|max:300',
+            'show_epg'               => 'nullable|boolean',
+            'show_clock'             => 'nullable|boolean',
+            'show_room_number'       => 'nullable|boolean',
+            'enable_vod'             => 'nullable|boolean',
+            'enable_series'          => 'nullable|boolean',
+            'enable_radio'           => 'nullable|boolean',
+            'parental_pin'           => 'nullable|string|max:8',
         ]);
-        $settings = array_filter($request->only(['xtream_url', 'xtream_username', 'xtream_password', 'admin_pin']));
+
+        $overrides = array_filter($request->only([
+            'xtream_url', 'xtream_username', 'xtream_password',
+            'admin_pin', 'ui_theme', 'auto_launch_seconds',
+            'show_epg', 'show_clock', 'show_room_number',
+            'enable_vod', 'enable_series', 'enable_radio', 'parental_pin',
+        ]), fn($v) => $v !== null && $v !== '');
+
         $count = 0;
-        IptvDevice::where('is_active', true)->each(function (IptvDevice $device) use ($settings, &$count) {
+        IptvDevice::where('is_active', true)->each(function (IptvDevice $device) use ($overrides, &$count) {
             $device->update([
-                'pushed_settings'  => array_merge($device->pushed_settings ?? [], $settings),
+                'pushed_settings'  => array_merge($device->pushed_settings ?? [], $overrides),
                 'settings_version' => ($device->settings_version ?? 0) + 1,
             ]);
             $device->dispatchCommand('push_settings', ['settings_version' => $device->settings_version], auth()->user()?->name);
@@ -260,9 +310,20 @@ class DeviceController extends Controller
     private function getGlobalSettings(): array
     {
         try {
-            $keys = ['xtream_url', 'xtream_username', 'xtream_password', 'hotel_name',
-                     'hotel_logo', 'hotel_primary_color', 'hotel_welcome_message',
-                     'admin_pin', 'iptv_ui_theme', 'iptv_show_epg', 'iptv_auto_launch_seconds'];
+            $keys = [
+                // Xtream Codes
+                'xtream_url', 'xtream_username', 'xtream_password', 'xtream_use_https',
+                // Hotel branding for TV
+                'hotel_name', 'hotel_logo', 'hotel_address', 'hotel_phone',
+                'hotel_primary_color', 'hotel_welcome_message',
+                // Weather widget
+                'weather_api_key', 'weather_city', 'weather_units', 'weather_enabled',
+                // TV UI & behaviour
+                'iptv_ui_theme', 'iptv_show_epg', 'iptv_auto_launch_seconds',
+                'iptv_show_clock', 'iptv_show_room_number',
+                'iptv_enable_vod', 'iptv_enable_series', 'iptv_enable_radio',
+                'iptv_parental_pin', 'admin_pin',
+            ];
             return Setting::whereIn('key', $keys)->pluck('value', 'key')->toArray();
         } catch (\Exception $e) {
             return [];

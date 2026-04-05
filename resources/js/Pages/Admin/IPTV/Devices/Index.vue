@@ -1,6 +1,13 @@
 <template>
     <DashboardLayout title="Android TV Device Management" :user="user" :navigation="navigation">
 
+        <!-- Migration Notice -->
+        <div v-if="migrationNeeded" class="mb-6 px-5 py-4 rounded-xl bg-orange-900/40 border border-orange-600 text-orange-200">
+            <p class="font-bold text-orange-300 flex items-center gap-2 mb-1">⚠️ Database Migration Required</p>
+            <p class="text-sm">The IPTV device tables haven't been created on this server yet. Run the following command on your server to enable device management:</p>
+            <code class="block mt-2 bg-black/40 px-3 py-2 rounded text-xs text-yellow-300 font-mono select-all">php artisan migrate --path=database/migrations/2024_01_20_000001_create_device_commands_table.php</code>
+        </div>
+
         <!-- Flash Messages -->
         <div v-if="$page.props.flash?.success" class="mb-4 px-4 py-3 rounded-lg bg-green-900/50 border border-green-700 text-green-300 flex items-center gap-2">
             <CheckCircleIcon class="h-5 w-5 flex-shrink-0" />
@@ -372,6 +379,7 @@ const props = defineProps({
     availableRooms: { type: Array, default: () => [] },
     globalSettings: { type: Object, default: () => ({}) },
     serverUrl: { type: String, default: '' },
+    migrationNeeded: { type: Boolean, default: false },
 })
 
 const { currentTheme } = useTheme()

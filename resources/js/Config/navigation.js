@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Navigation configuration for each user role.
  *
  * Structure per role: array of section objects.
@@ -194,8 +194,15 @@ export const navigationConfig = {
             { label: '🔧 Maintenance Dashboard',  routeName: 'admin.maintenance' },
             { label: '📝 Maintenance Requests',   routeName: 'admin.maintenance-requests.index' },
             { label: '📋 Maintenance Categories', routeName: 'admin.maintenance-categories.index' },
-            { label: '📺 IPTV Devices',           routeName: 'admin.devices.index' },
-            { label: '📅 Preventive Maintenance', routeName: 'admin.maintenance.preventive.scheduled' },
+            { label: '� Preventive Maintenance', routeName: 'admin.maintenance.preventive.scheduled' },
+          ],
+        },
+        {
+          id: 'admin-iptv',
+          label: 'Android TV / IPTV',
+          icon: 'tv',
+          items: [
+            { label: 'Device Management', routeName: 'admin.iptv.devices.index' },
           ],
         },
       ],

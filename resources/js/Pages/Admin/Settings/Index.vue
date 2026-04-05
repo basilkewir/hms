@@ -678,32 +678,207 @@
                     </div>
                 </div>
 
-                <!-- IPTV Settings -->
-                <div v-show="activeTab === 'iptv'" class="space-y-6">
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- IPTV / Android TV Settings -->
+                <div v-show="activeTab === 'iptv'" class="space-y-8">
+
+                    <!-- Section: Xtream Codes Server -->
+                    <div class="bg-kotel-dark border border-kotel-border rounded-lg p-6">
+                        <h3 class="text-lg font-semibold text-kotel-yellow mb-1 flex items-center gap-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M12 5l7 7-7 7"/></svg>
+                            Xtream Codes Server
+                        </h3>
+                        <p class="text-sm text-kotel-text-tertiary mb-5">The Xtream Codes platform that serves live TV, VOD and series. Each Android TV device can have its own username/password (set per-device in Device Management).</p>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div class="md:col-span-2">
+                                <label class="block text-sm font-medium text-kotel-text-secondary mb-2">Xtream Server URL</label>
+                                <input type="url" v-model="settings.xtream_url"
+                                       placeholder="http://yourxtream.com:8080"
+                                       class="w-full border border-kotel-border rounded-md px-3 py-2 bg-kotel-black text-kotel-text-primary focus:outline-none focus:ring-2 focus:ring-kotel-yellow">
+                                <p class="mt-1 text-xs text-kotel-text-tertiary">Include port if required. Do NOT add trailing slash.</p>
+                            </div>
+                            <div class="flex items-center col-span-2">
+                                <input type="checkbox" v-model="settings.xtream_use_https"
+                                       class="h-4 w-4 text-kotel-yellow focus:ring-kotel-yellow border-kotel-border rounded bg-kotel-black">
+                                <label class="ml-2 block text-sm text-kotel-text-secondary">Use HTTPS for Xtream Codes API</label>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-kotel-text-secondary mb-2">Default Xtream Username</label>
+                                <input type="text" v-model="settings.xtream_username"
+                                       placeholder="global_username"
+                                       class="w-full border border-kotel-border rounded-md px-3 py-2 bg-kotel-black text-kotel-text-primary focus:outline-none focus:ring-2 focus:ring-kotel-yellow">
+                                <p class="mt-1 text-xs text-kotel-text-tertiary">Used as fallback if a device has no per-device credentials.</p>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-kotel-text-secondary mb-2">Default Xtream Password</label>
+                                <input type="password" v-model="settings.xtream_password"
+                                       placeholder="••••••••"
+                                       class="w-full border border-kotel-border rounded-md px-3 py-2 bg-kotel-black text-kotel-text-primary focus:outline-none focus:ring-2 focus:ring-kotel-yellow">
+                                <p class="mt-1 text-xs text-kotel-text-tertiary">Per-device passwords override this value.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Section: Hotel Branding on TV -->
+                    <div class="bg-kotel-dark border border-kotel-border rounded-lg p-6">
+                        <h3 class="text-lg font-semibold text-kotel-yellow mb-1 flex items-center gap-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+                            Hotel Branding on TV
+                        </h3>
+                        <p class="text-sm text-kotel-text-tertiary mb-5">These values appear on the Android TV home screen. Hotel name, logo and phone come from General Settings automatically — override them here for TV specifically if needed.</p>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div class="md:col-span-2">
+                                <label class="block text-sm font-medium text-kotel-text-secondary mb-2">Welcome Message</label>
+                                <input type="text" v-model="settings.hotel_welcome_message"
+                                       placeholder="Welcome to our Hotel"
+                                       class="w-full border border-kotel-border rounded-md px-3 py-2 bg-kotel-black text-kotel-text-primary focus:outline-none focus:ring-2 focus:ring-kotel-yellow">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-kotel-text-secondary mb-2">TV Accent Colour</label>
+                                <div class="flex gap-3">
+                                    <input type="color" v-model="settings.hotel_primary_color"
+                                           class="w-14 h-10 border border-kotel-border rounded-md bg-kotel-black">
+                                    <input type="text" v-model="settings.hotel_primary_color"
+                                           placeholder="#FFD700"
+                                           class="flex-1 border border-kotel-border rounded-md px-3 py-2 bg-kotel-black text-kotel-text-primary focus:outline-none focus:ring-2 focus:ring-kotel-yellow">
+                                </div>
+                                <p class="mt-1 text-xs text-kotel-text-tertiary">Hex colour used for highlights and buttons on the TV UI.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Section: Weather Widget -->
+                    <div class="bg-kotel-dark border border-kotel-border rounded-lg p-6">
+                        <h3 class="text-lg font-semibold text-kotel-yellow mb-1 flex items-center gap-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/></svg>
+                            Weather Widget
+                        </h3>
+                        <p class="text-sm text-kotel-text-tertiary mb-5">Show live weather on the TV home screen. Get a free API key at <span class="text-kotel-sky-blue">openweathermap.org</span>.</p>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div class="flex items-center col-span-2">
+                                <input type="checkbox" v-model="settings.weather_enabled"
+                                       class="h-4 w-4 text-kotel-yellow focus:ring-kotel-yellow border-kotel-border rounded bg-kotel-black">
+                                <label class="ml-2 block text-sm text-kotel-text-secondary">Enable weather widget on TV home screen</label>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-kotel-text-secondary mb-2">OpenWeatherMap API Key</label>
+                                <input type="password" v-model="settings.weather_api_key"
+                                       placeholder="••••••••••••••••"
+                                       class="w-full border border-kotel-border rounded-md px-3 py-2 bg-kotel-black text-kotel-text-primary focus:outline-none focus:ring-2 focus:ring-kotel-yellow">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-kotel-text-secondary mb-2">City</label>
+                                <input type="text" v-model="settings.weather_city"
+                                       placeholder="Dubai"
+                                       class="w-full border border-kotel-border rounded-md px-3 py-2 bg-kotel-black text-kotel-text-primary focus:outline-none focus:ring-2 focus:ring-kotel-yellow">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-kotel-text-secondary mb-2">Temperature Units</label>
+                                <select v-model="settings.weather_units"
+                                        class="w-full border border-kotel-border rounded-md px-3 py-2 bg-kotel-black text-kotel-text-primary focus:outline-none focus:ring-2 focus:ring-kotel-yellow">
+                                    <option value="metric">Metric (°C)</option>
+                                    <option value="imperial">Imperial (°F)</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Section: TV UI & Behaviour -->
+                    <div class="bg-kotel-dark border border-kotel-border rounded-lg p-6">
+                        <h3 class="text-lg font-semibold text-kotel-yellow mb-1 flex items-center gap-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17H3a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2h-2"/></svg>
+                            TV App Behaviour
+                        </h3>
+                        <p class="text-sm text-kotel-text-tertiary mb-5">Control what is displayed and how the TV app behaves. These are global defaults — devices can have per-device overrides.</p>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label class="block text-sm font-medium text-kotel-text-secondary mb-2">UI Theme</label>
+                                <select v-model="settings.iptv_ui_theme"
+                                        class="w-full border border-kotel-border rounded-md px-3 py-2 bg-kotel-black text-kotel-text-primary focus:outline-none focus:ring-2 focus:ring-kotel-yellow">
+                                    <option value="dark">Dark</option>
+                                    <option value="light">Light</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-kotel-text-secondary mb-2">Auto-launch Delay (seconds)</label>
+                                <input type="number" v-model.number="settings.iptv_auto_launch_seconds"
+                                       min="0" max="300"
+                                       class="w-full border border-kotel-border rounded-md px-3 py-2 bg-kotel-black text-kotel-text-primary focus:outline-none focus:ring-2 focus:ring-kotel-yellow">
+                                <p class="mt-1 text-xs text-kotel-text-tertiary">Seconds after boot before IPTV player auto-starts. 0 = instant.</p>
+                            </div>
+
+                            <!-- Toggle grid -->
+                            <div class="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                <div class="flex items-center gap-2">
+                                    <input type="checkbox" v-model="settings.iptv_show_epg"
+                                           class="h-4 w-4 text-kotel-yellow focus:ring-kotel-yellow border-kotel-border rounded bg-kotel-black">
+                                    <label class="text-sm text-kotel-text-secondary">Show EPG (Programme Guide)</label>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <input type="checkbox" v-model="settings.iptv_show_clock"
+                                           class="h-4 w-4 text-kotel-yellow focus:ring-kotel-yellow border-kotel-border rounded bg-kotel-black">
+                                    <label class="text-sm text-kotel-text-secondary">Show Clock on Home Screen</label>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <input type="checkbox" v-model="settings.iptv_show_room_number"
+                                           class="h-4 w-4 text-kotel-yellow focus:ring-kotel-yellow border-kotel-border rounded bg-kotel-black">
+                                    <label class="text-sm text-kotel-text-secondary">Show Room Number on Screen</label>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <input type="checkbox" v-model="settings.iptv_enable_vod"
+                                           class="h-4 w-4 text-kotel-yellow focus:ring-kotel-yellow border-kotel-border rounded bg-kotel-black">
+                                    <label class="text-sm text-kotel-text-secondary">Enable Video on Demand (VOD)</label>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <input type="checkbox" v-model="settings.iptv_enable_series"
+                                           class="h-4 w-4 text-kotel-yellow focus:ring-kotel-yellow border-kotel-border rounded bg-kotel-black">
+                                    <label class="text-sm text-kotel-text-secondary">Enable Series</label>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <input type="checkbox" v-model="settings.iptv_enable_radio"
+                                           class="h-4 w-4 text-kotel-yellow focus:ring-kotel-yellow border-kotel-border rounded bg-kotel-black">
+                                    <label class="text-sm text-kotel-text-secondary">Enable Radio</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Section: Security / PIN -->
+                    <div class="bg-kotel-dark border border-kotel-border rounded-lg p-6">
+                        <h3 class="text-lg font-semibold text-kotel-yellow mb-1 flex items-center gap-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                            PIN Protection
+                        </h3>
+                        <p class="text-sm text-kotel-text-tertiary mb-5">PINs sent to all TV devices to restrict access to settings or adult content.</p>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label class="block text-sm font-medium text-kotel-text-secondary mb-2">Admin Settings PIN</label>
+                                <input type="password" v-model="settings.admin_pin"
+                                       placeholder="4-digit PIN"
+                                       maxlength="16"
+                                       class="w-full border border-kotel-border rounded-md px-3 py-2 bg-kotel-black text-kotel-text-primary focus:outline-none focus:ring-2 focus:ring-kotel-yellow">
+                                <p class="mt-1 text-xs text-kotel-text-tertiary">Required to open the Settings panel on the TV app.</p>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-kotel-text-secondary mb-2">Parental Control PIN</label>
+                                <input type="password" v-model="settings.iptv_parental_pin"
+                                       placeholder="Leave empty to disable"
+                                       maxlength="8"
+                                       class="w-full border border-kotel-border rounded-md px-3 py-2 bg-kotel-black text-kotel-text-primary focus:outline-none focus:ring-2 focus:ring-kotel-yellow">
+                                <p class="mt-1 text-xs text-kotel-text-tertiary">PIN required to unlock adult/restricted content. Leave empty to disable parental lock.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Info box: per-device credentials -->
+                    <div class="rounded-lg border border-kotel-sky-blue/40 bg-kotel-sky-blue/10 p-4 flex gap-3">
+                        <svg class="w-5 h-5 text-kotel-sky-blue flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                         <div>
-                            <label class="block text-sm font-medium text-kotel-text-secondary mb-2">IPTV Server URL</label>
-                            <input type="url" v-model="settings.iptv_server_url"
-                                   class="w-full border border-kotel-border rounded-md px-3 py-2 bg-kotel-black text-kotel-text-primary focus:outline-none focus:ring-2 focus:ring-kotel-yellow">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-kotel-text-secondary mb-2">Default Channel Package</label>
-                            <select v-model="settings.default_channel_package"
-                                    class="w-full border border-kotel-border rounded-md px-3 py-2 bg-kotel-black text-kotel-text-primary focus:outline-none focus:ring-2 focus:ring-kotel-yellow">
-                                <option value="basic">Basic Package</option>
-                                <option value="premium">Premium Package</option>
-                                <option value="vip">VIP Package</option>
-                            </select>
-                        </div>
-                        <div class="flex items-center">
-                            <input type="checkbox" v-model="settings.enable_vod"
-                                   class="h-4 w-4 text-kotel-yellow focus:ring-kotel-yellow border-kotel-border rounded bg-kotel-black">
-                            <label class="ml-2 block text-sm text-kotel-text-secondary">Enable Video on Demand</label>
-                        </div>
-                        <div class="flex items-center">
-                            <input type="checkbox" v-model="settings.enable_parental_controls"
-                                   class="h-4 w-4 text-kotel-yellow focus:ring-kotel-yellow border-kotel-border rounded bg-kotel-black">
-                            <label class="ml-2 block text-sm text-kotel-text-secondary">Enable Parental Controls</label>
+                            <p class="text-sm font-medium text-kotel-sky-blue">Per-device Xtream credentials</p>
+                            <p class="text-sm text-kotel-text-secondary mt-1">
+                                Each TV device can have its own Xtream username and password — set them individually in
+                                <a :href="route('admin.iptv.devices.index')" class="underline text-kotel-yellow hover:text-kotel-yellow-dark">Device Management → Push Settings</a>.
+                                Per-device credentials override the global defaults above.
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -1273,12 +1448,36 @@ const settings = ref({
     force_password_change: props.settings?.security?.force_password_change || true,
     max_login_attempts: props.settings?.security?.max_login_attempts || 5,
 
-    // IPTV settings
-    iptv_server_url: props.settings?.iptv?.iptv_server_url || 'http://iptv.grandhotel.com',
-    default_channel_package: props.settings?.iptv?.default_channel_package || 'premium',
-    enable_vod: props.settings?.iptv?.enable_vod || true,
-    enable_parental_controls: props.settings?.iptv?.enable_parental_controls || true,
-    auto_provision_rooms: props.settings?.iptv?.auto_provision_rooms || true,
+    // IPTV / Android TV settings
+    xtream_url:               props.settings?.iptv?.xtream_url || '',
+    xtream_username:          props.settings?.iptv?.xtream_username || '',
+    xtream_password:          props.settings?.iptv?.xtream_password || '',
+    xtream_use_https:         props.settings?.iptv?.xtream_use_https == '1' || false,
+    // Hotel branding on TV
+    hotel_welcome_message:    props.settings?.iptv?.hotel_welcome_message || 'Welcome to our Hotel',
+    hotel_primary_color:      props.settings?.iptv?.hotel_primary_color || '#FFD700',
+    // Weather widget
+    weather_enabled:          props.settings?.iptv?.weather_enabled != '0',
+    weather_api_key:          props.settings?.iptv?.weather_api_key || '',
+    weather_city:             props.settings?.iptv?.weather_city || '',
+    weather_units:            props.settings?.iptv?.weather_units || 'metric',
+    // TV UI & behaviour
+    iptv_ui_theme:            props.settings?.iptv?.iptv_ui_theme || 'dark',
+    iptv_show_epg:            props.settings?.iptv?.iptv_show_epg != '0',
+    iptv_auto_launch_seconds: parseInt(props.settings?.iptv?.iptv_auto_launch_seconds ?? 15),
+    iptv_show_clock:          props.settings?.iptv?.iptv_show_clock != '0',
+    iptv_show_room_number:    props.settings?.iptv?.iptv_show_room_number != '0',
+    iptv_enable_vod:          props.settings?.iptv?.iptv_enable_vod != '0',
+    iptv_enable_series:       props.settings?.iptv?.iptv_enable_series != '0',
+    iptv_enable_radio:        props.settings?.iptv?.iptv_enable_radio != '0',
+    iptv_parental_pin:        props.settings?.iptv?.iptv_parental_pin || '',
+    admin_pin:                props.settings?.iptv?.admin_pin || '1234',
+    // Legacy
+    iptv_server_url:          props.settings?.iptv?.iptv_server_url || '',
+    default_channel_package:  props.settings?.iptv?.default_channel_package || 'premium',
+    enable_vod:               props.settings?.iptv?.enable_vod != '0',
+    enable_parental_controls: props.settings?.iptv?.enable_parental_controls != '0',
+    auto_provision_rooms:     props.settings?.iptv?.auto_provision_rooms != '0',
 
     // Integration settings
     'integration.booking_api_token': props.settings?.integration?.['integration.booking_api_token'] || '',
@@ -1509,11 +1708,30 @@ const saveSettings = async () => {
             settingsToSave.require_2fa = settings.value.require_2fa
             settingsToSave.force_password_change = settings.value.force_password_change
         } else if (activeTab.value === 'iptv') {
-            // IPTV settings
-            settingsToSave.iptv_server_url = settings.value.iptv_server_url
-            settingsToSave.default_channel_package = settings.value.default_channel_package
-            settingsToSave.enable_vod = settings.value.enable_vod
-            settingsToSave.enable_parental_controls = settings.value.enable_parental_controls
+            // Xtream Codes
+            settingsToSave.xtream_url = settings.value.xtream_url
+            settingsToSave.xtream_username = settings.value.xtream_username
+            settingsToSave.xtream_password = settings.value.xtream_password
+            settingsToSave.xtream_use_https = settings.value.xtream_use_https
+            // Hotel branding on TV
+            settingsToSave.hotel_welcome_message = settings.value.hotel_welcome_message
+            settingsToSave.hotel_primary_color = settings.value.hotel_primary_color
+            // Weather
+            settingsToSave.weather_enabled = settings.value.weather_enabled
+            settingsToSave.weather_api_key = settings.value.weather_api_key
+            settingsToSave.weather_city = settings.value.weather_city
+            settingsToSave.weather_units = settings.value.weather_units
+            // TV UI & behaviour
+            settingsToSave.iptv_ui_theme = settings.value.iptv_ui_theme
+            settingsToSave.iptv_show_epg = settings.value.iptv_show_epg
+            settingsToSave.iptv_auto_launch_seconds = settings.value.iptv_auto_launch_seconds
+            settingsToSave.iptv_show_clock = settings.value.iptv_show_clock
+            settingsToSave.iptv_show_room_number = settings.value.iptv_show_room_number
+            settingsToSave.iptv_enable_vod = settings.value.iptv_enable_vod
+            settingsToSave.iptv_enable_series = settings.value.iptv_enable_series
+            settingsToSave.iptv_enable_radio = settings.value.iptv_enable_radio
+            settingsToSave.iptv_parental_pin = settings.value.iptv_parental_pin
+            settingsToSave.admin_pin = settings.value.admin_pin
         } else if (activeTab.value === 'integrations') {
             // Integration settings
             settingsToSave['integration.booking_api_token'] = settings.value['integration.booking_api_token']

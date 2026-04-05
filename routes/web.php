@@ -4134,7 +4134,7 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
     Route::post('/settings/license/deactivate', [LicenseController::class, 'deactivate'])->name('settings.license.deactivate');
 
     // ── Android TV / IPTV Device Management ─────────────────────────────────
-    Route::prefix('iptv')->name('admin.iptv.')->group(function () {
+    Route::prefix('iptv')->name('iptv.')->group(function () {
         // Status refresh (JSON endpoint for live polling)
         Route::get('/devices-status', [\App\Http\Controllers\Admin\IPTV\DeviceController::class, 'statusRefresh'])->name('devices.status');
 
