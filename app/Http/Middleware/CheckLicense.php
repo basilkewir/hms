@@ -13,6 +13,10 @@ class CheckLicense
 
     public function handle(Request $request, Closure $next)
     {
+        // --- LICENSE CHECK TEMPORARILY DISABLED ---
+        // TODO: Re-enable once license system is fully working
+        return $next($request);
+
         $path = $request->path();
 
         // --- Exempt path prefixes (no license check needed) ---

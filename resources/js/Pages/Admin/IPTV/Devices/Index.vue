@@ -1,391 +1,558 @@
 <template>
-    <DashboardLayout title="IPTV Device Management" :user="user" :navigation="navigation">
-        <!-- Device Header -->
-        <div :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }" 
-             class="shadow rounded-lg p-6 mb-8 border">
+    <DashboardLayout title="Android TV Device Management" :user="user" :navigation="navigation">
+
+        <!-- Flash Messages -->
+        <div v-if="$page.props.flash?.success" class="mb-4 px-4 py-3 rounded-lg bg-green-900/50 border border-green-700 text-green-300 flex items-center gap-2">
+            <CheckCircleIcon class="h-5 w-5 flex-shrink-0" />
+            <span>{{ $page.props.flash.success }}</span>
+        </div>
+        <div v-if="$page.props.flash?.newToken" class="mb-4 px-4 py-3 rounded-lg bg-blue-900/50 border border-blue-700 text-blue-300">
+            <p class="font-semibold mb-1">🎉 Device Registered! Share this registration token with the device:</p>
+            <div class="flex items-center gap-3 mt-2">
+                <code class="bg-black/40 px-3 py-2 rounded font-mono text-lg text-yellow-300 tracking-widest select-all">{{ $page.props.flash.newToken }}</code>
+                <button @click="copyToken($page.props.flash.newToken)" class="text-xs px-2 py-1 bg-blue-700 hover:bg-blue-600 rounded text-white">Copy</button>
+            </div>
+            <p class="text-xs mt-2 text-blue-400">Server URL: <strong class="text-white">{{ serverUrl }}</strong></p>
+        </div>
+
+        <!-- Page Header -->
+        <div :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }"
+             class="shadow rounded-xl p-6 mb-6 border">
             <div class="flex items-center justify-between">
                 <div>
-                    <h1 :style="{ color: themeColors.textPrimary }" class="text-2xl font-bold">IPTV Device Management</h1>
-                    <p :style="{ color: themeColors.textSecondary }" class="mt-2">Monitor and manage all IPTV devices across the hotel</p>
+                    <h1 :style="{ color: themeColors.textPrimary }" class="text-2xl font-bold flex items-center gap-3">
+                        <TvIcon class="h-7 w-7 text-yellow-400" />
+                        Android TV Device Management
+                    </h1>
+                    <p :style="{ color: themeColors.textSecondary }" class="mt-1 text-sm">
+                        Real-time monitoring &amp; remote control for all Android TV / IPTV boxes
+                        <span class="ml-2 text-xs text-green-400">● Auto-refreshes every 15s</span>
+                    </p>
                 </div>
-                <div class="flex space-x-3">
-                    <button @click="exportDevices" 
-                            :style="{ backgroundColor: themeColors.success, color: '#000' }"
-                            class="px-4 py-2 rounded-md hover:opacity-90 transition-opacity flex items-center">
-                        <DocumentArrowDownIcon class="h-4 w-4 mr-2" />
-                        Export
+                <div class="flex items-center gap-3">
+                    <button @click="pushSettingsAll"
+                            :disabled="pushingAll"
+                            class="px-4 py-2 rounded-lg text-sm font-medium bg-purple-600 hover:bg-purple-500 text-white disabled:opacity-50 flex items-center gap-2">
+                        <ArrowUpCircleIcon class="h-4 w-4" />
+                        {{ pushingAll ? 'Pushing...' : 'Push Settings to All' }}
                     </button>
-                    <button @click="registerDevice" 
-                            :style="{ backgroundColor: themeColors.primary, color: '#000' }"
-                            class="px-4 py-2 rounded-md hover:opacity-90 transition-opacity flex items-center">
-                        <DeviceTabletIcon class="h-4 w-4 mr-2" />
-                        Register Device
+                    <button @click="showAddModal = true"
+                            class="px-4 py-2 rounded-lg text-sm font-medium bg-yellow-500 hover:bg-yellow-400 text-black flex items-center gap-2">
+                        <PlusIcon class="h-4 w-4" />
+                        Add Device
                     </button>
                 </div>
             </div>
         </div>
 
-        <!-- Device Stats -->
-        <div class="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
-            <div :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }" 
-                 class="rounded-lg shadow p-6 border">
-                <div class="flex items-center">
-                    <DeviceTabletIcon :style="{ color: themeColors.primary }" class="h-8 w-8 mr-4" />
-                    <div>
-                        <p :style="{ color: themeColors.textSecondary }" class="text-sm font-medium">Total Devices</p>
-                        <p :style="{ color: themeColors.textPrimary }" class="text-2xl font-bold">{{ deviceStats.total }}</p>
-                    </div>
-                </div>
-            </div>
-            <div :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }" 
-                 class="rounded-lg shadow p-6 border">
-                <div class="flex items-center">
-                    <CheckCircleIcon :style="{ color: themeColors.success }" class="h-8 w-8 mr-4" />
-                    <div>
-                        <p :style="{ color: themeColors.textSecondary }" class="text-sm font-medium">Online</p>
-                        <p :style="{ color: themeColors.textPrimary }" class="text-2xl font-bold">{{ deviceStats.online }}</p>
-                    </div>
-                </div>
-            </div>
-            <div :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }" 
-                 class="rounded-lg shadow p-6 border">
-                <div class="flex items-center">
-                    <XCircleIcon :style="{ color: themeColors.danger }" class="h-8 w-8 mr-4" />
-                    <div>
-                        <p :style="{ color: themeColors.textSecondary }" class="text-sm font-medium">Offline</p>
-                        <p :style="{ color: themeColors.textPrimary }" class="text-2xl font-bold">{{ deviceStats.offline }}</p>
-                    </div>
-                </div>
-            </div>
-            <div :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }" 
-                 class="rounded-lg shadow p-6 border">
-                <div class="flex items-center">
-                    <ExclamationTriangleIcon :style="{ color: themeColors.warning }" class="h-8 w-8 mr-4" />
-                    <div>
-                        <p :style="{ color: themeColors.textSecondary }" class="text-sm font-medium">Issues</p>
-                        <p :style="{ color: themeColors.textPrimary }" class="text-2xl font-bold">{{ deviceStats.issues }}</p>
-                    </div>
-                </div>
-            </div>
-            <div :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }" 
-                 class="rounded-lg shadow p-6 border">
-                <div class="flex items-center">
-                    <ClockIcon :style="{ color: themeColors.primary }" class="h-8 w-8 mr-4" />
-                    <div>
-                        <p :style="{ color: themeColors.textSecondary }" class="text-sm font-medium">Avg Uptime</p>
-                        <p :style="{ color: themeColors.textPrimary }" class="text-2xl font-bold">{{ deviceStats.uptime }}%</p>
-                    </div>
+        <!-- Stats Cards -->
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+            <div v-for="stat in statCards" :key="stat.label"
+                 :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }"
+                 class="rounded-xl border p-4 flex items-center gap-3">
+                <component :is="stat.icon" :style="{ color: stat.color }" class="h-8 w-8 flex-shrink-0" />
+                <div>
+                    <p :style="{ color: themeColors.textSecondary }" class="text-xs">{{ stat.label }}</p>
+                    <p :style="{ color: themeColors.textPrimary }" class="text-xl font-bold">{{ stat.value }}</p>
                 </div>
             </div>
         </div>
 
-        <!-- Devices Table -->
-        <div :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }" 
-             class="shadow rounded-lg overflow-hidden border">
-            <div :style="{ borderColor: themeColors.border }" class="px-6 py-4 border-b">
-                <h3 :style="{ color: themeColors.textPrimary }" class="text-lg font-medium">All IPTV Devices</h3>
-            </div>
-            <div class="overflow-x-auto">
-                <table class="min-w-full">
-                    <thead :style="{ backgroundColor: themeColors.background }">
-                        <tr>
-                            <th :style="{ color: themeColors.textSecondary }" 
-                                class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Device / Room</th>
-                            <th :style="{ color: themeColors.textSecondary }" 
-                                class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Status</th>
-                            <th :style="{ color: themeColors.textSecondary }" 
-                                class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Package</th>
-                            <th :style="{ color: themeColors.textSecondary }" 
-                                class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">IP Address</th>
-                            <th :style="{ color: themeColors.textSecondary }" 
-                                class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Last Seen</th>
-                            <th :style="{ color: themeColors.textSecondary }" 
-                                class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Version</th>
-                            <th :style="{ color: themeColors.textSecondary }" 
-                                class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr v-for="device in filteredDevices" :key="device.id"
-                            :style="hoveredRow === device.id ? { backgroundColor: themeColors.hover } : {}"
-                            @mouseenter="hoveredRow = device.id"
-                            @mouseleave="hoveredRow = null"
-                            class="transition-colors">
-                            <td class="px-6 py-4 whitespace-nowrap">
-                                <div class="flex items-center">
-                                    <div :style="{ backgroundColor: themeColors.primary, color: '#000' }" 
-                                         class="w-10 h-10 rounded-lg flex items-center justify-center mr-4">
-                                        <DeviceTabletIcon class="h-6 w-6" />
-                                    </div>
-                                    <div>
-                                        <div :style="{ color: themeColors.textPrimary }" class="text-sm font-medium">{{ device.device_id }}</div>
-                                        <div :style="{ color: themeColors.textSecondary }" class="text-sm">Room {{ device.room_number }}</div>
-                                        <div :style="{ color: themeColors.textTertiary }" class="text-xs">{{ device.mac_address }}</div>
-                                    </div>
-                                </div>
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap">
-                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
-                                      :class="getStatusColor(device.status)">
-                                    <span class="w-2 h-2 rounded-full mr-1.5" :class="getStatusDot(device.status)"></span>
-                                    {{ formatStatus(device.status) }}
-                                </span>
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap">
-                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
-                                      :class="getPackageColor(device.package)">
-                                    {{ formatPackage(device.package) }}
-                                </span>
-                            </td>
-                            <td :style="{ color: themeColors.textPrimary }" class="px-6 py-4 whitespace-nowrap text-sm">
-                                {{ device.ip_address }}
-                            </td>
-                            <td :style="{ color: themeColors.textSecondary }" class="px-6 py-4 whitespace-nowrap text-sm">
-                                {{ formatLastSeen(device.last_heartbeat) }}
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm">
-                                <div :style="{ color: themeColors.textPrimary }">{{ device.app_version }}</div>
-                                <div :style="{ color: themeColors.textTertiary }" class="text-xs">Android {{ device.android_version }}</div>
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                <div class="flex space-x-2">
-                                    <button @click="viewDevice(device)" :style="{ color: themeColors.primary }" class="hover:opacity-80">View</button>
-                                    <button @click="restartDevice(device)" :style="{ color: themeColors.success }" class="hover:opacity-80">Restart</button>
-                                    <button @click="removeDevice(device)" :style="{ color: themeColors.danger }" class="hover:opacity-80">Remove</button>
-                                </div>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
+        <!-- Main Content: Table + Side Panel -->
+        <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
 
-        <!-- Register Device Modal -->
-        <DialogModal :show="showRegisterModal" @close="closeRegisterModal">
-            <template #title>
-                Register New IPTV Device
-            </template>
-
-            <template #content>
-                <form @submit.prevent="submitRegisterDevice" class="space-y-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Device ID *</label>
-                        <input v-model="deviceForm.device_id" type="text" required
-                               placeholder="e.g., ANDROID_TV_001"
-                               class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                        <p v-if="deviceForm.errors.device_id" class="text-red-500 text-xs mt-1">{{ deviceForm.errors.device_id }}</p>
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">MAC Address *</label>
-                        <input v-model="deviceForm.mac_address" type="text" required
-                               placeholder="e.g., AA:BB:CC:DD:EE:FF"
-                               class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                        <p v-if="deviceForm.errors.mac_address" class="text-red-500 text-xs mt-1">{{ deviceForm.errors.mac_address }}</p>
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Room *</label>
-                        <select v-model="deviceForm.room_id" required
-                                class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                            <option value="">Select a room</option>
-                            <option v-for="room in availableRooms" :key="room.id" :value="room.id">
-                                Room {{ room.room_number }}
-                            </option>
+            <!-- Devices Table -->
+            <div class="xl:col-span-2">
+                <div :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }"
+                     class="rounded-xl border overflow-hidden">
+                    <!-- Table toolbar -->
+                    <div :style="{ borderColor: themeColors.border }" class="px-5 py-3 border-b flex items-center gap-3">
+                        <div class="relative flex-1">
+                            <MagnifyingGlassIcon class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                            <input v-model="search" placeholder="Search devices, rooms, IP..."
+                                   :style="{ backgroundColor: themeColors.background, color: themeColors.textPrimary, borderColor: themeColors.border }"
+                                   class="w-full pl-9 pr-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-1 focus:ring-yellow-500" />
+                        </div>
+                        <select v-model="filterStatus"
+                                :style="{ backgroundColor: themeColors.background, color: themeColors.textPrimary, borderColor: themeColors.border }"
+                                class="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-yellow-500">
+                            <option value="">All Status</option>
+                            <option value="online">Online</option>
+                            <option value="idle">Idle</option>
+                            <option value="offline">Offline</option>
                         </select>
-                        <p v-if="!availableRooms || availableRooms.length === 0" class="text-yellow-600 text-xs mt-1">
-                            No rooms available. Please create rooms first.
+                    </div>
+
+                    <!-- Table -->
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full text-sm">
+                            <thead :style="{ backgroundColor: themeColors.background }">
+                                <tr>
+                                    <th v-for="col in ['Device', 'Room', 'Status', 'Last Seen', 'Version', 'Actions']" :key="col"
+                                        :style="{ color: themeColors.textSecondary }"
+                                        class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">{{ col }}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-if="filteredDevices.length === 0">
+                                    <td colspan="6" class="px-4 py-12 text-center text-gray-400">
+                                        No devices found. Add your first Android TV device to get started.
+                                    </td>
+                                </tr>
+                                <tr v-for="device in filteredDevices" :key="device.id"
+                                    :style="selectedDevice?.id === device.id ? { backgroundColor: 'rgba(234,179,8,0.08)' } : {}"
+                                    @click="selectDevice(device)"
+                                    class="cursor-pointer transition-colors hover:bg-white/5 border-b border-white/5">
+                                    <!-- Device -->
+                                    <td class="px-4 py-3">
+                                        <div class="flex items-center gap-3">
+                                            <div :class="statusDotClass(device.computed_status)"
+                                                 class="w-2.5 h-2.5 rounded-full flex-shrink-0"></div>
+                                            <div>
+                                                <p :style="{ color: themeColors.textPrimary }" class="font-medium">
+                                                    {{ device.device_name || device.device_id }}
+                                                </p>
+                                                <p :style="{ color: themeColors.textTertiary }" class="text-xs font-mono">
+                                                    {{ device.device_id }}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <!-- Room -->
+                                    <td class="px-4 py-3">
+                                        <span :style="{ color: themeColors.textPrimary }">
+                                            {{ device.room_number ? 'Room ' + device.room_number : '—' }}
+                                        </span>
+                                    </td>
+                                    <!-- Status -->
+                                    <td class="px-4 py-3">
+                                        <span :class="statusBadgeClass(device.computed_status)"
+                                              class="px-2 py-0.5 rounded-full text-xs font-semibold capitalize">
+                                            {{ device.computed_status || 'offline' }}
+                                        </span>
+                                    </td>
+                                    <!-- Last seen -->
+                                    <td class="px-4 py-3">
+                                        <span :style="{ color: themeColors.textSecondary }">
+                                            {{ ago(device.last_heartbeat) }}
+                                        </span>
+                                    </td>
+                                    <!-- Version -->
+                                    <td class="px-4 py-3">
+                                        <span :style="{ color: themeColors.textSecondary }" class="text-xs">
+                                            {{ device.app_version || '—' }}
+                                        </span>
+                                    </td>
+                                    <!-- Actions -->
+                                    <td class="px-4 py-3">
+                                        <div class="flex items-center gap-2">
+                                            <Link :href="route('admin.iptv.devices.show', device.id)"
+                                                  class="text-xs px-2 py-1 rounded bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30">
+                                                Manage
+                                            </Link>
+                                            <button @click.stop="quickCommand(device, 'reboot')"
+                                                    class="text-xs px-2 py-1 rounded bg-blue-500/20 text-blue-400 hover:bg-blue-500/30">
+                                                Reboot
+                                            </button>
+                                            <button @click.stop="confirmDelete(device)"
+                                                    class="text-xs px-2 py-1 rounded bg-red-500/20 text-red-400 hover:bg-red-500/30">
+                                                ✕
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Side Panel: Quick Actions on selected device -->
+            <div class="space-y-4">
+                <!-- Quick Command Panel -->
+                <div :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }"
+                     class="rounded-xl border p-5">
+                    <h3 :style="{ color: themeColors.textPrimary }" class="font-semibold mb-3 flex items-center gap-2">
+                        <CommandLineIcon class="h-4 w-4 text-yellow-400" />
+                        Quick Command
+                    </h3>
+                    <div v-if="!selectedDevice" :style="{ color: themeColors.textSecondary }" class="text-sm text-center py-4">
+                        Click a device in the table to select it
+                    </div>
+                    <div v-else>
+                        <p :style="{ color: themeColors.textSecondary }" class="text-xs mb-3">
+                            Target: <strong :style="{ color: themeColors.textPrimary }">{{ selectedDevice.device_name || selectedDevice.device_id }}</strong>
                         </p>
-                        <p v-if="deviceForm.errors.room_id" class="text-red-500 text-xs mt-1">{{ deviceForm.errors.room_id }}</p>
+                        <div class="grid grid-cols-2 gap-2">
+                            <button v-for="cmd in quickCommands" :key="cmd.type"
+                                    @click="quickCommand(selectedDevice, cmd.type)"
+                                    :class="cmd.cls"
+                                    class="text-xs py-2 px-3 rounded-lg font-medium flex items-center gap-1.5 justify-center">
+                                <component :is="cmd.icon" class="h-3.5 w-3.5" />
+                                {{ cmd.label }}
+                            </button>
+                        </div>
+                        <!-- Message command -->
+                        <div class="mt-3 space-y-2">
+                            <input v-model="messageText" placeholder="Send a message to TV..."
+                                   :style="{ backgroundColor: themeColors.background, color: themeColors.textPrimary, borderColor: themeColors.border }"
+                                   class="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-1 focus:ring-yellow-500" />
+                            <button @click="sendMessage" :disabled="!messageText.trim()"
+                                    class="w-full py-2 rounded-lg text-sm font-medium bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30 disabled:opacity-40">
+                                Send Message
+                            </button>
+                        </div>
                     </div>
+                </div>
 
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">IPTV Package *</label>
-                        <select v-model="deviceForm.package" required
-                                class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                            <option value="basic">Basic (50 channels)</option>
-                            <option value="premium">Premium (150 channels)</option>
-                            <option value="vip">VIP (Unlimited channels)</option>
-                        </select>
-                        <p v-if="deviceForm.errors.package" class="text-red-500 text-xs mt-1">{{ deviceForm.errors.package }}</p>
+                <!-- Push Settings to All Panel -->
+                <div :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }"
+                     class="rounded-xl border p-5">
+                    <h3 :style="{ color: themeColors.textPrimary }" class="font-semibold mb-3 flex items-center gap-2">
+                        <Cog6ToothIcon class="h-4 w-4 text-purple-400" />
+                        Global Settings Push
+                    </h3>
+                    <p :style="{ color: themeColors.textSecondary }" class="text-xs mb-4">
+                        Override IPTV settings for all active devices simultaneously.
+                    </p>
+                    <div class="space-y-3">
+                        <div>
+                            <label :style="{ color: themeColors.textSecondary }" class="block text-xs mb-1">Xtream Server URL</label>
+                            <input v-model="globalSettings.xtream_url"
+                                   :placeholder="globalSettingsProp.xtream_url || 'http://server:port'"
+                                   :style="{ backgroundColor: themeColors.background, color: themeColors.textPrimary, borderColor: themeColors.border }"
+                                   class="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none" />
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label :style="{ color: themeColors.textSecondary }" class="block text-xs mb-1">Username</label>
+                                <input v-model="globalSettings.xtream_username"
+                                       :placeholder="globalSettingsProp.xtream_username || ''"
+                                       :style="{ backgroundColor: themeColors.background, color: themeColors.textPrimary, borderColor: themeColors.border }"
+                                       class="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none" />
+                            </div>
+                            <div>
+                                <label :style="{ color: themeColors.textSecondary }" class="block text-xs mb-1">Password</label>
+                                <input v-model="globalSettings.xtream_password" type="password"
+                                       :placeholder="globalSettingsProp.xtream_password ? '••••••' : ''"
+                                       :style="{ backgroundColor: themeColors.background, color: themeColors.textPrimary, borderColor: themeColors.border }"
+                                       class="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none" />
+                            </div>
+                        </div>
+                        <div>
+                            <label :style="{ color: themeColors.textSecondary }" class="block text-xs mb-1">Admin PIN</label>
+                            <input v-model="globalSettings.admin_pin" maxlength="6"
+                                   :placeholder="globalSettingsProp.admin_pin || '1234'"
+                                   :style="{ backgroundColor: themeColors.background, color: themeColors.textPrimary, borderColor: themeColors.border }"
+                                   class="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none" />
+                        </div>
+                        <button @click="pushSettingsAll" :disabled="pushingAll"
+                                class="w-full py-2.5 rounded-lg text-sm font-semibold bg-purple-600 hover:bg-purple-500 text-white disabled:opacity-50">
+                            {{ pushingAll ? 'Pushing to all devices...' : '⬆ Push to All Devices' }}
+                        </button>
                     </div>
+                </div>
 
-                    <div class="flex items-center justify-end space-x-4 pt-4 border-t border-gray-200">
-                        <button type="button" @click="closeRegisterModal"
-                                class="bg-gray-300 text-gray-700 px-6 py-2 rounded-md hover:bg-gray-400">
-                            Cancel
-                        </button>
-                        <button type="submit" :disabled="deviceForm.processing"
-                                class="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50">
-                            <span v-if="deviceForm.processing">Registering...</span>
-                            <span v-else>Register Device</span>
+                <!-- Server URL Info Box -->
+                <div :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }"
+                     class="rounded-xl border p-5">
+                    <h3 :style="{ color: themeColors.textPrimary }" class="font-semibold mb-3 flex items-center gap-2">
+                        <ServerIcon class="h-4 w-4 text-green-400" />
+                        Connection Info
+                    </h3>
+                    <p :style="{ color: themeColors.textSecondary }" class="text-xs mb-2">
+                        Enter this URL into the Android TV app to register it with this server:
+                    </p>
+                    <div class="flex items-center gap-2">
+                        <code :style="{ backgroundColor: themeColors.background, color: themeColors.textPrimary }"
+                              class="flex-1 px-3 py-2 rounded-lg text-xs font-mono break-all">{{ serverUrl }}</code>
+                        <button @click="copyToken(serverUrl)" class="text-xs px-2 py-1.5 bg-green-500/20 text-green-400 hover:bg-green-500/30 rounded-lg flex-shrink-0">
+                            Copy
                         </button>
                     </div>
-                </form>
-            </template>
-        </DialogModal>
+                </div>
+            </div>
+        </div>
+
+        <!-- Add Device Modal -->
+        <Teleport to="body">
+            <div v-if="showAddModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+                <div :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }"
+                     class="w-full max-w-lg mx-4 rounded-xl border shadow-2xl">
+                    <div :style="{ borderColor: themeColors.border }" class="flex items-center justify-between px-6 py-4 border-b">
+                        <h2 :style="{ color: themeColors.textPrimary }" class="text-lg font-bold">Add Android TV Device</h2>
+                        <button @click="showAddModal = false" class="text-gray-400 hover:text-white">✕</button>
+                    </div>
+                    <form @submit.prevent="submitAdd" class="p-6 space-y-4">
+                        <div class="bg-blue-900/30 border border-blue-700 rounded-lg p-3 text-xs text-blue-300">
+                            <strong>How to add a device:</strong> Enter the <strong>Server URL</strong> shown in the Connection Info box into the IPTV app on your Android TV. The app will register automatically and appear here. You can also pre-register manually below.
+                        </div>
+                        <div>
+                            <label :style="{ color: themeColors.textSecondary }" class="block text-sm mb-1">Device Name</label>
+                            <input v-model="addForm.device_name" placeholder="e.g., Room 101 TV"
+                                   :style="{ backgroundColor: themeColors.background, color: themeColors.textPrimary, borderColor: themeColors.border }"
+                                   class="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-1 focus:ring-yellow-500" />
+                        </div>
+                        <div>
+                            <label :style="{ color: themeColors.textSecondary }" class="block text-sm mb-1">Device ID (Android device ID)</label>
+                            <input v-model="addForm.device_id" required placeholder="e.g., abc123def456"
+                                   :style="{ backgroundColor: themeColors.background, color: themeColors.textPrimary, borderColor: themeColors.border }"
+                                   class="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-1 focus:ring-yellow-500" />
+                            <p :style="{ color: themeColors.textSecondary }" class="text-xs mt-1">Found in the app's "Server Setup" screen or Android Settings → About</p>
+                        </div>
+                        <div>
+                            <label :style="{ color: themeColors.textSecondary }" class="block text-sm mb-1">Assign to Room</label>
+                            <select v-model="addForm.room_id"
+                                    :style="{ backgroundColor: themeColors.background, color: themeColors.textPrimary, borderColor: themeColors.border }"
+                                    class="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-1 focus:ring-yellow-500">
+                                <option value="">— No room (assign later) —</option>
+                                <option v-for="room in availableRooms" :key="room.id" :value="room.id">
+                                    Room {{ room.room_number }}{{ room.room_type ? ' — ' + room.room_type : '' }}
+                                </option>
+                            </select>
+                        </div>
+                        <div>
+                            <label :style="{ color: themeColors.textSecondary }" class="block text-sm mb-1">Device Type</label>
+                            <select v-model="addForm.device_type"
+                                    :style="{ backgroundColor: themeColors.background, color: themeColors.textPrimary, borderColor: themeColors.border }"
+                                    class="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-1 focus:ring-yellow-500">
+                                <option value="android_tv">Android TV</option>
+                                <option value="android_box">Android Box</option>
+                                <option value="fire_stick">Fire Stick</option>
+                                <option value="other">Other</option>
+                            </select>
+                        </div>
+                        <div class="flex items-center justify-end gap-3 pt-2">
+                            <button type="button" @click="showAddModal = false"
+                                    class="px-5 py-2 rounded-lg text-sm bg-gray-700 hover:bg-gray-600 text-white">
+                                Cancel
+                            </button>
+                            <button type="submit" :disabled="addForm.processing"
+                                    class="px-5 py-2 rounded-lg text-sm font-semibold bg-yellow-500 hover:bg-yellow-400 text-black disabled:opacity-50">
+                                {{ addForm.processing ? 'Adding...' : 'Add Device' }}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </Teleport>
+
     </DashboardLayout>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
-import { router, useForm } from '@inertiajs/vue3'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { router, useForm, Link } from '@inertiajs/vue3'
 import DashboardLayout from '@/Layouts/DashboardLayout.vue'
-import DialogModal from '@/Components/DialogModal.vue'
 import { getNavigationForRole } from '@/Utils/navigation.js'
 import { useTheme } from '@/Composables/useTheme'
 import {
-    DeviceTabletIcon,
+    TvIcon,
     CheckCircleIcon,
     XCircleIcon,
     ExclamationTriangleIcon,
     ClockIcon,
-    DocumentArrowDownIcon
+    MagnifyingGlassIcon,
+    PlusIcon,
+    CommandLineIcon,
+    Cog6ToothIcon,
+    ServerIcon,
+    ArrowUpCircleIcon,
+    ArrowPathIcon,
+    ArrowDownTrayIcon,
+    LockClosedIcon,
+    LockOpenIcon,
+    ChatBubbleBottomCenterTextIcon,
 } from '@heroicons/vue/24/outline'
 
 const props = defineProps({
     user: Object,
-    devices: Array,
-    deviceStats: Object,
-    availableRooms: Array,
+    devices: { type: Array, default: () => [] },
+    stats: { type: Object, default: () => ({}) },
+    availableRooms: { type: Array, default: () => [] },
+    globalSettings: { type: Object, default: () => ({}) },
+    serverUrl: { type: String, default: '' },
 })
 
 const { currentTheme } = useTheme()
 const navigation = computed(() => getNavigationForRole('admin'))
-const hoveredRow = ref(null)
-const showRegisterModal = ref(false)
 
 const themeColors = computed(() => ({
-    background: `var(--kotel-background)`,
-    card: `var(--kotel-card)`,
-    border: `var(--kotel-border)`,
-    textPrimary: `var(--kotel-text-primary)`,
-    textSecondary: `var(--kotel-text-secondary)`,
-    textTertiary: `var(--kotel-text-tertiary)`,
-    primary: `var(--kotel-primary)`,
-    success: `var(--kotel-success)`,
-    warning: `var(--kotel-warning)`,
-    danger: `var(--kotel-danger)`,
-    hover: currentTheme.value.theme_mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.02)'
+    background: 'var(--kotel-background)',
+    card: 'var(--kotel-card)',
+    border: 'var(--kotel-border)',
+    textPrimary: 'var(--kotel-text-primary)',
+    textSecondary: 'var(--kotel-text-secondary)',
+    textTertiary: 'var(--kotel-text-tertiary)',
+    primary: 'var(--kotel-primary)',
+    success: 'var(--kotel-success)',
+    warning: 'var(--kotel-warning)',
+    danger: 'var(--kotel-danger)',
 }))
 
-const searchQuery = ref('')
-const selectedStatus = ref('')
-const selectedPackage = ref('')
+// Live device list (refreshed via polling)
+const liveDevices = ref([...(props.devices || [])])
+const globalSettingsProp = computed(() => props.globalSettings || {})
+const serverUrl = computed(() => props.serverUrl || window.location.origin)
 
-const deviceForm = useForm({
-    device_id: '',
-    mac_address: '',
-    room_id: '',
-    package: 'basic',
-})
+// Stats
+const statCards = computed(() => [
+    { label: 'Total', value: liveDevices.value.length, icon: TvIcon, color: 'var(--kotel-primary)' },
+    { label: 'Online', value: liveDevices.value.filter(d => d.computed_status === 'online').length, icon: CheckCircleIcon, color: '#22c55e' },
+    { label: 'Idle', value: liveDevices.value.filter(d => d.computed_status === 'idle').length, icon: ClockIcon, color: '#f59e0b' },
+    { label: 'Offline', value: liveDevices.value.filter(d => d.computed_status === 'offline').length, icon: XCircleIcon, color: '#ef4444' },
+    { label: 'Issues', value: props.stats?.issues ?? 0, icon: ExclamationTriangleIcon, color: '#f97316' },
+])
 
-const filteredDevices = computed(() => {
-    return props.devices.filter(device => {
-        const matchesSearch = !searchQuery.value || 
-            device.device_id.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-            device.room_number.includes(searchQuery.value) ||
-            (device.ip_address && device.ip_address.includes(searchQuery.value))
-        
-        const matchesStatus = !selectedStatus.value || device.status === selectedStatus.value
-        const matchesPackage = !selectedPackage.value || device.package === selectedPackage.value
-        
-        return matchesSearch && matchesStatus && matchesPackage
+// Filtering
+const search = ref('')
+const filterStatus = ref('')
+
+const filteredDevices = computed(() =>
+    liveDevices.value.filter(d => {
+        const q = search.value.toLowerCase()
+        const matchSearch = !q ||
+            (d.device_id || '').toLowerCase().includes(q) ||
+            (d.device_name || '').toLowerCase().includes(q) ||
+            (d.room_number || '').toString().includes(q) ||
+            (d.ip_address || '').includes(q)
+        const matchStatus = !filterStatus.value || d.computed_status === filterStatus.value
+        return matchSearch && matchStatus
     })
-})
+)
 
-const getStatusColor = (status) => {
-    const colors = {
-        online: 'bg-green-100 text-green-800',
-        offline: 'bg-red-100 text-red-800',
-        error: 'bg-yellow-100 text-yellow-800',
-        maintenance: 'bg-blue-100 text-blue-800'
-    }
-    return colors[status] || 'bg-gray-100 text-gray-800'
+// Selected device for quick command panel
+const selectedDevice = ref(null)
+const selectDevice = (device) => {
+    selectedDevice.value = selectedDevice.value?.id === device.id ? null : device
 }
 
-const getStatusDot = (status) => {
-    const colors = {
-        online: 'bg-green-400',
-        offline: 'bg-red-400',
-        error: 'bg-yellow-400',
-        maintenance: 'bg-blue-400'
-    }
-    return colors[status] || 'bg-gray-400'
+// Status helpers
+const statusDotClass = (status) => ({
+    'bg-green-400 animate-pulse': status === 'online',
+    'bg-yellow-400': status === 'idle',
+    'bg-red-400': status === 'offline' || !status,
+}[Object.keys({ 'bg-green-400 animate-pulse': status === 'online', 'bg-yellow-400': status === 'idle', 'bg-red-400': status === 'offline' || !status }).find(k => ({ 'bg-green-400 animate-pulse': status === 'online', 'bg-yellow-400': status === 'idle', 'bg-red-400': status === 'offline' || !status })[k])] || 'bg-gray-400')
+
+const statusBadgeClass = (status) => {
+    if (status === 'online') return 'bg-green-500/20 text-green-400'
+    if (status === 'idle') return 'bg-yellow-500/20 text-yellow-400'
+    return 'bg-red-500/20 text-red-400'
 }
 
-const getPackageColor = (packageType) => {
-    const colors = {
-        basic: 'bg-gray-100 text-gray-800',
-        premium: 'bg-blue-100 text-blue-800',
-        vip: 'bg-purple-100 text-purple-800'
-    }
-    return colors[packageType] || 'bg-gray-100 text-gray-800'
+const ago = (dt) => {
+    if (!dt) return 'Never'
+    const diff = Date.now() - new Date(dt).getTime()
+    const mins = Math.floor(diff / 60000)
+    if (mins < 1) return 'Just now'
+    if (mins < 60) return `${mins}m ago`
+    const hrs = Math.floor(mins / 60)
+    if (hrs < 24) return `${hrs}h ago`
+    return `${Math.floor(hrs / 24)}d ago`
 }
 
-const formatStatus = (status) => {
-    return status.charAt(0).toUpperCase() + status.slice(1)
-}
+// Quick commands
+const quickCommands = [
+    { type: 'refresh_channels', label: 'Refresh Channels', icon: ArrowPathIcon, cls: 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30' },
+    { type: 'reload_app', label: 'Reload App', icon: ArrowDownTrayIcon, cls: 'bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30' },
+    { type: 'lock', label: 'Lock Screen', icon: LockClosedIcon, cls: 'bg-orange-500/20 text-orange-400 hover:bg-orange-500/30' },
+    { type: 'unlock', label: 'Unlock', icon: LockOpenIcon, cls: 'bg-green-500/20 text-green-400 hover:bg-green-500/30' },
+    { type: 'reboot', label: 'Reboot', icon: ArrowPathIcon, cls: 'bg-red-500/20 text-red-400 hover:bg-red-500/30' },
+    { type: 'push_settings', label: 'Push Settings', icon: ArrowUpCircleIcon, cls: 'bg-purple-500/20 text-purple-400 hover:bg-purple-500/30' },
+]
 
-const formatPackage = (packageType) => {
-    return packageType.toUpperCase()
-}
+const messageText = ref('')
 
-const formatLastSeen = (date) => {
-    if (!date) return 'Never'
-    const lastSeen = new Date(date)
-    const now = new Date()
-    const diff = now - lastSeen
-    const minutes = Math.floor(diff / 60000)
-    
-    if (minutes < 1) return 'Just now'
-    if (minutes < 60) return `${minutes}m ago`
-    
-    const hours = Math.floor(minutes / 60)
-    if (hours < 24) return `${hours}h ago`
-    
-    const days = Math.floor(hours / 24)
-    return `${days}d ago`
-}
-
-const registerDevice = () => {
-    showRegisterModal.value = true
-}
-
-const closeRegisterModal = () => {
-    showRegisterModal.value = false
-    deviceForm.reset()
-}
-
-const submitRegisterDevice = () => {
-    deviceForm.post(route('admin.iptv.devices.store'), {
+const quickCommand = (device, type) => {
+    if (!device) return
+    if (type === 'reboot' && !confirm(`Reboot ${device.device_name || device.device_id}?`)) return
+    router.post(route('admin.iptv.devices.command', device.id), { type }, {
+        preserveScroll: true,
         onSuccess: () => {
-            closeRegisterModal()
+            if (type === 'reboot') alert('Reboot command queued. Device will restart on next heartbeat.')
         }
     })
 }
 
-const exportDevices = () => {
-    alert('Exporting device list...')
+const sendMessage = () => {
+    if (!selectedDevice.value || !messageText.value.trim()) return
+    router.post(route('admin.iptv.devices.command', selectedDevice.value.id), {
+        type: 'message',
+        payload: { text: messageText.value.trim() }
+    }, {
+        preserveScroll: true,
+        onSuccess: () => { messageText.value = '' }
+    })
 }
 
-const viewDevice = (device) => {
-    alert(`Viewing device ${device.device_id}`)
+// Add device
+const showAddModal = ref(false)
+const addForm = useForm({
+    device_name: '',
+    device_id: '',
+    room_id: '',
+    device_type: 'android_tv',
+})
+
+const submitAdd = () => {
+    addForm.post(route('admin.iptv.devices.store'), {
+        onSuccess: () => { showAddModal.value = false; addForm.reset() }
+    })
 }
 
-const restartDevice = (device) => {
-    if (confirm(`Restart device ${device.device_id}?`)) {
-        alert(`Restarting device ${device.device_id}...`)
-    }
+// Delete
+const confirmDelete = (device) => {
+    if (!confirm(`Remove device "${device.device_name || device.device_id}"? This cannot be undone.`)) return
+    router.delete(route('admin.iptv.devices.destroy', device.id), { preserveScroll: true })
 }
 
-const updateDevice = (device) => {
-    alert(`Updating device ${device.device_id}...`)
+// Push settings to all
+const pushingAll = ref(false)
+const globalSettings = ref({
+    xtream_url: '',
+    xtream_username: '',
+    xtream_password: '',
+    admin_pin: '',
+})
+
+const pushSettingsAll = () => {
+    if (!confirm('Push these settings to ALL active devices?')) return
+    pushingAll.value = true
+    router.post(route('admin.iptv.devices.push-all'), globalSettings.value, {
+        preserveScroll: true,
+        onFinish: () => { pushingAll.value = false }
+    })
 }
 
-const removeDevice = (device) => {
-    if (confirm(`Remove device ${device.device_id}?`)) {
-        router.delete(route('admin.iptv.devices.destroy', device.id))
-    }
+// Copy to clipboard
+const copyToken = (text) => {
+    navigator.clipboard.writeText(text).then(() => alert('Copied to clipboard!'))
 }
+
+// Auto-refresh every 15 seconds
+let pollTimer = null
+const startPolling = () => {
+    pollTimer = setInterval(async () => {
+        try {
+            const res = await fetch(route('admin.iptv.devices.status'), {
+                headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+            })
+            if (res.ok) {
+                const data = await res.json()
+                if (data.devices) {
+                    // Merge live status fields into full device objects (preserves name, room, etc.)
+                    const statusMap = {}
+                    data.devices.forEach(d => { statusMap[d.id] = d })
+                    liveDevices.value = liveDevices.value.map(dev => {
+                        const live = statusMap[dev.id]
+                        return live ? { ...dev, ...live } : dev
+                    })
+                }
+            }
+        } catch (_) { /* silent */ }
+    }, 15000)
+}
+
+onMounted(startPolling)
+onUnmounted(() => clearInterval(pollTimer))
 </script>

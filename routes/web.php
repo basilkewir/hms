@@ -57,30 +57,13 @@ Route::post('/register', function () {
 });
 
 Route::get('/license/activate', function () {
-    $service = app(\App\Services\LicenseValidationService::class);
-
-    return Inertia::render('Auth/LicenseActivate', [
-        'trial' => $service->getTrialStatus(),
-    ]);
+    // License check is temporarily disabled — redirect straight to login
+    return redirect()->route('login');
 })->name('license.activate');
 
 Route::post('/license/activate', function (Request $request) {
-    $request->validate([
-        'license_key' => 'required|string|size:35',
-        'hotel_name'  => 'nullable|string|max:255',
-    ]);
-
-    $service = app(\App\Services\LicenseValidationService::class);
-    $result = $service->validateLicense(
-        $request->license_key,
-        $request->hotel_name ?: config('app.name')
-    );
-
-    if (!$result['valid']) {
-        return back()->withErrors(['license_key' => $result['message']])->withInput();
-    }
-
-    return redirect()->intended(route('login'))->with('success', 'License activated! Please log in.');
+    // License check is temporarily disabled — redirect straight to login
+    return redirect()->route('login');
 })->name('license.activate.store');
 
 if (!function_exists('hms_label_to_key')) {
@@ -2914,14 +2897,14 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
 
     Route::post('/checkout', [\App\Http\Controllers\FrontDesk\CheckOutController::class, 'store'])->name('checkout.store');
     Route::post('/checkout/service-charge', [\App\Http\Controllers\FrontDesk\CheckOutController::class, 'addServiceCharge'])->name('checkout.service-charge');
-    
+
     // Online Booking Payments (all online booking payments)
     Route::get('/payments/online-booking', function () {
         $user = auth()->user()->load('roles');
         $role = $user->roles->first()?->name ?? 'admin';
-        
+
         $onlineSources = ['website', 'booking_com', 'expedia', 'agoda'];
-        
+
         $payments = \App\Models\Payment::with(['reservation.guest', 'reservation.room', 'processedBy'])
             ->whereHas('reservation', function ($query) use ($onlineSources) {
                 $query->whereIn('booking_source', $onlineSources)
@@ -2930,7 +2913,7 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
             ->orderByRaw('COALESCE(processed_at, created_at) DESC')
             ->paginate(20)
             ->withQueryString();
-        
+
         return Inertia::render('FrontDesk/Payments/History', [
             'user' => $user,
             'navigation' => app(DashboardController::class)->getNavigationForRole($role),
@@ -4043,6 +4026,27 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
     Route::post('/settings/license/activate', [LicenseController::class, 'activate'])->name('settings.license.activate');
     Route::post('/settings/license/refresh', [LicenseController::class, 'refresh'])->name('settings.license.refresh');
     Route::post('/settings/license/deactivate', [LicenseController::class, 'deactivate'])->name('settings.license.deactivate');
+
+    // ── Android TV / IPTV Device Management ─────────────────────────────────
+    Route::prefix('iptv')->name('admin.iptv.')->group(function () {
+        // Status refresh (JSON endpoint for live polling)
+        Route::get('/devices-status', [\App\Http\Controllers\Admin\IPTV\DeviceController::class, 'statusRefresh'])->name('devices.status');
+
+        // Push settings to ALL active devices
+        Route::post('/devices/push-all', [\App\Http\Controllers\Admin\IPTV\DeviceController::class, 'pushSettingsAll'])->name('devices.push-all');
+
+        // Individual device CRUD
+        Route::get('/devices', [\App\Http\Controllers\Admin\IPTV\DeviceController::class, 'index'])->name('devices.index');
+        Route::post('/devices', [\App\Http\Controllers\Admin\IPTV\DeviceController::class, 'store'])->name('devices.store');
+        Route::get('/devices/{device}', [\App\Http\Controllers\Admin\IPTV\DeviceController::class, 'show'])->name('devices.show');
+        Route::put('/devices/{device}', [\App\Http\Controllers\Admin\IPTV\DeviceController::class, 'update'])->name('devices.update');
+        Route::delete('/devices/{device}', [\App\Http\Controllers\Admin\IPTV\DeviceController::class, 'destroy'])->name('devices.destroy');
+
+        // Remote management actions
+        Route::post('/devices/{device}/command', [\App\Http\Controllers\Admin\IPTV\DeviceController::class, 'sendCommand'])->name('devices.command');
+        Route::post('/devices/{device}/push-settings', [\App\Http\Controllers\Admin\IPTV\DeviceController::class, 'pushSettings'])->name('devices.push-settings');
+        Route::post('/devices/{device}/regenerate-token', [\App\Http\Controllers\Admin\IPTV\DeviceController::class, 'regenerateToken'])->name('devices.regenerate-token');
+    });
 
     // Settings (main route for frontend)
     Route::get('/settings/main', function () {

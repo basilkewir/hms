@@ -6,21 +6,35 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
 use App\Http\Controllers\Api\BookingController;
 use App\Http\Controllers\Api\OnlineBookingController;
+use App\Http\Controllers\Api\AndroidDeviceController;
 // use App\Http\Controllers\Api\IptvController;
-// use App\Http\Controllers\Api\GuestController;
-// use App\Http\Controllers\Api\ReservationController;
-// use App\Http\Controllers\Api\RoomController;
 
 /*
 |--------------------------------------------------------------------------
 | API Routes
 |--------------------------------------------------------------------------
-|
-| Here is where you can register API routes for your application. These
-| routes are loaded by the RouteServiceProvider and all of them will
-| be assigned to the "api" middleware group. Make something great!
-|
 */
+
+// ── Android IPTV Device API ────────────────────────────────────────────────
+// All Android TV / Android Box clients connect through these endpoints.
+// No session/cookie auth — devices identify via device_id + registration_token.
+Route::prefix('android')->group(function () {
+    // Public — called before token exists
+    Route::get('/hotel-info',   [AndroidDeviceController::class, 'hotelInfo']);
+
+    // Throttled registration (prevent spam)
+    Route::middleware(['throttle:10,1'])->group(function () {
+        Route::post('/register', [AndroidDeviceController::class, 'register']);
+    });
+
+    // Device-authenticated routes (require device_id + registration_token in body)
+    Route::middleware(['throttle:120,1'])->group(function () {
+        Route::post('/heartbeat',    [AndroidDeviceController::class, 'heartbeat']);
+        Route::post('/command-ack',  [AndroidDeviceController::class, 'commandAck']);
+        Route::get('/settings',      [AndroidDeviceController::class, 'getSettings']);
+        Route::get('/iptv-config',   [AndroidDeviceController::class, 'getIptvConfig']);
+    });
+});
 
 // Public API routes (no authentication required)
 Route::prefix('public')->middleware(['throttle:60,1'])->group(function () {
@@ -1106,7 +1120,7 @@ Route::get('/health', function () {
         'version' => '1.0.0',
         'services' => [
             'database' => 'connected',
-            'cache' => 'connected', 
+            'cache' => 'connected',
             'storage' => 'accessible',
         ]
     ]);
