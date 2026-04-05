@@ -1,6 +1,6 @@
 <script setup>
-import { ref } from 'vue';
-import { Head, Link, router } from '@inertiajs/vue3';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import ApplicationMark from '@/Components/ApplicationMark.vue';
 import Banner from '@/Components/Banner.vue';
 import Dropdown from '@/Components/Dropdown.vue';
@@ -13,6 +13,99 @@ defineProps({
 });
 
 const showingNavigationDropdown = ref(false);
+const notificationsOpen = ref(false);
+const page = usePage();
+const liveNotifications = ref(page.props.notifications || { unread_count: 0, items: [] });
+let notificationsRefreshInterval = null;
+
+const notifications = computed(() => {
+    return liveNotifications.value || { unread_count: 0, items: [] };
+});
+
+const refreshNotifications = async () => {
+    try {
+        const response = await fetch(route('notifications.index'), {
+            method: 'GET',
+            headers: {
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            credentials: 'same-origin',
+        });
+
+        if (!response.ok) return;
+
+        liveNotifications.value = await response.json();
+    } catch (error) {
+        // Keep the last successful bell state if refresh fails.
+    }
+};
+
+const formatNotificationTime = (dateString) => {
+    if (!dateString) return '';
+
+    return new Date(dateString).toLocaleString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+    });
+};
+
+const toggleNotifications = async () => {
+    if (!notificationsOpen.value) {
+        await refreshNotifications();
+    }
+
+    notificationsOpen.value = !notificationsOpen.value;
+};
+
+const markAllNotificationsAsRead = () => {
+    router.post(route('notifications.read-all'), {}, {
+        preserveScroll: true,
+        preserveState: true,
+        onSuccess: () => {
+            refreshNotifications();
+            notificationsOpen.value = false;
+        },
+    });
+};
+
+const openNotification = (notification) => {
+    const visitTarget = () => {
+        notificationsOpen.value = false;
+
+        if (notification.action_url) {
+            router.visit(notification.action_url);
+        }
+    };
+
+    if (notification.is_read) {
+        visitTarget();
+        return;
+    }
+
+    router.post(route('notifications.read', notification.id), {}, {
+        preserveScroll: true,
+        preserveState: true,
+        onSuccess: () => {
+            refreshNotifications();
+            visitTarget();
+        },
+        onError: visitTarget,
+    });
+};
+
+onMounted(() => {
+    refreshNotifications();
+    notificationsRefreshInterval = window.setInterval(refreshNotifications, 30000);
+});
+
+onUnmounted(() => {
+    if (notificationsRefreshInterval) {
+        window.clearInterval(notificationsRefreshInterval);
+    }
+});
 
 const switchToTeam = (team) => {
     router.put(route('current-team.update'), {
@@ -55,6 +148,50 @@ const logout = () => {
                         </div>
 
                         <div class="hidden sm:flex sm:items-center sm:ms-6">
+                            <div class="ms-3 relative">
+                                <button @click="toggleNotifications" type="button" class="relative inline-flex items-center justify-center p-2 rounded-md text-gray-500 bg-white hover:text-gray-700 focus:outline-none focus:bg-gray-50 active:bg-gray-50 transition ease-in-out duration-150">
+                                    <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                                    </svg>
+                                    <span v-if="notifications.unread_count > 0" class="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                                        {{ notifications.unread_count > 99 ? '99+' : notifications.unread_count }}
+                                    </span>
+                                </button>
+
+                                <div v-show="notificationsOpen" class="absolute right-0 mt-2 w-80 rounded-md border border-gray-200 bg-white shadow-lg overflow-hidden z-50">
+                                    <div class="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+                                        <div>
+                                            <p class="text-sm font-semibold text-gray-900">Notifications</p>
+                                            <p class="text-xs text-gray-500">{{ notifications.unread_count }} unread</p>
+                                        </div>
+                                        <button v-if="notifications.unread_count > 0" @click="markAllNotificationsAsRead" type="button" class="text-xs font-medium text-indigo-600 hover:text-indigo-800">
+                                            Mark all read
+                                        </button>
+                                    </div>
+
+                                    <div v-if="notifications.items?.length" class="max-h-80 overflow-y-auto">
+                                        <button v-for="notification in notifications.items"
+                                                :key="notification.id"
+                                                @click="openNotification(notification)"
+                                                type="button"
+                                                class="w-full text-left px-4 py-3 border-b border-gray-100 hover:bg-gray-50 transition">
+                                            <div class="flex items-start justify-between gap-3">
+                                                <div class="min-w-0">
+                                                    <p class="text-sm font-medium text-gray-900 truncate">{{ notification.title }}</p>
+                                                    <p class="text-xs text-gray-600 mt-1 leading-5">{{ notification.body }}</p>
+                                                    <p class="text-[11px] text-gray-400 mt-1">{{ formatNotificationTime(notification.created_at) }}</p>
+                                                </div>
+                                                <span v-if="!notification.is_read" class="mt-1 w-2 h-2 rounded-full bg-indigo-600 flex-shrink-0"></span>
+                                            </div>
+                                        </button>
+                                    </div>
+
+                                    <div v-else class="px-4 py-4 text-sm text-gray-500">
+                                        No notifications.
+                                    </div>
+                                </div>
+                            </div>
+
                             <div class="ms-3 relative">
                                 <!-- Teams Dropdown -->
                                 <Dropdown v-if="$page.props.jetstream.hasTeamFeatures" align="right" width="60">

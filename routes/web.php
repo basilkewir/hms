@@ -29,6 +29,8 @@ use App\Http\Controllers\Admin\MaintenanceCategoryController;
 use App\Http\Controllers\Admin\MaintenanceRequestController;
 use App\Http\Controllers\Admin\BackupController;
 use App\Http\Controllers\Admin\LicenseController;
+use App\Http\Controllers\BillAdjustmentRequestManagementController;
+use App\Support\MoneyInput;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 
@@ -92,6 +94,7 @@ if (!function_exists('hms_transaction_source_meta')) {
         ];
 
         $serviceChargeCodes = ['SERVICE', 'SERVICE_CHARGE', 'ROOM_SERVICE', 'RESORT_FEE'];
+        $adjustmentChargeCodes = ['ADJUSTMENT'];
         $damageChargeCodes = ['DAMAGE', 'DAMAGES', 'DAMAGE_FEE', 'BREAKAGE'];
         $posChargeCodes = ['POS', 'POS_SALE', 'FOOD', 'BEVERAGE', 'RESTAURANT', 'BAR', 'MINIBAR'];
         $parkingChargeCodes = ['PARKING', 'VALET_PARKING'];
@@ -101,8 +104,10 @@ if (!function_exists('hms_transaction_source_meta')) {
             'payment' => !empty($context['reservation_id']) ? 'Room Payment' : 'Payment',
             'sale' => !empty($context['is_charged_to_room']) ? 'POS Room Charge' : 'POS Restaurant/Bar',
             'pos_transaction' => 'POS Restaurant/Bar',
+            'bill_adjustment' => 'Bill Adjustment',
             'folio_charge' => match (true) {
                 in_array($chargeCode, $roomChargeCodes, true) => 'Room Folio',
+                in_array($chargeCode, $adjustmentChargeCodes, true) => 'Bill Adjustment',
                 in_array($chargeCode, $serviceChargeCodes, true) => 'Service Charge',
                 in_array($chargeCode, $damageChargeCodes, true) => 'Damages',
                 in_array($chargeCode, $parkingChargeCodes, true) => 'Parking',
@@ -121,6 +126,23 @@ if (!function_exists('hms_transaction_source_meta')) {
             'source_key' => hms_label_to_key($label),
             'source_label' => $label,
         ];
+    }
+}
+
+if (!function_exists('hms_bill_adjustment_sum')) {
+    function hms_bill_adjustment_sum(?string $startDate = null, ?string $endDate = null, ?int $employeeId = null): float
+    {
+        return (float) \App\Models\GuestBillAdjustmentRequest::query()
+            ->join('folio_charges as bill_adjustment_charges', 'guest_bill_adjustment_requests.folio_charge_id', '=', 'bill_adjustment_charges.id')
+            ->where('guest_bill_adjustment_requests.status', 'approved')
+            ->where('bill_adjustment_charges.charge_code', 'ADJUSTMENT')
+            ->where(function ($query) {
+                $query->where('bill_adjustment_charges.is_voided', false)
+                    ->orWhereNull('bill_adjustment_charges.is_voided');
+            })
+            ->when($employeeId, fn($query) => $query->where('guest_bill_adjustment_requests.reviewed_by', $employeeId))
+            ->when($startDate && $endDate, fn($query) => $query->whereBetween('bill_adjustment_charges.charge_date', [$startDate, $endDate]))
+            ->sum('bill_adjustment_charges.net_amount');
     }
 }
 
@@ -167,6 +189,52 @@ Route::middleware(['auth'])->group(function () {
             })->toArray()
         ]);
     })->name('profile.show');
+
+    Route::post('/notifications/{notification}/read', function (\Illuminate\Notifications\DatabaseNotification $notification) {
+        abort_unless((int) $notification->notifiable_id === (int) auth()->id(), 403);
+
+        if ($notification->read_at === null) {
+            $notification->markAsRead();
+        }
+
+        return back();
+    })->name('notifications.read');
+
+    Route::get('/notifications', function () {
+        $user = auth()->user();
+
+        return response()->json([
+            'unread_count' => $user?->unreadNotifications()->count() ?? 0,
+            'items' => $user?->notifications()
+                ->latest()
+                ->limit(8)
+                ->get()
+                ->map(function ($notification) {
+                    $data = is_array($notification->data) ? $notification->data : [];
+
+                    return [
+                        'id' => $notification->id,
+                        'title' => $data['title'] ?? 'Notification',
+                        'body' => $data['body'] ?? null,
+                        'action_url' => $data['action_url'] ?? null,
+                        'event' => $data['event'] ?? null,
+                        'reservation_id' => $data['reservation_id'] ?? null,
+                        'reservation_number' => $data['reservation_number'] ?? null,
+                        'created_at' => optional($notification->created_at)?->toISOString(),
+                        'read_at' => optional($notification->read_at)?->toISOString(),
+                        'is_read' => $notification->read_at !== null,
+                    ];
+                })
+                ->values()
+                ->all() ?? [],
+        ]);
+    })->name('notifications.index');
+
+    Route::post('/notifications/read-all', function () {
+        auth()->user()?->unreadNotifications->markAsRead();
+
+        return back();
+    })->name('notifications.read-all');
 });
 
 // Admin Routes
@@ -1945,11 +2013,15 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
 
         // ── Transaction Statistics ─────────────────────────────────────────────
         $today = now()->toDateString();
+        $todayAdjustmentRev = hms_bill_adjustment_sum($today, $today, $employeeId ? (int) $employeeId : null);
+        $totalAdjustmentRev = hms_bill_adjustment_sum(null, null, $employeeId ? (int) $employeeId : null);
 
         $todayRevenue   = (float) \App\Models\Payment::whereDate('processed_at', $today)->where('status', 'completed')->sum('amount')
-                        + \App\Models\Sale::whereDate('created_at', $today)->sum('total_amount');
+                + \App\Models\Sale::whereDate('created_at', $today)->sum('total_amount')
+                + $todayAdjustmentRev;
         $totalRevenue   = (float) \App\Models\Payment::where('status', 'completed')->sum('amount')
-                        + \App\Models\Sale::sum('total_amount');
+                + \App\Models\Sale::sum('total_amount')
+                + $totalAdjustmentRev;
         $todayRoomRev   = (float) \App\Models\Payment::whereDate('processed_at', $today)->where('status', 'completed')->whereHas('reservation')->sum('amount');
         $todayPosRev    = (float) \App\Models\Sale::whereDate('created_at', $today)->sum('total_amount');
         $allRoomRev     = (float) \App\Models\Payment::where('status', 'completed')->whereHas('reservation')->sum('amount');
@@ -1963,12 +2035,14 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
             'todayByRevenueCenter'   => [
                 'room'          => ['label' => 'Room Revenue',   'amount' => $todayRoomRev, 'count' => \App\Models\Payment::whereDate('processed_at', $today)->whereHas('reservation')->count()],
                 'food_beverage' => ['label' => 'Food & Beverage','amount' => $todayPosRev,  'count' => \App\Models\Sale::whereDate('created_at', $today)->count()],
-                'other'         => ['label' => 'Other',          'amount' => max(0, $todayRevenue - $todayRoomRev - $todayPosRev), 'count' => 0],
+                'bill_adjustments' => ['label' => 'Bill Adjustments', 'amount' => $todayAdjustmentRev, 'count' => \App\Models\GuestBillAdjustmentRequest::where('status', 'approved')->whereDate('reviewed_at', $today)->count()],
+                'other'         => ['label' => 'Other',          'amount' => $todayRevenue - $todayRoomRev - $todayPosRev - $todayAdjustmentRev, 'count' => 0],
             ],
             'allTimeByRevenueCenter' => [
                 'room'          => ['label' => 'Room Revenue',   'amount' => $allRoomRev,  'count' => \App\Models\Payment::where('status', 'completed')->whereHas('reservation')->count()],
                 'food_beverage' => ['label' => 'Food & Beverage','amount' => $allPosRev,   'count' => \App\Models\Sale::count()],
-                'other'         => ['label' => 'Other',          'amount' => max(0, $totalRevenue - $allRoomRev - $allPosRev), 'count' => 0],
+                'bill_adjustments' => ['label' => 'Bill Adjustments', 'amount' => $totalAdjustmentRev, 'count' => \App\Models\GuestBillAdjustmentRequest::where('status', 'approved')->count()],
+                'other'         => ['label' => 'Other',          'amount' => $totalRevenue - $allRoomRev - $allPosRev - $totalAdjustmentRev, 'count' => 0],
             ],
         ];
 
@@ -2079,18 +2153,22 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
                 ->limit(10)
                 ->get()
                 ->map(function ($fc) {
+                    $isBillAdjustment = strtoupper((string) $fc->charge_code) === 'ADJUSTMENT';
+
                     return array_merge([
                         'id'            => $fc->id,
                         'source_id'     => $fc->id,
-                        'transaction_id' => 'FOLIO-' . $fc->id,
+                        'transaction_id' => $isBillAdjustment ? 'ADJ-' . ($fc->reference_id ?? $fc->id) : 'FOLIO-' . $fc->id,
                         'guest_name'    => $fc->folio?->reservation?->guest
                             ? trim($fc->folio->reservation->guest->first_name . ' ' . $fc->folio->reservation->guest->last_name)
                             : 'Guest',
-                        'reference'     => $fc->folio?->reservation?->id ? 'Room #' . $fc->folio->reservation->room?->room_number . ' Folio' : 'Room Charge',
-                        'type'          => 'folio_charge',
+                        'reference'     => $isBillAdjustment
+                            ? ('Reservation ' . ($fc->folio?->reservation?->reservation_number ?? ('#' . ($fc->folio?->reservation?->id ?? 'N/A'))))
+                            : ($fc->folio?->reservation?->id ? 'Room #' . $fc->folio->reservation->room?->room_number . ' Folio' : 'Room Charge'),
+                        'type'          => $isBillAdjustment ? 'bill_adjustment' : 'folio_charge',
                         'amount'        => (float)$fc->net_amount,
                         'status'        => 'active',
-                        'payment_method' => 'room_charge',
+                        'payment_method' => $isBillAdjustment ? 'folio_adjustment' : 'room_charge',
                         'user_id'       => $fc->posted_by,
                         'user_name'     => $fc->postedBy
                             ? trim(($fc->postedBy->first_name ?? '') . ' ' . ($fc->postedBy->last_name ?? ''))
@@ -2291,7 +2369,29 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
         $validated['status']         = 'pending';
         $validated['expense_number'] = 'EXP-' . strtoupper(uniqid());
         $validated['currency']       = \App\Models\Setting::get('currency', 'USD');
-        \App\Models\Expense::create($validated);
+        $validated['amount']         = MoneyInput::fromRequest($request, 'amount');
+        $expense = \App\Models\Expense::create($validated);
+        app(\App\Services\SystemActivityNotifier::class)->notifyRoles(
+            ['admin', 'manager', 'accountant'],
+            'expense.created',
+            'New expense submitted',
+            sprintf(
+                'Expense %s for %s was submitted by %s.',
+                $expense->expense_number,
+                MoneyInput::format($expense->amount),
+                request()->user()?->full_name ?? request()->user()?->email ?? 'Staff'
+            ),
+            [
+                'manager' => route('manager.expenses.show', $expense),
+                'accountant' => route('accountant.expenses.show', $expense),
+                'default' => route('admin.expenses.show', $expense),
+            ],
+            [
+                'expense_id' => $expense->id,
+                'expense_number' => $expense->expense_number,
+                'expense_status' => $expense->status,
+            ],
+        );
         return redirect()->route('admin.expenses.index')->with('success', 'Expense recorded successfully.');
     })->name('expenses.store');
 
@@ -2574,6 +2674,12 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
         ->name('reservations.service-charges.index');
     Route::post('/reservations/{reservation}/service-charges', [\App\Http\Controllers\Admin\ServiceChargeController::class, 'store'])
         ->name('reservations.service-charges.store');
+    Route::get('/bill-adjustment-requests', [BillAdjustmentRequestManagementController::class, 'adminIndex'])
+        ->name('bill-adjustment-requests.index');
+    Route::post('/reservations/{reservation}/bill-adjustment-requests/{billAdjustmentRequest}/approve', [\App\Http\Controllers\ReservationBillAdjustmentController::class, 'approve'])
+        ->name('reservations.bill-adjustment-requests.approve');
+    Route::post('/reservations/{reservation}/bill-adjustment-requests/{billAdjustmentRequest}/reject', [\App\Http\Controllers\ReservationBillAdjustmentController::class, 'reject'])
+        ->name('reservations.bill-adjustment-requests.reject');
     Route::post('/folio-charges/{charge}/void', [\App\Http\Controllers\Admin\ServiceChargeController::class, 'void'])
         ->name('folio-charges.void');
 
@@ -4510,6 +4616,7 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
             $dailyByDate[$date]['revenue'] += (float) $revenue;
         };
         $recentSales = collect();
+        $billAdjustmentRevenue = 0.0;
 
         // revenueData structure expected by Revenue.vue
         $posRevenue  = 0.0;
@@ -4531,6 +4638,8 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
             ])->values();
 
         try {
+            $financialService = app(\App\Services\FinancialService::class);
+
             // ── Sales (POS) ───────────────────────────────────────────
             if (class_exists(\App\Models\Sale::class)) {
                 $dateCol = \Schema::hasColumn('sales', 'sale_date') ? 'sale_date' : 'created_at';
@@ -4591,8 +4700,27 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
                     ]);
             }
 
-            // ── Room Revenue (Reservations) ───────────────────────────
-            if (class_exists(\App\Models\Reservation::class) && \Schema::hasColumn('reservations', 'total_amount')) {
+            // ── Ledger-backed revenue summary ──────────────────────────
+            if (!$employeeId) {
+                $revenueSummary = $financialService->getRevenueData($start, $end);
+                $expenseSummary = $financialService->getExpenseData($start, $end);
+
+                $roomRevenue = (float) ($revenueSummary['room_revenue'] ?? 0);
+                $billAdjustmentRevenue = (float) ($revenueSummary['bill_adjustment_revenue'] ?? 0);
+                $posRevenue = (float) ($revenueSummary['pos_sales_revenue'] ?? 0);
+                $stats['total_revenue'] = (float) ($revenueSummary['total_revenue'] ?? 0);
+                $revByCategory = collect($revenueSummary['revenue_by_category'] ?? [])->map(fn($item) => [
+                    'category' => $item['category'],
+                    'amount' => (float) ($item['amount'] ?? 0),
+                    'formatted_amount' => $fmt($item['amount'] ?? 0),
+                ])->values()->toArray();
+                $totalExpenses = (float) ($expenseSummary['total_expenses'] ?? 0);
+                $expByCategory = collect($expenseSummary['expenses_by_category'] ?? [])->map(fn($item) => [
+                    'category' => $item['category'],
+                    'amount' => (float) ($item['amount'] ?? 0),
+                    'formatted_amount' => $fmt($item['amount'] ?? 0),
+                ])->values()->toArray();
+            } elseif (class_exists(\App\Models\Reservation::class) && \Schema::hasColumn('reservations', 'total_amount')) {
                 // Pre-tax revenue: subtract taxes column from total_amount
                 if ($employeeId) {
                     $paymentCount = (int) \App\Models\Payment::where('status', 'completed')
@@ -4642,12 +4770,21 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
                     );
 
                     $roomRevenue = $paymentRevenue;
-                } else {
-                    $roomRevenue = (float) (\App\Models\Reservation::whereBetween('created_at', [$start.' 00:00:00', $end.' 23:59:59'])
-                        ->when(\Schema::hasColumn('reservations','status'), fn($q) => $q->whereNotIn('status', ['cancelled','canceled']))
-                        ->selectRaw('COALESCE(SUM(total_amount - COALESCE(taxes, 0)), 0) as pre_tax')->value('pre_tax') ?? 0);
                 }
                 $stats['total_revenue'] += $roomRevenue;
+            }
+
+            if ($employeeId) {
+                $billAdjustmentRevenue = hms_bill_adjustment_sum($start, $end, (int) $employeeId);
+                $stats['total_revenue'] += $billAdjustmentRevenue;
+
+                if ($billAdjustmentRevenue !== 0.0) {
+                    $revByCategory[] = [
+                        'category' => 'Bill Adjustments',
+                        'amount' => $billAdjustmentRevenue,
+                        'formatted_amount' => $fmt($billAdjustmentRevenue),
+                    ];
+                }
             }
 
             if ($employeeId && class_exists(\App\Models\FolioCharge::class)) {
@@ -4779,6 +4916,8 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
             'revenueData' => [
                 'total_revenue'        => $stats['total_revenue'],
                 'room_revenue'         => $employeeId ? 0.0 : $roomRevenue,
+                'bill_adjustment_revenue' => $billAdjustmentRevenue,
+                'formatted_bill_adjustment_revenue' => $fmt($billAdjustmentRevenue),
                 'hall_revenue'         => $hallRevenue,
                 'average_daily_rate'   => $adr,
                 'revenue_by_category'  => array_values($revByCategory),
@@ -5743,17 +5882,49 @@ Route::middleware(['auth', 'role:front_desk'])->prefix('front-desk')->name('fron
         $checkOut = \Carbon\Carbon::parse($r->check_out_date);
 
         $folio = \App\Models\GuestFolio::with(['charges' => function ($query) {
-            $query->whereIn('charge_code', ['SERVICE', 'POS'])
+            $query->whereIn('charge_code', ['SERVICE', 'POS', 'ADJUSTMENT'])
                 ->where('is_voided', false)
                 ->orderBy('charge_date', 'asc')
                 ->orderBy('created_at', 'asc');
         }])->where('reservation_id', $r->id)->first();
+        $billAdjustmentRequests = $r->billAdjustmentRequests()
+            ->with(['requester', 'reviewer'])
+            ->latest()
+            ->get()
+            ->map(fn ($adjustmentRequest) => [
+                'id' => $adjustmentRequest->id,
+                'adjustment_type' => $adjustmentRequest->adjustment_type,
+                'amount' => (float) $adjustmentRequest->amount,
+                'signed_amount' => $adjustmentRequest->adjustment_type === 'decrease'
+                    ? -1 * (float) $adjustmentRequest->amount
+                    : (float) $adjustmentRequest->amount,
+                'reason' => $adjustmentRequest->reason,
+                'request_notes' => $adjustmentRequest->request_notes,
+                'review_notes' => $adjustmentRequest->review_notes,
+                'status' => $adjustmentRequest->status,
+                'requested_at' => $adjustmentRequest->requested_at?->format('Y-m-d H:i:s') ?? $adjustmentRequest->created_at?->format('Y-m-d H:i:s'),
+                'reviewed_at' => $adjustmentRequest->reviewed_at?->format('Y-m-d H:i:s'),
+                'requested_by' => $adjustmentRequest->requester ? [
+                    'id' => $adjustmentRequest->requester->id,
+                    'name' => trim(($adjustmentRequest->requester->first_name ?? '') . ' ' . ($adjustmentRequest->requester->last_name ?? '')),
+                ] : null,
+                'reviewed_by' => $adjustmentRequest->reviewer ? [
+                    'id' => $adjustmentRequest->reviewer->id,
+                    'name' => trim(($adjustmentRequest->reviewer->first_name ?? '') . ' ' . ($adjustmentRequest->reviewer->last_name ?? '')),
+                ] : null,
+            ])
+            ->values()
+            ->toArray();
 
         $serviceChargeItems = $folio
             ? $folio->charges->map(fn ($charge) => [
                 'id' => $charge->id,
                 'charge_code' => $charge->charge_code,
-                'charge_type' => $charge->charge_code === 'POS' ? 'POS / Restaurant' : 'Service',
+                'charge_type' => match ($charge->charge_code) {
+                    'POS' => 'POS / Restaurant',
+                    'ADJUSTMENT' => 'Bill Adjustment',
+                    default => 'Service',
+                },
                 'description' => $charge->description,
                 'quantity' => (int) $charge->quantity,
                 'unit_price' => (float) $charge->unit_price,
@@ -5771,6 +5942,9 @@ Route::middleware(['auth', 'role:front_desk'])->prefix('front-desk')->name('fron
         $dynamicPosCharges = $folio
             ? (float) $folio->charges->where('charge_code', 'POS')->sum('net_amount')
             : 0.0;
+        $dynamicAdjustmentCharges = $folio
+            ? (float) $folio->charges->where('charge_code', 'ADJUSTMENT')->sum('net_amount')
+            : 0.0;
 
         $reservation = array_merge($r->toArray(), [
             'nights'   => $r->nights ?? max(1, $checkIn->diffInDays($checkOut)),
@@ -5780,11 +5954,15 @@ Route::middleware(['auth', 'role:front_desk'])->prefix('front-desk')->name('fron
             'taxes' => $folio ? (float) ($folio->tax_amount ?? 0) : (float) ($r->taxes ?? 0),
             'service_charges' => $dynamicServiceCharges,
             'pos_charges' => $dynamicPosCharges,
-            'additional_room_charges' => $dynamicServiceCharges + $dynamicPosCharges,
+            'adjustment_charges' => $dynamicAdjustmentCharges,
+            'additional_room_charges' => $dynamicServiceCharges + $dynamicPosCharges + $dynamicAdjustmentCharges,
             'total_amount' => $folio ? (float) ($folio->total_amount ?? 0) : (float) ($r->total_amount ?? 0),
             'paid_amount' => $folio ? (float) ($folio->paid_amount ?? 0) : (float) ($r->paid_amount ?? 0),
             'balance_amount' => $folio ? (float) ($folio->balance_amount ?? 0) : (float) ($r->balance_amount ?? 0),
             'service_charge_items' => $serviceChargeItems,
+            'bill_adjustment_requests' => $billAdjustmentRequests,
+            'can_request_bill_adjustment' => true,
+            'can_validate_bill_adjustment' => false,
             'room_type' => $r->roomType ? [
                 'id'   => $r->roomType->id,
                 'name' => $r->roomType->name,
@@ -6718,6 +6896,8 @@ Route::middleware(['auth', 'role:front_desk'])->prefix('front-desk')->name('fron
         ->name('reservations.service-charges.index');
     Route::post('/reservations/{reservation}/service-charges', [\App\Http\Controllers\Admin\ServiceChargeController::class, 'store'])
         ->name('reservations.service-charges.store');
+    Route::post('/reservations/{reservation}/bill-adjustment-requests', [\App\Http\Controllers\ReservationBillAdjustmentController::class, 'store'])
+        ->name('reservations.bill-adjustment-requests.store');
     Route::post('/folio-charges/{charge}/void', [\App\Http\Controllers\Admin\ServiceChargeController::class, 'void'])
         ->name('folio-charges.void');
 
@@ -7753,6 +7933,7 @@ Route::middleware(['auth', 'role:front_desk'])->prefix('front-desk')->name('fron
             'categories'   => $categories,
             'expenseStats' => $expenseStats,
             'filters'      => request()->only(['status', 'category', 'start_date', 'end_date']),
+            'routePrefix'  => 'front-desk',
         ]);
     })->name('expenses.index');
 
@@ -7766,6 +7947,7 @@ Route::middleware(['auth', 'role:front_desk'])->prefix('front-desk')->name('fron
             'categories' => $categories,
             'budgets'    => \App\Models\Budget::whereIn('status', ['active', 'approved'])->orderBy('name')->get(['id', 'name', 'amount']),
             'guests'     => \App\Models\Guest::orderBy('first_name')->get(['id', 'first_name', 'last_name', 'email']),
+            'routePrefix' => 'front-desk',
         ]);
     })->name('expenses.create');
 
@@ -7792,7 +7974,29 @@ Route::middleware(['auth', 'role:front_desk'])->prefix('front-desk')->name('fron
         $validated['status']         = 'pending';
         $validated['expense_number'] = 'EXP-' . strtoupper(uniqid());
         $validated['currency']       = \App\Models\Setting::get('currency', 'USD');
-        \App\Models\Expense::create($validated);
+        $validated['amount']         = MoneyInput::fromRequest($request, 'amount');
+        $expense = \App\Models\Expense::create($validated);
+        app(\App\Services\SystemActivityNotifier::class)->notifyRoles(
+            ['admin', 'manager', 'accountant'],
+            'expense.created',
+            'New expense submitted',
+            sprintf(
+                'Expense %s for %s was submitted by %s.',
+                $expense->expense_number,
+                MoneyInput::format($expense->amount),
+                $request->user()?->full_name ?? $request->user()?->email ?? 'Staff'
+            ),
+            [
+                'manager' => route('manager.expenses.show', $expense),
+                'accountant' => route('accountant.expenses.show', $expense),
+                'default' => route('admin.expenses.show', $expense),
+            ],
+            [
+                'expense_id' => $expense->id,
+                'expense_number' => $expense->expense_number,
+                'expense_status' => $expense->status,
+            ],
+        );
         return redirect()->route('front-desk.expenses.index')->with('success', 'Expense recorded successfully.');
     })->name('expenses.store');
 
@@ -7810,6 +8014,7 @@ Route::middleware(['auth', 'role:front_desk'])->prefix('front-desk')->name('fron
             'receipt_url'    => $receiptUrl,
             'submitter_name' => $exp->submittedBy ? trim($exp->submittedBy->first_name . ' ' . $exp->submittedBy->last_name) : null,
             'approver_name'  => $exp->approvedBy  ? trim($exp->approvedBy->first_name  . ' ' . $exp->approvedBy->last_name)  : null,
+            'routePrefix'    => 'front-desk',
         ]);
     })->name('expenses.show');
 
@@ -8315,13 +8520,15 @@ Route::middleware(['auth', 'role:accountant'])->prefix('accountant')->name('acco
 
         // ── Transaction Statistics ─────────────────────────────────────────────
         $totalTx     = \App\Models\Payment::count() + \App\Models\Sale::count() + \App\Models\PosTransaction::count() + \App\Models\FolioCharge::count() + \App\Models\Expense::count();
+        $todayAdjustmentRev = hms_bill_adjustment_sum(now()->toDateString(), now()->toDateString());
+        $monthAdjustmentRev = hms_bill_adjustment_sum(now()->startOfMonth()->toDateString(), now()->endOfMonth()->toDateString());
         $todayRevenue = (float) \App\Models\Payment::where('status', 'completed')
             ->whereDate('processed_at', now()->toDateString())
-            ->sum('amount');
+            ->sum('amount') + $todayAdjustmentRev;
         $monthRevenue = (float) \App\Models\Payment::where('status', 'completed')
             ->whereMonth('processed_at', now()->month)
             ->whereYear('processed_at', now()->year)
-            ->sum('amount');
+            ->sum('amount') + $monthAdjustmentRev;
         $transactionStats = [
             'total'             => $totalTx,
             'totalTransactions' => $totalTx,
@@ -8423,18 +8630,22 @@ Route::middleware(['auth', 'role:accountant'])->prefix('accountant')->name('acco
                 ->limit(10)
                 ->get()
                 ->map(function ($fc) {
+                    $isBillAdjustment = strtoupper((string) $fc->charge_code) === 'ADJUSTMENT';
+
                     return array_merge([
                         'id'            => $fc->id,
                         'source_id'     => $fc->id,
-                        'transaction_id' => 'FOLIO-' . $fc->id,
+                        'transaction_id' => $isBillAdjustment ? 'ADJ-' . ($fc->reference_id ?? $fc->id) : 'FOLIO-' . $fc->id,
                         'guest_name'    => $fc->folio?->reservation?->guest
                             ? trim($fc->folio->reservation->guest->first_name . ' ' . $fc->folio->reservation->guest->last_name)
                             : 'Guest',
-                        'reference'     => $fc->folio?->reservation?->id ? 'Room #' . $fc->folio->reservation->room?->room_number . ' Folio' : 'Room Charge',
-                        'type'          => 'folio_charge',
+                        'reference'     => $isBillAdjustment
+                            ? ('Reservation ' . ($fc->folio?->reservation?->reservation_number ?? ('#' . ($fc->folio?->reservation?->id ?? 'N/A'))))
+                            : ($fc->folio?->reservation?->id ? 'Room #' . $fc->folio->reservation->room?->room_number . ' Folio' : 'Room Charge'),
+                        'type'          => $isBillAdjustment ? 'bill_adjustment' : 'folio_charge',
                         'amount'        => (float)$fc->net_amount,
                         'status'        => 'active',
-                        'payment_method' => 'room_charge',
+                        'payment_method' => $isBillAdjustment ? 'folio_adjustment' : 'room_charge',
                         'date'          => $fc->charge_date?->format('Y-m-d H:i:s') ?? now()->format('Y-m-d H:i:s'),
                         'created_at'    => $fc->created_at?->format('Y-m-d H:i:s') ?? now()->format('Y-m-d H:i:s'),
                     ], hms_transaction_source_meta('folio_charge', [
@@ -8712,6 +8923,7 @@ Route::middleware(['auth', 'role:accountant'])->prefix('accountant')->name('acco
         $validated['status'] = $validated['status'] ?? 'pending';
         $validated['created_by'] = auth()->id();
         $validated['submitted_by'] = auth()->id();
+        $validated['amount'] = MoneyInput::fromRequest($request, 'amount');
 
         \App\Models\Expense::create($validated);
 
@@ -8893,57 +9105,7 @@ Route::middleware(['auth', 'role:accountant'])->prefix('accountant')->name('acco
 
         $startOfMonth = now()->startOfMonth();
         $endOfMonth   = now()->endOfMonth();
-        $startOfPrev  = now()->subMonth()->startOfMonth();
-        $endOfPrev    = now()->subMonth()->endOfMonth();
-
-        // Revenue this month from payments
-        $totalRevenue = (float) \App\Models\Payment::where('status', 'completed')
-            ->whereBetween('created_at', [$startOfMonth, $endOfMonth])
-            ->sum('amount');
-        $prevRevenue = (float) \App\Models\Payment::where('status', 'completed')
-            ->whereBetween('created_at', [$startOfPrev, $endOfPrev])
-            ->sum('amount');
-
-        // Expenses this month
-        $totalExpenses = (float) \App\Models\Expense::whereBetween('created_at', [$startOfMonth, $endOfMonth])->sum('amount');
-
-        // Room revenue (from reservations linked payments)
-        $roomRevenue = (float) \App\Models\Payment::where('status', 'completed')
-            ->whereHas('reservation')
-            ->whereBetween('created_at', [$startOfMonth, $endOfMonth])
-            ->sum('amount');
-
-        // POS sales revenue
-        $posRevenue = (float) \App\Models\Sale::whereBetween('created_at', [$startOfMonth, $endOfMonth])->sum('total_amount');
-
-        $grossProfit   = $totalRevenue - 0; // no COGS model
-        $netProfit     = $totalRevenue - $totalExpenses;
-
-        // Operating expenses by category
-        $expensesByCategory = \App\Models\Expense::with('category')
-            ->whereBetween('created_at', [$startOfMonth, $endOfMonth])
-            ->get()
-            ->groupBy(fn($e) => $e->category?->name ?? 'Uncategorized')
-            ->map(fn($group) => $group->sum('amount'))
-            ->toArray();
-
-        $profitLossData = [
-            'total_revenue'              => $totalRevenue,
-            'total_cogs'                 => 0.0,
-            'total_operating_expenses'   => $totalExpenses,
-            'total_other_income_expenses'=> 0.0,
-            'gross_profit'               => $grossProfit,
-            'net_profit'                 => $netProfit,
-            'operating_income'           => $netProfit,
-            'revenue'                    => [
-                'room_revenue' => $roomRevenue,
-                'pos_revenue'  => $posRevenue,
-                'other'        => max(0, $totalRevenue - $roomRevenue - $posRevenue),
-            ],
-            'cogs'                       => [],
-            'operating_expenses'         => $expensesByCategory,
-            'other_income_expenses'      => [],
-        ];
+        $profitLossData = app(\App\Services\FinancialService::class)->getProfitLossData($startOfMonth, $endOfMonth);
 
         // Apply custom overrides if this is a custom accountant (data substitution hidden from non-admin/manager)
         $isCustomAccountant = (bool) $user->is_custom_accountant;
@@ -9149,59 +9311,7 @@ Route::middleware(['auth', 'role:accountant'])->prefix('accountant')->name('acco
 
         $startOfMonth = now()->startOfMonth();
         $endOfMonth   = now()->endOfMonth();
-        $startOfPrev  = now()->subMonth()->startOfMonth();
-        $endOfPrev    = now()->subMonth()->endOfMonth();
-
-        $totalRevenue    = (float) \App\Models\Payment::where('status', 'completed')->whereBetween('created_at', [$startOfMonth, $endOfMonth])->sum('amount');
-        $prevRevenue     = (float) \App\Models\Payment::where('status', 'completed')->whereBetween('created_at', [$startOfPrev, $endOfPrev])->sum('amount');
-        $growthRate      = $prevRevenue > 0 ? round((($totalRevenue - $prevRevenue) / $prevRevenue) * 100, 1) : 0;
-
-        $roomRevenue     = (float) \App\Models\Payment::where('status', 'completed')->whereHas('reservation')->whereBetween('created_at', [$startOfMonth, $endOfMonth])->sum('amount');
-        $posRevenue      = (float) \App\Models\Sale::whereBetween('created_at', [$startOfMonth, $endOfMonth])->sum('total_amount');
-        $roomPct         = $totalRevenue > 0 ? round(($roomRevenue / $totalRevenue) * 100, 1) : 0;
-        $posPct          = $totalRevenue > 0 ? round(($posRevenue  / $totalRevenue) * 100, 1) : 0;
-
-        $reservationCount = (int) \App\Models\Reservation::whereNotIn('status', ['cancelled','canceled'])->whereBetween('created_at', [$startOfMonth, $endOfMonth])->count();
-        $avgDailyRate     = $reservationCount > 0 ? round($roomRevenue / max($reservationCount, 1), 2) : 0;
-
-        // Revenue by room type category
-        $revenueByCategory = \App\Models\RoomType::withCount('rooms')->get()->map(fn($rt) => [
-            'category' => $rt->name,
-            'amount'   => 0.0, // would need room-level payment join; placeholder
-        ])->filter(fn($r) => $r['amount'] > 0)->values()->toArray();
-
-        if (empty($revenueByCategory)) {
-            $revenueByCategory = [
-                ['category' => 'Room Revenue', 'amount' => $roomRevenue],
-                ['category' => 'POS Sales',    'amount' => $posRevenue],
-            ];
-        }
-
-        // POS sales by payment method (since Sale has no product_id column)
-        $posByMethod = \App\Models\Sale::select('payment_method', \DB::raw('SUM(total_amount) as total'))
-            ->whereBetween('created_at', [$startOfMonth, $endOfMonth])
-            ->groupBy('payment_method')
-            ->pluck('total', 'payment_method')
-            ->toArray();
-        $posSalesByCategory = collect($posByMethod)
-            ->map(fn($v, $k) => ['category' => ucfirst(str_replace('_', ' ', $k ?: 'Other')), 'amount' => (float) $v])
-            ->values()->toArray();
-
-        $revenueData = [
-            'total_revenue'              => $totalRevenue,
-            'room_revenue'               => $roomRevenue,
-            'pos_sales_revenue'          => $posRevenue,
-            'room_revenue_percentage'    => $roomPct,
-            'pos_sales_percentage'       => $posPct,
-            'growth_rate'                => $growthRate,
-            'average_daily_rate'         => $avgDailyRate,
-            'formatted_total_revenue'    => '$' . number_format($totalRevenue, 2),
-            'formatted_room_revenue'     => '$' . number_format($roomRevenue, 2),
-            'formatted_pos_sales_revenue'=> '$' . number_format($posRevenue, 2),
-            'formatted_average_daily_rate' => '$' . number_format($avgDailyRate, 2),
-            'revenue_by_category'        => $revenueByCategory,
-            'pos_sales_by_category'      => $posSalesByCategory,
-        ];
+        $revenueData = app(\App\Services\FinancialService::class)->getRevenueData($startOfMonth, $endOfMonth);
 
         $isCustomAccountant = (bool) $user->is_custom_accountant;
         if ($isCustomAccountant) {
@@ -9292,6 +9402,7 @@ Route::middleware(['auth', 'role:accountant'])->prefix('accountant')->name('acco
             'categories'   => $categories,
             'expenseStats' => $expenseStats,
             'filters'      => request()->only(['status', 'category', 'start_date', 'end_date']),
+            'routePrefix'  => 'accountant',
         ]);
     })->name('expenses.index');
 
@@ -9305,6 +9416,7 @@ Route::middleware(['auth', 'role:accountant'])->prefix('accountant')->name('acco
             'categories' => $categories,
             'budgets' => \App\Models\Budget::whereIn('status', ['active','approved'])->orderBy('name')->get(['id','name','amount']),
             'guests' => \App\Models\Guest::orderBy('first_name')->get(['id','first_name','last_name','email']),
+            'routePrefix' => 'accountant',
         ]);
     })->name('expenses.create');
 
@@ -9331,7 +9443,29 @@ Route::middleware(['auth', 'role:accountant'])->prefix('accountant')->name('acco
         $validated['status']         = 'pending';
         $validated['expense_number'] = 'EXP-' . strtoupper(uniqid());
         $validated['currency']       = \App\Models\Setting::get('currency', 'USD');
-        \App\Models\Expense::create($validated);
+        $validated['amount']         = MoneyInput::fromRequest($request, 'amount');
+        $expense = \App\Models\Expense::create($validated);
+        app(\App\Services\SystemActivityNotifier::class)->notifyRoles(
+            ['admin', 'manager', 'accountant'],
+            'expense.created',
+            'New expense submitted',
+            sprintf(
+                'Expense %s for %s was submitted by %s.',
+                $expense->expense_number,
+                MoneyInput::format($expense->amount),
+                request()->user()?->full_name ?? request()->user()?->email ?? 'Staff'
+            ),
+            [
+                'manager' => route('manager.expenses.show', $expense),
+                'accountant' => route('accountant.expenses.show', $expense),
+                'default' => route('admin.expenses.show', $expense),
+            ],
+            [
+                'expense_id' => $expense->id,
+                'expense_number' => $expense->expense_number,
+                'expense_status' => $expense->status,
+            ],
+        );
         return redirect()->route('front-desk.expenses.index')->with('success', 'Expense recorded successfully.');
     })->name('expenses.store');
 
@@ -9347,6 +9481,7 @@ Route::middleware(['auth', 'role:accountant'])->prefix('accountant')->name('acco
             'receipt_url'    => $receiptUrl,
             'submitter_name' => $exp->submittedBy ? trim($exp->submittedBy->first_name . ' ' . $exp->submittedBy->last_name) : null,
             'approver_name'  => $exp->approvedBy  ? trim($exp->approvedBy->first_name  . ' ' . $exp->approvedBy->last_name)  : null,
+            'routePrefix'    => 'accountant',
         ]);
     })->name('expenses.show');
 });
@@ -9678,15 +9813,19 @@ Route::middleware(['auth', 'role:manager'])->prefix('manager')->name('manager.')
                 ->when($employeeId, fn($query) => $query->where('posted_by', $employeeId))
                 ->orderBy('id', 'desc')->limit(10)->get()
                 ->map(function ($fc) {
+                    $isBillAdjustment = strtoupper((string) $fc->charge_code) === 'ADJUSTMENT';
+
                     return array_merge([
-                        'transaction_id' => 'FOLIO-' . $fc->id,
+                        'transaction_id' => $isBillAdjustment ? 'ADJ-' . ($fc->reference_id ?? $fc->id) : 'FOLIO-' . $fc->id,
                         'guest_name'     => $fc->folio?->reservation?->guest
                             ? trim($fc->folio->reservation->guest->first_name . ' ' . $fc->folio->reservation->guest->last_name) : 'Guest',
-                        'reference'      => $fc->folio?->reservation?->id ? 'Room #' . $fc->folio->reservation->room?->room_number . ' Folio' : 'Room Charge',
-                        'type'           => 'folio_charge',
+                        'reference'      => $isBillAdjustment
+                            ? ('Reservation ' . ($fc->folio?->reservation?->reservation_number ?? ('#' . ($fc->folio?->reservation?->id ?? 'N/A'))))
+                            : ($fc->folio?->reservation?->id ? 'Room #' . $fc->folio->reservation->room?->room_number . ' Folio' : 'Room Charge'),
+                        'type'           => $isBillAdjustment ? 'bill_adjustment' : 'folio_charge',
                         'amount'         => (float) $fc->net_amount,
                         'status'         => 'active',
-                        'payment_method' => 'room_charge',
+                        'payment_method' => $isBillAdjustment ? 'folio_adjustment' : 'room_charge',
                         'user_id'        => $fc->posted_by,
                         'user_name'      => $fc->postedBy
                             ? trim(($fc->postedBy->first_name ?? '') . ' ' . ($fc->postedBy->last_name ?? ''))
@@ -9944,6 +10083,12 @@ Route::middleware(['auth', 'role:manager'])->prefix('manager')->name('manager.')
         ->name('reservations.service-charges.index');
     Route::post('/reservations/{reservation}/service-charges', [\App\Http\Controllers\Admin\ServiceChargeController::class, 'store'])
         ->name('reservations.service-charges.store');
+    Route::get('/bill-adjustment-requests', [BillAdjustmentRequestManagementController::class, 'managerIndex'])
+        ->name('bill-adjustment-requests.index');
+    Route::post('/reservations/{reservation}/bill-adjustment-requests/{billAdjustmentRequest}/approve', [\App\Http\Controllers\ReservationBillAdjustmentController::class, 'approve'])
+        ->name('reservations.bill-adjustment-requests.approve');
+    Route::post('/reservations/{reservation}/bill-adjustment-requests/{billAdjustmentRequest}/reject', [\App\Http\Controllers\ReservationBillAdjustmentController::class, 'reject'])
+        ->name('reservations.bill-adjustment-requests.reject');
     Route::post('/folio-charges/{charge}/void', [\App\Http\Controllers\Admin\ServiceChargeController::class, 'void'])
         ->name('folio-charges.void');
 
@@ -9952,17 +10097,49 @@ Route::middleware(['auth', 'role:manager'])->prefix('manager')->name('manager.')
         $role = $user->roles->first()?->name ?? 'manager';
         $reservation = \App\Models\Reservation::with(['guest', 'room', 'roomType', 'checkedInBy', 'checkedOutBy'])->findOrFail($id);
         $folio = \App\Models\GuestFolio::with(['charges' => function ($query) {
-            $query->whereIn('charge_code', ['SERVICE', 'POS'])
+            $query->whereIn('charge_code', ['SERVICE', 'POS', 'ADJUSTMENT'])
                 ->where('is_voided', false)
                 ->orderBy('charge_date', 'asc')
                 ->orderBy('created_at', 'asc');
         }])->where('reservation_id', $reservation->id)->first();
+        $billAdjustmentRequests = $reservation->billAdjustmentRequests()
+            ->with(['requester', 'reviewer'])
+            ->latest()
+            ->get()
+            ->map(fn ($adjustmentRequest) => [
+                'id' => $adjustmentRequest->id,
+                'adjustment_type' => $adjustmentRequest->adjustment_type,
+                'amount' => (float) $adjustmentRequest->amount,
+                'signed_amount' => $adjustmentRequest->adjustment_type === 'decrease'
+                    ? -1 * (float) $adjustmentRequest->amount
+                    : (float) $adjustmentRequest->amount,
+                'reason' => $adjustmentRequest->reason,
+                'request_notes' => $adjustmentRequest->request_notes,
+                'review_notes' => $adjustmentRequest->review_notes,
+                'status' => $adjustmentRequest->status,
+                'requested_at' => $adjustmentRequest->requested_at?->format('Y-m-d H:i:s') ?? $adjustmentRequest->created_at?->format('Y-m-d H:i:s'),
+                'reviewed_at' => $adjustmentRequest->reviewed_at?->format('Y-m-d H:i:s'),
+                'requested_by' => $adjustmentRequest->requester ? [
+                    'id' => $adjustmentRequest->requester->id,
+                    'name' => trim(($adjustmentRequest->requester->first_name ?? '') . ' ' . ($adjustmentRequest->requester->last_name ?? '')),
+                ] : null,
+                'reviewed_by' => $adjustmentRequest->reviewer ? [
+                    'id' => $adjustmentRequest->reviewer->id,
+                    'name' => trim(($adjustmentRequest->reviewer->first_name ?? '') . ' ' . ($adjustmentRequest->reviewer->last_name ?? '')),
+                ] : null,
+            ])
+            ->values()
+            ->toArray();
 
         $serviceChargeItems = $folio
             ? $folio->charges->map(fn ($charge) => [
                 'id' => $charge->id,
                 'charge_code' => $charge->charge_code,
-                'charge_type' => $charge->charge_code === 'POS' ? 'POS / Restaurant' : 'Service',
+                'charge_type' => match ($charge->charge_code) {
+                    'POS' => 'POS / Restaurant',
+                    'ADJUSTMENT' => 'Bill Adjustment',
+                    default => 'Service',
+                },
                 'description' => $charge->description,
                 'quantity' => (int) $charge->quantity,
                 'unit_price' => (float) $charge->unit_price,
@@ -9980,17 +10157,24 @@ Route::middleware(['auth', 'role:manager'])->prefix('manager')->name('manager.')
         $dynamicPosCharges = $folio
             ? (float) $folio->charges->where('charge_code', 'POS')->sum('net_amount')
             : 0.0;
+        $dynamicAdjustmentCharges = $folio
+            ? (float) $folio->charges->where('charge_code', 'ADJUSTMENT')->sum('net_amount')
+            : 0.0;
 
         $reservationPayload = array_merge($reservation->toArray(), [
             'total_room_charges' => $folio ? (float) ($folio->room_charges ?? 0) : (float) ($reservation->total_room_charges ?? 0),
             'taxes' => $folio ? (float) ($folio->tax_amount ?? 0) : (float) ($reservation->taxes ?? 0),
             'service_charges' => $dynamicServiceCharges,
             'pos_charges' => $dynamicPosCharges,
-            'additional_room_charges' => $dynamicServiceCharges + $dynamicPosCharges,
+            'adjustment_charges' => $dynamicAdjustmentCharges,
+            'additional_room_charges' => $dynamicServiceCharges + $dynamicPosCharges + $dynamicAdjustmentCharges,
             'total_amount' => $folio ? (float) ($folio->total_amount ?? 0) : (float) ($reservation->total_amount ?? 0),
             'paid_amount' => $folio ? (float) ($folio->paid_amount ?? 0) : (float) ($reservation->paid_amount ?? 0),
             'balance_amount' => $folio ? (float) ($folio->balance_amount ?? 0) : (float) ($reservation->balance_amount ?? 0),
             'service_charge_items' => $serviceChargeItems,
+            'bill_adjustment_requests' => $billAdjustmentRequests,
+            'can_request_bill_adjustment' => false,
+            'can_validate_bill_adjustment' => true,
         ]);
 
         return Inertia::render('Manager/Reservations/Show', ['user' => $user, 'navigation' => app(DashboardController::class)->getNavigationForRole($role), 'reservation' => $reservationPayload]);
@@ -11565,6 +11749,7 @@ Route::middleware(['auth', 'role:manager'])->prefix('manager')->name('manager.')
         $recentSales   = [];
         $posRevenue    = 0.0;
         $roomRevenue   = 0.0;
+        $billAdjustmentRevenue = 0.0;
         $hallRevenue   = 0.0;
         $revByCategory = [];
         $totalExpenses = 0.0;
@@ -11577,6 +11762,8 @@ Route::middleware(['auth', 'role:manager'])->prefix('manager')->name('manager.')
                 'name' => trim(($employee->first_name ?? '') . ' ' . ($employee->last_name ?? '')) ?: ($employee->email ?? ('User #' . $employee->id)),
             ])->values();
         try {
+            $financialService = app(\App\Services\FinancialService::class);
+
             if (class_exists(\App\Models\Sale::class)) {
                 $base = \App\Models\Sale::whereBetween('created_at', [$start.' 00:00:00', $end.' 23:59:59'])
                     ->when($employeeId, fn($query) => $query->where('user_id', $employeeId));
@@ -11608,17 +11795,47 @@ Route::middleware(['auth', 'role:manager'])->prefix('manager')->name('manager.')
                             : 'N/A',
                     ]);
             }
-            if (class_exists(\App\Models\Reservation::class) && \Schema::hasColumn('reservations', 'total_amount')) {
+            if (!$employeeId) {
+                $revenueSummary = $financialService->getRevenueData($start, $end);
+                $expenseSummary = $financialService->getExpenseData($start, $end);
+
+                $roomRevenue = (float) ($revenueSummary['room_revenue'] ?? 0);
+                $billAdjustmentRevenue = (float) ($revenueSummary['bill_adjustment_revenue'] ?? 0);
+                $posRevenue = (float) ($revenueSummary['pos_sales_revenue'] ?? 0);
+                $stats['total_revenue'] = (float) ($revenueSummary['total_revenue'] ?? 0);
+                $revByCategory = collect($revenueSummary['revenue_by_category'] ?? [])->map(fn($item) => [
+                    'category' => $item['category'],
+                    'amount' => (float) ($item['amount'] ?? 0),
+                    'formatted_amount' => $fmt($item['amount'] ?? 0),
+                ])->values()->toArray();
+                $totalExpenses = (float) ($expenseSummary['total_expenses'] ?? 0);
+                $expByCategory = collect($expenseSummary['expenses_by_category'] ?? [])->map(fn($item) => [
+                    'category' => $item['category'],
+                    'amount' => (float) ($item['amount'] ?? 0),
+                    'formatted_amount' => $fmt($item['amount'] ?? 0),
+                ])->values()->toArray();
+            } elseif (class_exists(\App\Models\Reservation::class) && \Schema::hasColumn('reservations', 'total_amount')) {
                 if ($employeeId) {
                     $roomRevenue = (float) (\App\Models\Payment::where('status', 'completed')
                         ->where('processed_by', $employeeId)
                         ->whereHas('reservation')
                         ->whereBetween('processed_at', [$start.' 00:00:00', $end.' 23:59:59'])
                         ->sum('amount') ?? 0);
-                } else {
-                    $roomRevenue = (float) (\App\Models\Reservation::whereBetween('created_at', [$start.' 00:00:00', $end.' 23:59:59'])->when(\Schema::hasColumn('reservations','status'), fn($q) => $q->whereNotIn('status', ['cancelled','canceled']))->selectRaw('COALESCE(SUM(total_amount - COALESCE(taxes, 0)), 0) as pre_tax')->value('pre_tax') ?? 0);
                 }
                 $stats['total_revenue'] += $roomRevenue;
+            }
+
+            if ($employeeId) {
+                $billAdjustmentRevenue = hms_bill_adjustment_sum($start, $end, (int) $employeeId);
+                $stats['total_revenue'] += $billAdjustmentRevenue;
+
+                if ($billAdjustmentRevenue !== 0.0) {
+                    $revByCategory[] = [
+                        'category' => 'Bill Adjustments',
+                        'amount' => $billAdjustmentRevenue,
+                        'formatted_amount' => $fmt($billAdjustmentRevenue),
+                    ];
+                }
             }
             if (class_exists(\App\Models\HallBooking::class)) {
                 $hallRevenue = $employeeId
@@ -11645,7 +11862,7 @@ Route::middleware(['auth', 'role:manager'])->prefix('manager')->name('manager.')
             'stats' => $stats, 'daily' => $daily, 'recentSales' => $recentSales,
             'employeeOptions' => $employeeOptions,
             'filters' => ['employeeId' => $employeeId],
-            'revenueData' => ['total_revenue' => $stats['total_revenue'], 'room_revenue' => $roomRevenue, 'hall_revenue' => $hallRevenue, 'average_daily_rate' => $adr, 'revenue_by_category' => $revByCategory, 'currency' => $currency],
+            'revenueData' => ['total_revenue' => $stats['total_revenue'], 'room_revenue' => $roomRevenue, 'bill_adjustment_revenue' => $billAdjustmentRevenue, 'formatted_bill_adjustment_revenue' => $fmt($billAdjustmentRevenue), 'hall_revenue' => $hallRevenue, 'average_daily_rate' => $adr, 'revenue_by_category' => $revByCategory, 'currency' => $currency],
             'expenseData' => ['total_expenses' => $totalExpenses, 'expenses_by_category' => $expByCategory, 'currency' => $currency],
             'profitLossData' => ['net_profit' => $netProfit, 'net_margin' => $netMargin],
             'dateRange' => ['start' => $start, 'end' => $end],

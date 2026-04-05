@@ -8,6 +8,7 @@ use App\Models\Reservation;
 use App\Models\Room;
 use App\Models\RoomType;
 use App\Models\Setting;
+use App\Services\SystemActivityNotifier;
 use App\Services\RoomTypeInventoryService;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
@@ -339,6 +340,28 @@ class BookingController extends Controller
             ]);
 
             $this->inventoryService->refreshRange($roomType->id, $checkIn, $checkOut);
+
+            app(SystemActivityNotifier::class)->notifyRoles(
+                ['admin', 'manager', 'front_desk', 'frontdesk'],
+                'reservation.website_created',
+                'New website reservation received',
+                sprintf(
+                    'Website reservation %s was submitted for %s and is awaiting assignment.',
+                    $reservation->reservation_number,
+                    $guest->full_name
+                ),
+                [
+                    'manager' => route('manager.reservations.show', $reservation),
+                    'front_desk' => route('front-desk.reservations.show', $reservation),
+                    'frontdesk' => route('front-desk.reservations.show', $reservation),
+                    'default' => route('admin.reservations.show', $reservation),
+                ],
+                [
+                    'reservation_id' => $reservation->id,
+                    'reservation_number' => $reservation->reservation_number,
+                    'booking_source' => 'website',
+                ],
+            );
 
             DB::commit();
         } catch (\RuntimeException $exception) {

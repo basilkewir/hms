@@ -124,7 +124,7 @@
             </div>
 
             <!-- Summary Cards -->
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+            <div class="grid grid-cols-1 md:grid-cols-5 gap-6 mb-6">
                 <!-- Total Revenue -->
                 <div class="rounded-lg p-6"
                      :style="{ 
@@ -237,6 +237,34 @@
                              :style="{ backgroundColor: `${themeColors.primary}20` }">
                             <CalendarIcon class="h-6 w-6"
                                           :style="{ color: themeColors.primary }" />
+                        </div>
+                    </div>
+                </div>
+
+                <div class="rounded-lg p-6"
+                     :style="{
+                         backgroundColor: themeColors.card,
+                         borderColor: themeColors.border,
+                         borderWidth: '1px',
+                         borderStyle: 'solid'
+                     }">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm font-medium"
+                               :style="{ color: themeColors.textSecondary }">Bill Adjustments</p>
+                            <p class="text-2xl font-bold mt-1"
+                               :style="{ color: (revenueData?.bill_adjustment_revenue || 0) >= 0 ? themeColors.success : themeColors.danger }">
+                                {{ formatCurrency(revenueData?.bill_adjustment_revenue || 0) }}
+                            </p>
+                            <p class="text-xs mt-1"
+                               :style="{ color: themeColors.textTertiary }">
+                                Approved billing impact
+                            </p>
+                        </div>
+                        <div class="p-3 rounded-full"
+                             :style="{ backgroundColor: `${(revenueData?.bill_adjustment_revenue || 0) >= 0 ? themeColors.success : themeColors.danger}20` }">
+                            <ChartPieIcon class="h-6 w-6"
+                                          :style="{ color: (revenueData?.bill_adjustment_revenue || 0) >= 0 ? themeColors.success : themeColors.danger }" />
                         </div>
                     </div>
                 </div>

@@ -1183,6 +1183,7 @@ class DashboardController extends Controller
                     'current' => false,
                     'children' => [
                         ['name' => 'Transactions',       'href' => '/admin/transactions',          'icon' => 'CurrencyDollarIcon'],
+                        ['name' => 'Bill Adjustments',   'href' => '/admin/bill-adjustment-requests', 'icon' => 'ReceiptPercentIcon'],
                         ['name' => 'Expenses',           'href' => '/admin/expenses',              'icon' => 'BanknotesIcon'],
                         ['name' => 'Expense Categories', 'href' => '/admin/expenses/categories',   'icon' => 'ClipboardDocumentListIcon'],
                         ['name' => 'Payroll',            'href' => '/admin/payroll',               'icon' => 'CreditCardIcon'],
@@ -1446,6 +1447,7 @@ class DashboardController extends Controller
                         ['name' => 'All Expenses',      'href' => '/manager/expenses',                          'icon' => 'BanknotesIcon'],
                         ['name' => 'Create Expense',    'href' => '/manager/expenses/create',                   'icon' => 'PlusIcon'],
                         ['name' => 'Categories',        'href' => '/manager/expenses/categories',               'icon' => 'TagIcon'],
+                        ['name' => 'Bill Adjustments',  'href' => '/manager/bill-adjustment-requests',         'icon' => 'ReceiptPercentIcon'],
                     ]
                 ],
                 [

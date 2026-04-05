@@ -289,6 +289,7 @@ export const navigationConfig = {
           icon: 'dollar',
           items: [
             { label: 'Transactions', routeName: 'admin.transactions.index', permission: 'view_transactions' },
+            { label: 'Bill Adjustments', routeName: 'admin.bill-adjustment-requests.index' },
             { label: 'Invoices',      routeName: 'admin.invoices.index' },
             { label: 'Quotes',        routeName: 'admin.quotes.index' },
             { label: 'Expenses',     routeName: 'admin.expenses.index', permission: 'view_expenses' },
@@ -525,6 +526,7 @@ export const navigationConfig = {
           icon: 'dollar',
           items: [
             { label: 'Transactions', routeName: 'manager.transactions.index' },
+            { label: 'Bill Adjustments', routeName: 'manager.bill-adjustment-requests.index' },
             { label: 'Invoices',      routeName: 'manager.invoices.index' },
             { label: 'Quotes',        routeName: 'manager.quotes.index' },
           ],

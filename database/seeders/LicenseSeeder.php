@@ -14,6 +14,13 @@ class LicenseSeeder extends Seeder
      */
     public function run(): void
     {
+        if (License::where('status', 'active')
+            ->where('license_key', '!=', 'E7503BB1-99D9EBED-42568D93-E249B472')
+            ->exists()) {
+            $this->command->info('Active license already exists — skipping fallback license seed.');
+            return;
+        }
+
         // Create Hotel Donzebe HD license
         License::updateOrCreate(
             ['license_key' => 'E7503BB1-99D9EBED-42568D93-E249B472'],

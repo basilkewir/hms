@@ -150,7 +150,7 @@
                             <div>
                                 <label class="block text-sm font-medium mb-2"
                                        :style="{ color: themeColors.textSecondary }">Amount *</label>
-                                <input type="number" v-model="form.amount" step="0.01" min="0" required
+                                <input type="text" v-model="form.amount" inputmode="decimal" required
                                        placeholder="0.00"
                                        class="w-full rounded-md px-3 py-2 focus:outline-none transition-colors"
                                        :style="{ 
@@ -348,6 +348,7 @@ const errors = ref({})
 const submit = () => {
     processing.value = true
     errors.value = {}
+    form.amount = String(form.amount || '').trim()
     
     form.put(route(`${props.routePrefix}.expenses.update`, props.expense.id), {
         onSuccess: () => {

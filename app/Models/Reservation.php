@@ -172,4 +172,9 @@ class Reservation extends Model
             ]);
     }
 
+    public function billAdjustmentRequests()
+    {
+        return $this->hasMany(GuestBillAdjustmentRequest::class)->latest();
+    }
+
 }

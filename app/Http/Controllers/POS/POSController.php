@@ -26,6 +26,7 @@ use App\Models\PosExpense;
 use App\Models\PosExpenseCategory;
 use App\Models\PosReturnRequest;
 use App\Models\Setting;
+use App\Services\SystemActivityNotifier;
 use App\Models\Customer;
 use App\Models\Room;
 use App\Models\Reservation;
@@ -1316,6 +1317,29 @@ class POSController extends Controller
 
             DB::commit();
 
+            app(SystemActivityNotifier::class)->notifyRoles(
+                ['admin', 'manager', 'pos'],
+                'purchase.created',
+                'New purchase order created',
+                sprintf(
+                    'Purchase order %s for %s was created by %s.',
+                    $purchaseOrder->po_number,
+                    number_format((float) $purchaseOrder->total_amount, 2),
+                    auth()->user()?->full_name ?? auth()->user()?->email ?? 'Staff'
+                ),
+                [
+                    'manager' => route('manager.purchases.show', $purchaseOrder->id),
+                    'pos' => route('pos.purchases.show', $purchaseOrder->id),
+                    'default' => route('pos.purchases.show', $purchaseOrder->id),
+                ],
+                [
+                    'purchase_order_id' => $purchaseOrder->id,
+                    'purchase_order_number' => $purchaseOrder->po_number,
+                    'purchase_status' => $purchaseOrder->status,
+                ],
+                auth()->user(),
+            );
+
             $user = auth()->user()->load('roles');
             $role = $user->roles->first()?->name ?? 'admin';
             $showRoute = $role === 'manager' ? 'manager.purchases.show' : 'pos.purchases.show';
@@ -1688,6 +1712,29 @@ class POSController extends Controller
             ]);
 
             DB::commit();
+
+            app(SystemActivityNotifier::class)->notifyRoles(
+                ['admin', 'manager', 'pos'],
+                'purchase.received',
+                'Purchase received update',
+                sprintf(
+                    'Purchase order %s was updated to %s by %s.',
+                    $purchaseOrder->po_number,
+                    str_replace('_', ' ', $newStatus),
+                    auth()->user()?->full_name ?? auth()->user()?->email ?? 'Staff'
+                ),
+                [
+                    'manager' => route('manager.purchases.show', $purchaseOrder->id),
+                    'pos' => route('pos.purchases.show', $purchaseOrder->id),
+                    'default' => route('pos.purchases.show', $purchaseOrder->id),
+                ],
+                [
+                    'purchase_order_id' => $purchaseOrder->id,
+                    'purchase_order_number' => $purchaseOrder->po_number,
+                    'purchase_status' => $newStatus,
+                ],
+                auth()->user(),
+            );
 
             $user = auth()->user()->load('roles');
             $role = $user->roles->first()?->name ?? 'admin';

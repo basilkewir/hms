@@ -10,6 +10,7 @@ use App\Models\RoomType;
 use App\Models\GroupBooking;
 use App\Models\GuestFolio;
 use App\Models\FolioCharge;
+use App\Services\SystemActivityNotifier;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Str;
@@ -502,6 +503,30 @@ class ReservationController extends Controller
             }
         }
 
+        app(SystemActivityNotifier::class)->notifyRoles(
+            ['admin', 'manager', 'front_desk', 'frontdesk'],
+            'reservation.created',
+            'New reservation created',
+            sprintf(
+                'Reservation %s for %s was created by %s.',
+                $reservation->reservation_number,
+                $reservation->guest?->full_name ?? 'Guest',
+                auth()->user()?->full_name ?? auth()->user()?->email ?? 'Staff'
+            ),
+            [
+                'manager' => route('manager.reservations.show', $reservation),
+                'front_desk' => route('front-desk.reservations.show', $reservation),
+                'frontdesk' => route('front-desk.reservations.show', $reservation),
+                'default' => route('admin.reservations.show', $reservation),
+            ],
+            [
+                'reservation_id' => $reservation->id,
+                'reservation_number' => $reservation->reservation_number,
+                'booking_source' => $reservation->booking_source,
+            ],
+            auth()->user(),
+        );
+
         // Redirect based on route name (prioritize route over role)
         $routeName = request()->route()->getName() ?? '';
 
@@ -519,10 +544,20 @@ class ReservationController extends Controller
 
     public function show(Reservation $reservation)
     {
-        $reservation->load(['guest', 'room', 'roomType', 'groupBooking', 'createdBy', 'checkedInBy', 'checkedOutBy']);
+        $reservation->load([
+            'guest',
+            'room',
+            'roomType',
+            'groupBooking',
+            'createdBy',
+            'checkedInBy',
+            'checkedOutBy',
+            'billAdjustmentRequests.requester',
+            'billAdjustmentRequests.reviewer',
+        ]);
 
         $folio = \App\Models\GuestFolio::with(['charges' => function ($query) {
-            $query->whereIn('charge_code', ['SERVICE', 'POS'])
+            $query->whereIn('charge_code', ['SERVICE', 'POS', 'ADJUSTMENT'])
                 ->where('is_voided', false)
                 ->orderBy('charge_date', 'asc')
                 ->orderBy('created_at', 'asc');
@@ -532,7 +567,11 @@ class ReservationController extends Controller
             ? $folio->charges->map(fn ($charge) => [
                 'id' => $charge->id,
                 'charge_code' => $charge->charge_code,
-                'charge_type' => $charge->charge_code === 'POS' ? 'POS / Restaurant' : 'Service',
+                'charge_type' => match ($charge->charge_code) {
+                    'POS' => 'POS / Restaurant',
+                    'ADJUSTMENT' => 'Bill Adjustment',
+                    default => 'Service',
+                },
                 'description' => $charge->description,
                 'quantity' => (int) $charge->quantity,
                 'unit_price' => (float) $charge->unit_price,
@@ -550,12 +589,37 @@ class ReservationController extends Controller
         $dynamicPosCharges = $folio
             ? (float) $folio->charges->where('charge_code', 'POS')->sum('net_amount')
             : 0.0;
-        $dynamicAdditionalRoomCharges = $dynamicServiceCharges + $dynamicPosCharges;
+        $dynamicAdjustmentCharges = $folio
+            ? (float) $folio->charges->where('charge_code', 'ADJUSTMENT')->sum('net_amount')
+            : 0.0;
+        $dynamicAdditionalRoomCharges = $dynamicServiceCharges + $dynamicPosCharges + $dynamicAdjustmentCharges;
         $dynamicRoomCharges = $folio ? (float) ($folio->room_charges ?? 0) : (float) ($reservation->total_room_charges ?? 0);
         $dynamicTaxes = $folio ? (float) ($folio->tax_amount ?? 0) : (float) ($reservation->taxes ?? 0);
         $dynamicTotalAmount = $folio ? (float) ($folio->total_amount ?? 0) : (float) ($reservation->total_amount ?? 0);
         $dynamicPaidAmount = $folio ? (float) ($folio->paid_amount ?? 0) : (float) ($reservation->paid_amount ?? 0);
         $dynamicBalanceAmount = $folio ? (float) ($folio->balance_amount ?? 0) : (float) ($reservation->balance_amount ?? 0);
+        $billAdjustmentRequests = $reservation->billAdjustmentRequests->map(fn ($adjustmentRequest) => [
+            'id' => $adjustmentRequest->id,
+            'adjustment_type' => $adjustmentRequest->adjustment_type,
+            'amount' => (float) $adjustmentRequest->amount,
+            'signed_amount' => $adjustmentRequest->adjustment_type === 'decrease'
+                ? -1 * (float) $adjustmentRequest->amount
+                : (float) $adjustmentRequest->amount,
+            'reason' => $adjustmentRequest->reason,
+            'request_notes' => $adjustmentRequest->request_notes,
+            'review_notes' => $adjustmentRequest->review_notes,
+            'status' => $adjustmentRequest->status,
+            'requested_at' => $adjustmentRequest->requested_at?->format('Y-m-d H:i:s') ?? $adjustmentRequest->created_at?->format('Y-m-d H:i:s'),
+            'reviewed_at' => $adjustmentRequest->reviewed_at?->format('Y-m-d H:i:s'),
+            'requested_by' => $adjustmentRequest->requester ? [
+                'id' => $adjustmentRequest->requester->id,
+                'name' => trim(($adjustmentRequest->requester->first_name ?? '') . ' ' . ($adjustmentRequest->requester->last_name ?? '')),
+            ] : null,
+            'reviewed_by' => $adjustmentRequest->reviewer ? [
+                'id' => $adjustmentRequest->reviewer->id,
+                'name' => trim(($adjustmentRequest->reviewer->first_name ?? '') . ' ' . ($adjustmentRequest->reviewer->last_name ?? '')),
+            ] : null,
+        ])->values()->toArray();
 
         // Determine which view to render based on route name (prioritize route over role)
         $routeName = request()->route()->getName() ?? '';
@@ -598,8 +662,10 @@ class ReservationController extends Controller
                 'taxes' => $dynamicTaxes,
                 'service_charges' => $dynamicServiceCharges,
                 'pos_charges' => $dynamicPosCharges,
+                'adjustment_charges' => $dynamicAdjustmentCharges,
                 'additional_room_charges' => $dynamicAdditionalRoomCharges,
                 'service_charge_items' => $chargeItems,
+                'bill_adjustment_requests' => $billAdjustmentRequests,
                 'discount_amount' => $reservation->discount_amount,
                 'discount_reason' => $reservation->discount_reason,
                 'total_amount' => $dynamicTotalAmount,
@@ -626,6 +692,8 @@ class ReservationController extends Controller
                 'group_booking' => $reservation->groupBooking,
                 'is_group_booking' => $reservation->is_group_booking,
                 'created_at' => $reservation->created_at->format('Y-m-d H:i:s'),
+                'can_request_bill_adjustment' => false,
+                'can_validate_bill_adjustment' => true,
             ],
         ]);
     }

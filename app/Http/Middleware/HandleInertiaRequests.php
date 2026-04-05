@@ -89,7 +89,36 @@ class HandleInertiaRequests extends Middleware
         // Notifications placeholder (wired for later real implementation)
         $notifications = [
             'unread_count' => 0,
+            'items' => [],
         ];
+
+        if ($user) {
+            $notifications = [
+                'unread_count' => $user->unreadNotifications()->count(),
+                'items' => $user->notifications()
+                    ->latest()
+                    ->limit(8)
+                    ->get()
+                    ->map(function ($notification) {
+                        $data = is_array($notification->data) ? $notification->data : [];
+
+                        return [
+                            'id' => $notification->id,
+                            'title' => $data['title'] ?? 'Notification',
+                            'body' => $data['body'] ?? null,
+                            'action_url' => $data['action_url'] ?? null,
+                            'event' => $data['event'] ?? null,
+                            'reservation_id' => $data['reservation_id'] ?? null,
+                            'reservation_number' => $data['reservation_number'] ?? null,
+                            'created_at' => optional($notification->created_at)?->toISOString(),
+                            'read_at' => optional($notification->read_at)?->toISOString(),
+                            'is_read' => $notification->read_at !== null,
+                        ];
+                    })
+                    ->values()
+                    ->all(),
+            ];
+        }
 
         return [
             ...parent::share($request),

@@ -373,7 +373,7 @@
                         </div>
                         <div>
                             <label class="block text-sm font-medium mb-1" :style="{ color: themeColors.textSecondary }">Amount *</label>
-                            <input v-model.number="expenseForm.amount" type="number" step="0.01" min="0"
+                            <input v-model="expenseForm.amount" type="text" inputmode="decimal"
                                 class="w-full px-3 py-2 rounded-lg border focus:outline-none transition-colors"
                                 :style="{ backgroundColor: themeColors.background, borderColor: themeColors.border, color: themeColors.textPrimary, borderWidth: '1px', borderStyle: 'solid' }"
                                 placeholder="0.00" />
@@ -513,7 +513,7 @@
                         </div>
                         <div>
                             <label class="block text-sm font-medium mb-1" :style="{ color: themeColors.textSecondary }">Amount *</label>
-                            <input v-model.number="expenseForm.amount" type="number" step="0.01" min="0"
+                            <input v-model="expenseForm.amount" type="text" inputmode="decimal"
                                 class="w-full px-3 py-2 rounded-lg border focus:outline-none transition-colors"
                                 :style="{ backgroundColor: themeColors.background, borderColor: themeColors.border, color: themeColors.textPrimary, borderWidth: '1px', borderStyle: 'solid' }"
                                 placeholder="0.00" />
@@ -859,6 +859,7 @@ const formatFileSize = (bytes) => {
 const saveExpense = () => {
     processingExpense.value = true
     errors.value = {}
+    expenseForm.amount = String(expenseForm.amount || '').trim()
 
     // Use FormData if there's a file, otherwise use regular form data
     const formData = new FormData()
@@ -900,6 +901,7 @@ const updateExpense = () => {
 
     processingExpense.value = true
     errors.value = {}
+    expenseForm.amount = String(expenseForm.amount || '').trim()
 
     // Use FormData if there's a file, otherwise use regular form data
     const formData = new FormData()
