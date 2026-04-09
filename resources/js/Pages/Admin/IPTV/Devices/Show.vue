@@ -1,5 +1,5 @@
 <template>
-    <DashboardLayout :title="device.device_name || device.device_id" :user="user" :navigation="navigation">
+    <DashboardLayout :title="liveDevice.device_name || liveDevice.device_id" :user="user" :navigation="navigation">
 
         <!-- Flash -->
         <div v-if="$page.props.flash?.success"
@@ -29,7 +29,12 @@
                 All Devices
             </Link>
             <span class="text-gray-500">/</span>
-            <span :style="{ color: themeColors.textPrimary }">{{ device.device_name || device.device_id }}</span>
+            <span :style="{ color: themeColors.textPrimary }">{{ liveDevice.device_name || liveDevice.device_id }}</span>
+            <!-- Live indicator -->
+            <span class="ml-auto flex items-center gap-1.5 text-xs text-green-400 opacity-70">
+                <span class="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span>
+                Live · updates every 8s
+            </span>
         </div>
 
         <!-- Top section: info + status + token -->
@@ -45,16 +50,16 @@
                         </div>
                         <div>
                             <h1 :style="{ color: themeColors.textPrimary }" class="text-xl font-bold">
-                                {{ device.device_name || device.device_id }}
+                                {{ liveDevice.device_name || liveDevice.device_id }}
                             </h1>
-                            <p :style="{ color: themeColors.textSecondary }" class="text-sm font-mono">{{ device.device_id }}</p>
+                            <p :style="{ color: themeColors.textSecondary }" class="text-sm font-mono">{{ liveDevice.device_id }}</p>
                         </div>
                     </div>
                     <!-- Status badge -->
-                    <span :class="statusBadgeClass(device.computed_status)"
+                    <span :class="statusBadgeClass(liveDevice.computed_status)"
                           class="px-3 py-1 rounded-full text-sm font-semibold capitalize flex items-center gap-1.5">
-                        <span :class="statusDotClass(device.computed_status)" class="w-2 h-2 rounded-full"></span>
-                        {{ device.computed_status || 'offline' }}
+                        <span :class="statusDotClass(liveDevice.computed_status)" class="w-2 h-2 rounded-full"></span>
+                        {{ liveDevice.computed_status || 'offline' }}
                     </span>
                 </div>
 
@@ -62,36 +67,36 @@
                     <div>
                         <p :style="{ color: themeColors.textSecondary }" class="text-xs mb-0.5">Room</p>
                         <p :style="{ color: themeColors.textPrimary }" class="font-medium">
-                            {{ device.room_number ? 'Room ' + device.room_number : '—' }}
+                            {{ liveDevice.room_number ? 'Room ' + liveDevice.room_number : '—' }}
                         </p>
                     </div>
                     <div>
                         <p :style="{ color: themeColors.textSecondary }" class="text-xs mb-0.5">IP Address</p>
-                        <p :style="{ color: themeColors.textPrimary }" class="font-mono">{{ device.ip_address || '—' }}</p>
+                        <p :style="{ color: themeColors.textPrimary }" class="font-mono">{{ liveDevice.ip_address || '—' }}</p>
                     </div>
                     <div>
                         <p :style="{ color: themeColors.textSecondary }" class="text-xs mb-0.5">App Version</p>
-                        <p :style="{ color: themeColors.textPrimary }">{{ device.app_version || '—' }}</p>
+                        <p :style="{ color: themeColors.textPrimary }">{{ liveDevice.app_version || '—' }}</p>
                     </div>
                     <div>
                         <p :style="{ color: themeColors.textSecondary }" class="text-xs mb-0.5">Android</p>
-                        <p :style="{ color: themeColors.textPrimary }">{{ device.android_version || '—' }}</p>
+                        <p :style="{ color: themeColors.textPrimary }">{{ liveDevice.android_version || '—' }}</p>
                     </div>
                     <div>
                         <p :style="{ color: themeColors.textSecondary }" class="text-xs mb-0.5">Last Heartbeat</p>
-                        <p :style="{ color: themeColors.textPrimary }">{{ ago(device.last_heartbeat) }}</p>
+                        <p :style="{ color: themeColors.textPrimary }">{{ ago(liveDevice.last_heartbeat) }}</p>
                     </div>
                     <div>
                         <p :style="{ color: themeColors.textSecondary }" class="text-xs mb-0.5">Registered</p>
-                        <p :style="{ color: themeColors.textPrimary }">{{ ago(device.registered_at) }}</p>
+                        <p :style="{ color: themeColors.textPrimary }">{{ ago(liveDevice.registered_at) }}</p>
                     </div>
                     <div>
                         <p :style="{ color: themeColors.textSecondary }" class="text-xs mb-0.5">Settings Version</p>
-                        <p :style="{ color: themeColors.textPrimary }">v{{ device.settings_version || 0 }}</p>
+                        <p :style="{ color: themeColors.textPrimary }">v{{ liveDevice.settings_version || 0 }}</p>
                     </div>
                     <div>
                         <p :style="{ color: themeColors.textSecondary }" class="text-xs mb-0.5">Device Type</p>
-                        <p :style="{ color: themeColors.textPrimary }" class="capitalize">{{ (device.device_type || 'unknown').replace('_', ' ') }}</p>
+                        <p :style="{ color: themeColors.textPrimary }" class="capitalize">{{ (liveDevice.device_type || 'unknown').replace('_', ' ') }}</p>
                     </div>
                 </div>
 
@@ -118,16 +123,16 @@
                         <KeyIcon class="h-4 w-4 text-yellow-400" />
                         Registration Token
                     </h3>
-                    <code v-if="device.registration_token"
+                    <code v-if="liveDevice.registration_token"
                           :style="{ backgroundColor: themeColors.background }"
                           class="block px-3 py-2 rounded-lg text-xs font-mono text-yellow-300 break-all mb-3">
-                        {{ device.registration_token }}
+                        {{ liveDevice.registration_token }}
                     </code>
                     <p v-else :style="{ color: themeColors.textSecondary }" class="text-xs mb-3">
                         No token yet. Click Register to generate one.
                     </p>
                     <div class="flex gap-2">
-                        <button v-if="device.registration_token" @click="copy(device.registration_token)"
+                        <button v-if="liveDevice.registration_token" @click="copy(liveDevice.registration_token)"
                                 class="flex-1 text-xs py-1.5 rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/30">
                             Copy Token
                         </button>
@@ -162,9 +167,9 @@
                             📡 Refresh Channels
                         </button>
                         <button @click="toggleActive"
-                                :class="device.is_active ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30' : 'bg-green-500/20 text-green-400 hover:bg-green-500/30'"
+                                :class="liveDevice.is_active ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30' : 'bg-green-500/20 text-green-400 hover:bg-green-500/30'"
                                 class="w-full text-xs py-2 rounded-lg">
-                            {{ device.is_active ? '🔒 Deactivate Device' : '🔓 Activate Device' }}
+                            {{ liveDevice.is_active ? '🔒 Deactivate Device' : '🔓 Activate Device' }}
                         </button>
                     </div>
                 </div>
@@ -198,15 +203,37 @@
 
                 <!-- Send Message -->
                 <div class="mb-5">
-                    <label :style="{ color: themeColors.textSecondary }" class="block text-xs mb-1">Send Message to TV Screen</label>
-                    <div class="flex gap-2">
-                        <input v-model="msgText" placeholder="Type message..."
-                               :style="{ backgroundColor: themeColors.background, color: themeColors.textPrimary, borderColor: themeColors.border }"
-                               class="flex-1 px-3 py-2 rounded-lg border text-sm focus:outline-none" />
-                        <button @click="sendMessage" :disabled="!msgText.trim()"
-                                class="px-4 py-2 rounded-lg bg-yellow-500 text-black text-sm font-semibold disabled:opacity-40 hover:bg-yellow-400">
-                            Send
-                        </button>
+                    <label :style="{ color: themeColors.textSecondary }" class="block text-xs font-semibold uppercase tracking-wider mb-2">
+                        💬 Send Message to TV Screen
+                    </label>
+                    <!-- Sent flash -->
+                    <transition name="fade">
+                        <div v-if="msgSent"
+                             class="flex items-center gap-2 text-xs text-green-400 bg-green-500/10 border border-green-500/20 rounded-lg px-3 py-2 mb-2">
+                            <span>✓</span> Message delivered to TV
+                        </div>
+                    </transition>
+                    <textarea v-model="msgText"
+                              placeholder="Type the message guests will see on their TV…"
+                              maxlength="200"
+                              rows="3"
+                              :style="{ backgroundColor: themeColors.background, color: themeColors.textPrimary, borderColor: msgText.length > 180 ? '#f59e0b' : themeColors.border }"
+                              class="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none resize-none transition-colors"
+                              @keydown.ctrl.enter="sendMessage" />
+                    <div class="flex items-center justify-between mt-1.5">
+                        <span :style="{ color: themeColors.textSecondary }" class="text-xs">
+                            Ctrl+Enter to send · displays for 8 s on TV
+                        </span>
+                        <div class="flex items-center gap-2">
+                            <span :class="msgText.length > 180 ? 'text-yellow-400' : ''"
+                                  :style="msgText.length <= 180 ? { color: themeColors.textSecondary } : {}"
+                                  class="text-xs">{{ msgText.length }}/200</span>
+                            <button @click="sendMessage" :disabled="!msgText.trim() || sendingMsg"
+                                    class="px-4 py-1.5 rounded-lg bg-yellow-500 text-black text-xs font-bold disabled:opacity-40 hover:bg-yellow-400 transition-colors flex items-center gap-1.5">
+                                <span v-if="sendingMsg">Sending…</span>
+                                <span v-else>Send 📤</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -276,19 +303,20 @@
             <!-- Command History -->
             <div :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }"
                  class="rounded-xl border overflow-hidden">
-                <div :style="{ borderColor: themeColors.border }" class="px-5 py-3 border-b">
+                <div :style="{ borderColor: themeColors.border }" class="px-5 py-3 border-b flex items-center justify-between">
                     <h2 :style="{ color: themeColors.textPrimary }" class="font-bold text-sm">Command History</h2>
+                    <span :style="{ color: themeColors.textSecondary }" class="text-xs">{{ liveCommands.length }} total</span>
                 </div>
                 <div class="divide-y" :style="{ borderColor: themeColors.border }">
-                    <div v-if="!commands || commands.length === 0"
+                    <div v-if="!liveCommands || liveCommands.length === 0"
                          :style="{ color: themeColors.textSecondary }" class="px-5 py-8 text-center text-sm">
                         No commands sent yet.
                     </div>
-                    <div v-for="cmd in commands" :key="cmd.id"
+                    <div v-for="cmd in liveCommands" :key="cmd.id"
                          class="px-5 py-3 flex items-center justify-between">
                         <div>
                             <p :style="{ color: themeColors.textPrimary }" class="text-sm font-medium capitalize">
-                                {{ cmd.type.replace('_', ' ') }}
+                                {{ cmd.type.replace(/_/g, ' ') }}
                             </p>
                             <p :style="{ color: themeColors.textSecondary }" class="text-xs">{{ ago(cmd.dispatched_at) }}</p>
                         </div>
@@ -308,11 +336,11 @@
                     <span :style="{ color: themeColors.textSecondary }" class="text-xs">Last 48 pings</span>
                 </div>
                 <div class="divide-y" :style="{ borderColor: themeColors.border }">
-                    <div v-if="!heartbeats || heartbeats.length === 0"
+                    <div v-if="!liveHeartbeats || liveHeartbeats.length === 0"
                          :style="{ color: themeColors.textSecondary }" class="px-5 py-8 text-center text-sm">
                         No heartbeats received yet. Device has not connected.
                     </div>
-                    <div v-for="hb in heartbeats" :key="hb.id"
+                    <div v-for="hb in liveHeartbeats" :key="hb.id"
                          class="px-5 py-2.5 flex items-center justify-between">
                         <div class="flex items-center gap-3">
                             <span :class="hb.status === 'online' ? 'bg-green-400' : 'bg-gray-400'"
@@ -337,7 +365,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { router, useForm, Link } from '@inertiajs/vue3'
 import DashboardLayout from '@/Layouts/DashboardLayout.vue'
 import { getNavigationForRole } from '@/Utils/navigation.js'
@@ -361,6 +389,36 @@ const props = defineProps({
     heartbeats: { type: Array, default: () => [] },
     serverUrl: { type: String, default: '' },
 })
+
+// ── Live reactive copies (updated by the poll loop) ───────────────────────
+const liveDevice     = ref({ ...props.device })
+const liveCommands   = ref([...props.commands])
+const liveHeartbeats = ref([...props.heartbeats])
+const lastPollAt     = ref(null)
+
+// ── Poll every 8 seconds ─────────────────────────────────────────────────
+let pollTimer = null
+
+const startPolling = () => {
+    pollTimer = setInterval(async () => {
+        try {
+            const res = await fetch(route('admin.iptv.devices.poll', props.device.id), {
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            if (!res.ok) return
+            const data = await res.json()
+            liveDevice.value     = data.device
+            liveCommands.value   = data.commands
+            liveHeartbeats.value = data.heartbeats
+            lastPollAt.value     = new Date()
+        } catch (e) {
+            // silently ignore network errors
+        }
+    }, 8000)
+}
+
+onMounted(startPolling)
+onUnmounted(() => clearInterval(pollTimer))
 
 const { currentTheme } = useTheme()
 const navigation = computed(() => getNavigationForRole('admin'))
@@ -421,13 +479,28 @@ const sendCmd = (type) => {
 }
 
 // Message
-const msgText = ref('')
+const msgText    = ref('')
+const sendingMsg = ref(false)
+const msgSent    = ref(false)
+let msgSentTimer = null
+
 const sendMessage = () => {
-    if (!msgText.value.trim()) return
+    if (!msgText.value.trim() || sendingMsg.value) return
+    sendingMsg.value = true
     router.post(route('admin.iptv.devices.command', props.device.id), {
         type: 'message',
         payload: { text: msgText.value.trim() }
-    }, { preserveScroll: true, onSuccess: () => { msgText.value = '' } })
+    }, {
+        preserveScroll: true,
+        onSuccess: () => {
+            msgText.value    = ''
+            sendingMsg.value = false
+            msgSent.value    = true
+            if (msgSentTimer) clearTimeout(msgSentTimer)
+            msgSentTimer = setTimeout(() => { msgSent.value = false }, 3000)
+        },
+        onError: () => { sendingMsg.value = false }
+    })
 }
 
 // Set channel
@@ -443,7 +516,7 @@ const setChannel = () => {
 // Toggle active
 const toggleActive = () => {
     router.put(route('admin.iptv.devices.update', props.device.id), {
-        is_active: !props.device.is_active
+        is_active: !liveDevice.value.is_active
     }, { preserveScroll: true })
 }
 
@@ -467,3 +540,8 @@ const pushSettings = () => {
 // Copy
 const copy = (text) => navigator.clipboard.writeText(text).then(() => alert('Copied!'))
 </script>
+
+<style scoped>
+.fade-enter-active, .fade-leave-active { transition: opacity 0.4s ease; }
+.fade-enter-from, .fade-leave-to       { opacity: 0; }
+</style>

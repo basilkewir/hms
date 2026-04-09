@@ -10,12 +10,12 @@ Artisan::command('inspire', function () {
 // Simple reservation automation command
 Artisan::command('reservations:automate-statuses {--dry-run : Show what would be done without making changes}', function () {
     $dryRun = $this->option('dry-run');
-    
+
     $this->info('Starting reservation status automation...');
     if ($dryRun) {
         $this->info('DRY RUN MODE - No changes will be made');
     }
-    
+
     // Get automation configuration
     $config = [
         'no_show_hours' => config('hotel.automation.no_show_hours', 2),
@@ -24,11 +24,11 @@ Artisan::command('reservations:automate-statuses {--dry-run : Show what would be
         'enable_notifications' => config('hotel.automation.enable_notifications', true),
         'dry_run' => $dryRun,
     ];
-    
+
     // Process no-show reservations
     $this->info('Processing no-show reservations...');
     $cutoffTime = now()->subHours($config['no_show_hours']);
-    
+
     $reservations = \App\Models\Reservation::where('status', 'confirmed')
         ->where('check_in_date', today())
         ->whereNull('actual_check_in')
@@ -46,13 +46,13 @@ Artisan::command('reservations:automate-statuses {--dry-run : Show what would be
             $this->line("Would mark reservation #{$reservation->reservation_number} as no-show (DRY RUN)");
         }
     }
-    
+
     $this->info("Processed {$reservations->count()} no-show reservations");
-    
+
     // Process auto check-out
     $this->info('Processing automatic check-outs...');
     $autoCheckoutTime = now()->setHour($config['auto_checkout_hour'])->setMinute(0)->setSecond(0);
-    
+
     if (now()->lt($autoCheckoutTime)) {
         $this->info('Auto-checkout time not reached yet');
     } else {
@@ -72,20 +72,20 @@ Artisan::command('reservations:automate-statuses {--dry-run : Show what would be
                 $this->line("Would auto-check out reservation #{$reservation->reservation_number} (DRY RUN)");
             }
         }
-        
+
         $this->info("Processed {$checkoutReservations->count()} auto check-outs");
     }
-    
+
     $this->info('Reservation status automation completed.');
-    
+
 })->purpose('Automatically update reservation statuses based on time and conditions');
 
 // Simple daily summary command
 Artisan::command('reservations:daily-summary {--email= : Email address to send summary to}', function () {
     $email = $this->option('email');
-    
+
     $this->info('Generating daily reservation summary...');
-    
+
     $today = today();
     $summary = [
         'date' => $today->format('Y-m-d'),
@@ -107,7 +107,7 @@ Artisan::command('reservations:daily-summary {--email= : Email address to send s
             'auto_cancellations' => 0,
         ],
     ];
-    
+
     $this->info("Daily summary generated for {$summary['date_formatted']}");
     $this->info("Arrivals: " . ($summary['arrivals'] + $summary['arrivals_checked_in']));
     $this->info("Departures: " . ($summary['departures'] + $summary['departures_checked_out']));
@@ -115,24 +115,24 @@ Artisan::command('reservations:daily-summary {--email= : Email address to send s
     $this->info("Cancellations: {$summary['cancellations']}");
     $this->info("Current Occupancy: {$summary['current_occupancy']}");
     $this->info("Total Revenue: " . number_format($summary['total_revenue'], 2) . " FCFA");
-    
+
     if ($email) {
         $this->info("Summary would be sent to: {$email}");
     }
-    
+
     $this->info('Daily reservation summary completed.');
-    
+
 })->purpose('Generate and send daily reservation summary report');
 
 // Generate daily cleaning tasks command
 Artisan::command('housekeeping:generate-daily-tasks {--dry-run : Show what would be done without making changes}', function () {
     $dryRun = $this->option('dry-run');
-    
+
     $this->info('Starting daily cleaning task generation...');
     if ($dryRun) {
         $this->info('DRY RUN MODE - No changes will be made');
     }
-    
+
     $today = \Carbon\Carbon::today();
     $tasksCreated = 0;
     $roomsMarkedDirty = 0;
@@ -300,7 +300,7 @@ Artisan::command('housekeeping:generate-daily-tasks {--dry-run : Show what would
             $roomsMarkedDirty++;
         }
     }
-    
+
     $this->newLine();
     $this->info('=== Daily Cleaning Task Generation Summary ===');
     $this->info("Date: {$today->format('Y-m-d')}");
@@ -330,7 +330,7 @@ Artisan::command('housekeeping:generate-daily-tasks {--dry-run : Show what would
 if (app()->runningInConsole()) {
     app()->booted(function () {
         $schedule = app(\Illuminate\Console\Scheduling\Schedule::class);
-        
+
         // Run reservation status automation every 30 minutes
         $schedule->command('reservations:automate-statuses')
                 ->everyThirtyMinutes()
@@ -370,6 +370,13 @@ if (app()->runningInConsole()) {
         $schedule->command('license:check')
                 ->everySixHours()
                 ->description('Periodic online license verification')
+                ->withoutOverlapping()
+                ->runInBackground();
+
+        // Fetch fresh weather data from OpenWeatherMap and cache it for IPTV devices
+        $schedule->command('weather:fetch')
+                ->everyFifteenMinutes()
+                ->description('Cache current weather for IPTV player welcome screens')
                 ->withoutOverlapping()
                 ->runInBackground();
     });

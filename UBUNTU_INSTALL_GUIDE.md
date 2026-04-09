@@ -1,6 +1,6 @@
-# Hotel Management System — Ubuntu Server Installation Guide
+# Unified Installer — Ubuntu Server Installation Guide
 
-> **One-command install**, similar to XtreamUI / other panel-style apps.
+> **One-command install** for IPTV Management, Hotel Management System, or both.
 > Supports Ubuntu 20.04, 22.04, and 24.04 LTS.
 
 ---
@@ -14,6 +14,20 @@
 | Disk      | 10 GB free |
 | CPU       | 1 vCPU (2+ recommended) |
 | Access    | Root or sudo |
+
+---
+
+## Installation Modes
+
+When you run the installer it will ask you to choose one of three modes:
+
+| # | Mode | What is installed |
+|---|------|-------------------|
+| 1 | **IPTV Management only** | Xtream Codes management, Android TV device registration, channel/VOD push API. No hotel PMS. Skips front-end Vite build. |
+| 2 | **Hotel Management System only** | Full hotel PMS — reservations, billing, housekeeping, staff, POS, reports. No IPTV panel. |
+| 3 | **Both (full install)** | Everything: hotel PMS + IPTV management + Android TV API. |
+
+The chosen mode is written to `.env` as `INSTALL_MODE` and two feature flags (`FEATURE_HMS`, `FEATURE_IPTV`) that the application reads to show or hide sections.
 
 ---
 
@@ -44,20 +58,22 @@ chmod +x install.sh
 sudo bash install.sh
 ```
 
-The installer will ask a few questions interactively:
+The installer will first ask you to **choose a mode** (1 / 2 / 3), then ask a few questions:
 
-| Prompt | Example |
-|--------|---------|
-| Domain or server IP | `hotel.yourdomain.com` or `192.168.1.100` |
-| Use HTTPS? | `yes` (needs a real domain) or `no` |
-| Hotel Name | `Grand Hotel` |
-| Hotel Email | `info@grandhotel.com` |
-| Hotel Phone | `+1234567890` |
-| Hotel Address | `123 Main Street, City` |
-| Database name | `hms_db` *(or press Enter for default)* |
-| Database user | `hms_user` *(or press Enter for default)* |
-| Database password | *(press Enter to auto-generate a secure one)* |
-| License server URL | *(press Enter for default: `https://kewirdev.com/api/license`)* |
+| Prompt | Example | Modes |
+|--------|---------|-------|
+| Install mode | `1`, `2`, or `3` | all |
+| Domain or server IP | `hotel.yourdomain.com` or `192.168.1.100` | all |
+| Use HTTPS? | `yes` / `no` | all |
+| Cloudflare Tunnel URL | `https://hotel.qzz.io` (optional) | all |
+| Hotel Name | `Grand Hotel` | HMS / Both |
+| Hotel Email | `info@grandhotel.com` | HMS / Both |
+| Hotel Phone | `+1234567890` | HMS / Both |
+| Hotel Address | `123 Main Street, City` | HMS / Both |
+| Database name | `hms_db` | all |
+| Database user | `hms_user` | all |
+| Database password | *(auto-generated if blank)* | all |
+| License server URL | *(default: `https://kewirdev.com/api/license`)* | all |
 
 Then confirm and the installer will handle everything automatically.
 
@@ -66,35 +82,41 @@ Then confirm and the installer will handle everything automatically.
 ## What the Installer Does
 
 ```
+Step 0 — Mode selection
+        Choose: IPTV only / HMS only / Both
+
 Step 1 — System packages
-        PHP 8.2, Nginx, MySQL, Node.js 20, Composer
+        PHP 8.2, Nginx, MySQL, Composer
+        Node.js 20 only for HMS / Both (front-end build)
 
-Step 2 — Database
-        Creates DB + user with the credentials you provided
+Step 2 — Configuration prompts
+        Hotel details only asked for HMS / Both modes
 
-Step 3 — Application files
-        Copies project to /opt/hms (excludes .git, node_modules, vendor)
+Step 3 — Database
+        Creates DB + user
 
-Step 4 — .env file
-        Writes full .env with your DB credentials, hotel details,
-        license server URL, production settings
+Step 4 — Application files
+        Copies project to /opt/hms
 
-Step 5 — Dependencies & build
+Step 5 — .env file
+        Writes INSTALL_MODE, FEATURE_HMS, FEATURE_IPTV flags
+        plus DB credentials, hotel details, license server URL
+
+Step 6 — Dependencies & build
         composer install --no-dev --optimize-autoloader
-        npm install && npm run build (Vite front-end)
+        npm install && npm run build  ← skipped for IPTV-only
 
-Step 6 — Migrations & seeders
-        php artisan migrate --force
-        Seeds rooms, users, permissions, settings, etc.
+Step 7 — Migrations & seeders
+        migrate:fresh --seed
+        HMS seeders: rooms, staff, permissions  ← HMS / Both only
+        IPTV seeders: device defaults, categories ← IPTV / Both only
 
-Step 7 — Nginx virtual host
-        /etc/nginx/sites-available/hms
-        Optional: Let's Encrypt SSL (certbot --nginx)
+Step 8 — Nginx virtual host
+        Site name: "iptv" for IPTV-only, "hms" for HMS / Both
 
-Step 8 — System services
-        Queue worker: systemd service (hms-queue)
-        Scheduler: /etc/cron.d/hms-scheduler (every minute)
-        PHP-FPM opcache tuning for production
+Step 9 — System services
+        Queue worker: hms-queue (systemd)
+        Scheduler: /etc/cron.d/hms-scheduler
 ```
 
 ---

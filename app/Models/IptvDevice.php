@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Http\Controllers\Api\DeviceEventsController;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -96,12 +97,17 @@ class IptvDevice extends Model
 
     public function dispatchCommand(string $type, array $payload = [], ?string $by = null): DeviceCommand
     {
-        return $this->commands()->create([
+        $command = $this->commands()->create([
             'type'          => $type,
             'payload'       => $payload,
             'status'        => 'pending',
             'dispatched_at' => now(),
             'dispatched_by' => $by,
         ]);
+
+        // Signal the SSE stream for this device — delivers command within ~1 second
+        DeviceEventsController::signal($this->device_id);
+
+        return $command;
     }
 }

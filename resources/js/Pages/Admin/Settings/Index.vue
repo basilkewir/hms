@@ -681,6 +681,70 @@
                 <!-- IPTV / Android TV Settings -->
                 <div v-show="activeTab === 'iptv'" class="space-y-8">
 
+                    <!-- Section: HMS Server Connection -->
+                    <div class="bg-kotel-dark border border-kotel-border rounded-lg p-6">
+                        <h3 class="text-lg font-semibold text-kotel-yellow mb-1 flex items-center gap-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                            HMS Server Connection
+                        </h3>
+                        <p class="text-sm text-kotel-text-tertiary mb-5">
+                            This is the server URL that Android TV devices enter to connect and pull all their settings.
+                            The URL below is this server's public address. Devices must be able to reach it over the network.
+                        </p>
+                        <div class="grid grid-cols-1 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-kotel-text-secondary mb-2">Server URL (enter this on the TV app)</label>
+                                <div class="flex gap-3">
+                                    <input type="text" :value="server_url" readonly
+                                           class="flex-1 border border-kotel-border rounded-md px-3 py-2 bg-kotel-black text-kotel-text-primary font-mono text-sm focus:outline-none select-all"
+                                           @click="$event.target.select()">
+                                    <button type="button"
+                                            @click="navigator.clipboard?.writeText(server_url); $event.target.textContent='Copied!'; setTimeout(() => $event.target.textContent='Copy', 1500)"
+                                            class="px-4 py-2 bg-kotel-dark border border-kotel-border rounded-md text-sm text-kotel-text-secondary hover:text-kotel-yellow hover:border-kotel-yellow transition-colors">
+                                        Copy
+                                    </button>
+                                </div>
+                                <p class="mt-1 text-xs text-kotel-text-tertiary">
+                                    API endpoint: <span class="font-mono text-kotel-sky-blue">{{ server_url }}/api/android/register</span>
+                                </p>
+                            </div>
+
+                            <!-- Test connection button + result -->
+                            <div class="flex items-center gap-4">
+                                <button type="button" @click="testHmsConnection"
+                                        :disabled="hmsTestLoading"
+                                        class="flex items-center gap-2 px-5 py-2 rounded-md text-sm font-medium transition-colors"
+                                        :class="hmsTestLoading ? 'bg-kotel-border text-kotel-text-tertiary cursor-not-allowed' : 'bg-kotel-yellow text-kotel-black hover:bg-yellow-400'">
+                                    <svg v-if="hmsTestLoading" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                                    <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                    {{ hmsTestLoading ? 'Testing…' : 'Test Connection' }}
+                                </button>
+                                <div v-if="hmsTestResult" class="flex items-center gap-2 text-sm px-3 py-1.5 rounded-md"
+                                     :class="hmsTestResult.success ? 'bg-green-900/30 text-green-400 border border-green-700' : 'bg-red-900/30 text-red-400 border border-red-700'">
+                                    <svg v-if="hmsTestResult.success" class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                    <svg v-else class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                    {{ hmsTestResult.message }}
+                                </div>
+                            </div>
+
+                            <!-- Device stats -->
+                            <div class="rounded-lg border border-kotel-border bg-kotel-black/40 p-4 grid grid-cols-2 sm:grid-cols-3 gap-4 text-center">
+                                <div>
+                                    <p class="text-2xl font-bold text-kotel-yellow">{{ registeredDevices ?? '—' }}</p>
+                                    <p class="text-xs text-kotel-text-tertiary mt-1">Registered Devices</p>
+                                </div>
+                                <div>
+                                    <p class="text-2xl font-bold text-green-400">{{ onlineDevices ?? '—' }}</p>
+                                    <p class="text-xs text-kotel-text-tertiary mt-1">Online Now</p>
+                                </div>
+                                <div>
+                                    <p class="text-2xl font-bold text-kotel-sky-blue">{{ pendingCommands ?? '—' }}</p>
+                                    <p class="text-xs text-kotel-text-tertiary mt-1">Pending Commands</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Section: Xtream Codes Server -->
                     <div class="bg-kotel-dark border border-kotel-border rounded-lg p-6">
                         <h3 class="text-lg font-semibold text-kotel-yellow mb-1 flex items-center gap-2">
@@ -731,6 +795,16 @@
                                 <input type="text" v-model="settings.hotel_welcome_message"
                                        placeholder="Welcome to our Hotel"
                                        class="w-full border border-kotel-border rounded-md px-3 py-2 bg-kotel-black text-kotel-text-primary focus:outline-none focus:ring-2 focus:ring-kotel-yellow">
+                            </div>
+                            <div class="md:col-span-2">
+                                <label class="block text-sm font-medium text-kotel-text-secondary mb-2">Welcome Screen Background Image URL</label>
+                                <input type="url" v-model="settings.welcome_background_url"
+                                       placeholder="https://example.com/background.jpg"
+                                       class="w-full border border-kotel-border rounded-md px-3 py-2 bg-kotel-black text-kotel-text-primary focus:outline-none focus:ring-2 focus:ring-kotel-yellow">
+                                <p class="mt-1 text-xs text-kotel-text-tertiary">Full URL of the background image displayed on the Android TV welcome screen. Pushed automatically to all devices on next sync.</p>
+                                <div v-if="settings.welcome_background_url" class="mt-2">
+                                    <img :src="settings.welcome_background_url" alt="Background preview" class="h-24 rounded border border-kotel-border object-cover" @error="$event.target.style.display='none'">
+                                </div>
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-kotel-text-secondary mb-2">TV Accent Colour</label>
@@ -1172,6 +1246,7 @@ const props = defineProps({
     user: Object,
     settings: Object,
     allSettings: Object,
+    server_url: String,
 })
 
 const activeTab = ref('general')
@@ -1456,6 +1531,7 @@ const settings = ref({
     // Hotel branding on TV
     hotel_welcome_message:    props.settings?.iptv?.hotel_welcome_message || 'Welcome to our Hotel',
     hotel_primary_color:      props.settings?.iptv?.hotel_primary_color || '#FFD700',
+    welcome_background_url:   props.settings?.iptv?.welcome_background_url || '',
     // Weather widget
     weather_enabled:          props.settings?.iptv?.weather_enabled != '0',
     weather_api_key:          props.settings?.iptv?.weather_api_key || '',
@@ -1522,6 +1598,39 @@ const bookingApiEndpoint = computed(() => {
 
 const isSaving = ref(false)
 const licenseInfo = ref(null)
+
+// HMS connection test
+const hmsTestLoading = ref(false)
+const hmsTestResult = ref(null)  // null | { success: bool, message: string }
+const registeredDevices = ref(null)
+const onlineDevices = ref(null)
+const pendingCommands = ref(null)
+
+const testHmsConnection = async () => {
+    hmsTestLoading.value = true
+    hmsTestResult.value = null
+    try {
+        const { data } = await window.axios.post('/admin/settings/test-hms-connection', {
+            url: props.server_url,
+        })
+        hmsTestResult.value = data
+    } catch (e) {
+        hmsTestResult.value = { success: false, message: e?.response?.data?.message || 'Network error — server unreachable.' }
+    } finally {
+        hmsTestLoading.value = false
+    }
+}
+
+const loadDeviceStats = async () => {
+    try {
+        const { data } = await window.axios.get('/admin/iptv/devices/stats')
+        registeredDevices.value = data.registered ?? 0
+        onlineDevices.value = data.online ?? 0
+        pendingCommands.value = data.pending_commands ?? 0
+    } catch {
+        // silently ignore — stats are just informational
+    }
+}
 const licenseLoading = ref(true)
 const showActivateForm = ref(false)
 const licenseActionLoading = ref(false)
@@ -1592,6 +1701,7 @@ const runBackup = async () => {
 // Load license information
 onMounted(async () => {
     await loadLicenseInfo()
+    loadDeviceStats()
 
     console.log('🔄 Settings page mounted, checking theme...')
 
@@ -1716,6 +1826,7 @@ const saveSettings = async () => {
             // Hotel branding on TV
             settingsToSave.hotel_welcome_message = settings.value.hotel_welcome_message
             settingsToSave.hotel_primary_color = settings.value.hotel_primary_color
+            settingsToSave.welcome_background_url = settings.value.welcome_background_url
             // Weather
             settingsToSave.weather_enabled = settings.value.weather_enabled
             settingsToSave.weather_api_key = settings.value.weather_api_key

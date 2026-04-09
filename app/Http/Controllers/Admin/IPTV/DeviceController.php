@@ -69,10 +69,12 @@ class DeviceController extends Controller
             ->limit(48)
             ->get()
             ->map(fn($h) => [
-                'time'            => $h->recorded_at?->format('H:i'),
+                'id'              => $h->id,
+                'recorded_at'     => $h->recorded_at?->toIso8601String(),
                 'status'          => $h->status,
                 'current_channel' => $h->current_channel,
                 'ip_address'      => $h->ip_address,
+                'app_version'     => $h->app_version,
             ]);
 
         $commandHistory = DeviceCommand::where('iptv_device_id', $device->id)
@@ -84,8 +86,8 @@ class DeviceController extends Controller
                 'type'          => $c->type,
                 'status'        => $c->status,
                 'dispatched_by' => $c->dispatched_by,
-                'dispatched_at' => $c->dispatched_at?->diffForHumans(),
-                'executed_at'   => $c->executed_at?->diffForHumans(),
+                'dispatched_at' => $c->dispatched_at?->toIso8601String(),
+                'executed_at'   => $c->executed_at?->toIso8601String(),
             ]);
 
         return Inertia::render('Admin/IPTV/Devices/Show', [
@@ -157,8 +159,10 @@ class DeviceController extends Controller
             'type'    => 'required|in:reboot,refresh_channels,push_settings,set_channel,message,lock,unlock,reload_app',
             'payload' => 'nullable|array',
         ]);
-        $cmd = $device->dispatchCommand($request->type, $request->payload ?? [], auth()->user()?->name);
-        return response()->json(['success' => true, 'message' => 'Command queued', 'command_id' => $cmd->id]);
+        $device->dispatchCommand($request->type, $request->payload ?? [], auth()->user()?->name);
+
+        $label = str_replace('_', ' ', $request->type);
+        return redirect()->back()->with('success', ucfirst($label) . ' command queued for delivery.');
     }
 
     // ── Push settings to one device ───────────────────────────────────────
@@ -197,7 +201,7 @@ class DeviceController extends Controller
             'settings_version' => ($device->settings_version ?? 0) + 1,
         ]);
         $device->dispatchCommand('push_settings', ['settings_version' => $device->settings_version], auth()->user()?->name);
-        return response()->json(['success' => true, 'message' => 'Settings queued for delivery']);
+        return redirect()->back()->with('success', 'Settings pushed — device will apply on next heartbeat.');
     }
 
     // ── Push global settings to ALL devices ──────────────────────────────
@@ -244,10 +248,9 @@ class DeviceController extends Controller
     public function regenerateToken(IptvDevice $device)
     {
         $token = $device->generateRegistrationToken();
-        return response()->json([
-            'success'            => true,
-            'registration_token' => $token,
-            'server_url'         => url('/'),
+        return redirect()->back()->with([
+            'success'  => 'New registration token generated.',
+            'newToken' => $token,
         ]);
     }
 
@@ -259,7 +262,7 @@ class DeviceController extends Controller
             'id'              => $d->id,
             'device_id'       => $d->device_id,
             'computed_status' => $d->computedStatus(),
-            'last_heartbeat'  => $d->last_heartbeat?->diffForHumans() ?? 'Never',
+            'last_heartbeat'  => $d->last_heartbeat?->toIso8601String(),
             'ip_address'      => $d->ip_address ?? '—',
             'pending_commands' => $d->commands()->where('status', 'pending')->count(),
         ]);
@@ -272,30 +275,68 @@ class DeviceController extends Controller
         return response()->json(['devices' => $devices, 'stats' => $stats]);
     }
 
+    // ── Per-device live poll (used by Show.vue every 8s) ──────────────────
+
+    public function devicePoll(IptvDevice $device)
+    {
+        $commands = DeviceCommand::where('iptv_device_id', $device->id)
+            ->orderBy('created_at', 'desc')
+            ->limit(20)
+            ->get()
+            ->map(fn($c) => [
+                'id'            => $c->id,
+                'type'          => $c->type,
+                'status'        => $c->status,
+                'dispatched_by' => $c->dispatched_by,
+                'dispatched_at' => $c->dispatched_at?->toIso8601String(),
+                'executed_at'   => $c->executed_at?->toIso8601String(),
+            ]);
+
+        $heartbeats = DeviceHeartbeat::where('iptv_device_id', $device->id)
+            ->orderBy('recorded_at', 'desc')
+            ->limit(48)
+            ->get()
+            ->map(fn($h) => [
+                'id'              => $h->id,
+                'recorded_at'     => $h->recorded_at?->toIso8601String(),
+                'status'          => $h->status,
+                'current_channel' => $h->current_channel,
+                'ip_address'      => $h->ip_address,
+                'app_version'     => $h->app_version,
+            ]);
+
+        return response()->json([
+            'device'     => $this->deviceResource($device->fresh()),
+            'commands'   => $commands,
+            'heartbeats' => $heartbeats,
+        ]);
+    }
+
     // ── Helpers ────────────────────────────────────────────────────────────
 
     private function deviceResource(IptvDevice $d): array
     {
         return [
-            'id'               => $d->id,
-            'device_id'        => $d->device_id,
-            'device_name'      => $d->device_name ?? $d->device_id,
-            'device_type'      => $d->device_type ?? 'android_tv',
-            'mac_address'      => $d->mac_address ?? '—',
-            'ip_address'       => $d->ip_address ?? '—',
-            'room_number'      => $d->room?->room_number ?? 'Unassigned',
-            'room_type'        => $d->room?->roomType?->name ?? '—',
-            'computed_status'  => $d->computedStatus(),
-            'package'          => $d->package ?? 'basic',
-            'last_heartbeat'   => $d->last_heartbeat?->diffForHumans() ?? 'Never',
-            'last_heartbeat_raw' => $d->last_heartbeat?->toIso8601String(),
-            'app_version'      => $d->app_version ?? '—',
-            'android_version'  => $d->android_version ?? '—',
-            'settings_version' => $d->settings_version ?? 0,
-            'registered_at'    => $d->registered_at?->format('Y-m-d') ?? '—',
-            'notes'            => $d->notes ?? '',
-            'is_active'        => (bool)($d->is_active ?? true),
-            'pending_commands' => $d->commands()->where('status', 'pending')->count(),
+            'id'                 => $d->id,
+            'device_id'          => $d->device_id,
+            'device_name'        => $d->device_name ?? $d->device_id,
+            'device_type'        => $d->device_type ?? 'android_tv',
+            'mac_address'        => $d->mac_address ?? '—',
+            'ip_address'         => $d->ip_address ?? '—',
+            'room_number'        => $d->room?->room_number ?? 'Unassigned',
+            'room_type'          => $d->room?->roomType?->name ?? '—',
+            'computed_status'    => $d->computedStatus(),
+            'package'            => $d->package ?? 'basic',
+            // ISO strings — the Vue ago() helper parses these with new Date()
+            'last_heartbeat'     => $d->last_heartbeat?->toIso8601String(),
+            'registered_at'      => $d->registered_at?->toIso8601String(),
+            'app_version'        => $d->app_version ?? '—',
+            'android_version'    => $d->android_version ?? '—',
+            'settings_version'   => $d->settings_version ?? 0,
+            'notes'              => $d->notes ?? '',
+            'is_active'          => (bool)($d->is_active ?? true),
+            'registration_token' => $d->registration_token,
+            'pending_commands'   => $d->commands()->where('status', 'pending')->count(),
         ];
     }
 

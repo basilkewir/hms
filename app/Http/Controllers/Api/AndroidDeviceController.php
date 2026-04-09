@@ -10,6 +10,8 @@ use App\Models\Room;
 use App\Models\Setting;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
@@ -274,6 +276,56 @@ class AndroidDeviceController extends Controller
         ]);
     }
 
+    // ── Weather (server-cached) ────────────────────────────────────────────
+
+    /**
+     * Returns weather data that was last fetched by the `weather:fetch` artisan
+     * command (runs every 15 minutes via the scheduler).
+     *
+     * This endpoint is PUBLIC — no device token required — so devices can call
+     * it even before registration, and the hotel logo / welcome screen shows
+     * weather immediately.
+     */
+    public function weather(Request $request): JsonResponse
+    {
+        // 1. Try Laravel cache (fast, in-memory)
+        $weather = Cache::get('weather_data');
+
+        // 2. Fall back to the settings row (survives cache:clear)
+        if (!$weather) {
+            $raw = Setting::where('key', 'weather_cache')->value('value');
+            if ($raw) {
+                $weather = json_decode($raw, true);
+                // Re-warm the cache so next request is fast
+                if ($weather) {
+                    Cache::put('weather_data', $weather, now()->addMinutes(30));
+                }
+            }
+        }
+
+        if (!$weather) {
+            // No cached data yet — try to run the fetch command inline (first boot)
+            try {
+                Artisan::call('weather:fetch');
+                $weather = Cache::get('weather_data');
+            } catch (\Exception $e) {
+                Log::warning('Inline weather:fetch failed: ' . $e->getMessage());
+            }
+        }
+
+        if (!$weather) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Weather data not yet available. Run: php artisan weather:fetch',
+            ], 503);
+        }
+
+        return response()->json([
+            'success' => true,
+            'weather' => $weather,
+        ]);
+    }
+
     // ── Private helpers ────────────────────────────────────────────────────
 
     private function findDevice(string $deviceId, string $token): ?IptvDevice
@@ -291,7 +343,7 @@ class AndroidDeviceController extends Controller
             'xtream_url', 'xtream_username', 'xtream_password', 'xtream_use_https',
             // Hotel branding
             'hotel_name', 'hotel_logo', 'hotel_address', 'hotel_phone',
-            'hotel_primary_color', 'hotel_welcome_message',
+            'hotel_primary_color', 'hotel_welcome_message', 'welcome_background_url',
             // Weather widget
             'weather_api_key', 'weather_city', 'weather_units', 'weather_enabled',
             // TV UI behaviour
@@ -321,6 +373,7 @@ class AndroidDeviceController extends Controller
             'hotel_phone'             => $db['hotel_phone'] ?? '',
             'hotel_primary_color'     => $db['hotel_primary_color'] ?? '#FFD700',
             'hotel_welcome_message'   => $db['hotel_welcome_message'] ?? 'Welcome',
+            'welcome_background_url'  => $db['welcome_background_url'] ?? '',
 
             // ── Weather widget ────────────────────────────────────────────
             'weather_enabled'         => (bool)($db['weather_enabled'] ?? true),

@@ -203,6 +203,7 @@ export const navigationConfig = {
           icon: 'tv',
           items: [
             { label: 'Device Management', routeName: 'admin.iptv.devices.index' },
+            { label: '🌤 Weather',         routeName: 'admin.iptv.weather.index' },
           ],
         },
       ],

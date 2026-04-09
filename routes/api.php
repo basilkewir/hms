@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\RateLimiter;
 use App\Http\Controllers\Api\BookingController;
 use App\Http\Controllers\Api\OnlineBookingController;
 use App\Http\Controllers\Api\AndroidDeviceController;
+use App\Http\Controllers\Api\DeviceEventsController;
 // use App\Http\Controllers\Api\IptvController;
 
 /*
@@ -22,6 +23,19 @@ Route::prefix('android')->group(function () {
     // Public — called before token exists
     Route::get('/hotel-info',   [AndroidDeviceController::class, 'hotelInfo']);
 
+    // Weather — public, no token — server-cached data fetched every 15 min by scheduler
+    Route::get('/weather',      [AndroidDeviceController::class, 'weather']);
+
+    // Connectivity test — no auth needed, lets the admin UI verify the API is reachable
+    Route::get('/ping', function () {
+        return response()->json([
+            'success'     => true,
+            'message'     => 'HMS API reachable',
+            'server_time' => now()->toIso8601String(),
+            'version'     => config('app.version', '1.0'),
+        ]);
+    });
+
     // Throttled registration (prevent spam)
     Route::middleware(['throttle:10,1'])->group(function () {
         Route::post('/register', [AndroidDeviceController::class, 'register']);
@@ -34,6 +48,10 @@ Route::prefix('android')->group(function () {
         Route::get('/settings',      [AndroidDeviceController::class, 'getSettings']);
         Route::get('/iptv-config',   [AndroidDeviceController::class, 'getIptvConfig']);
     });
+
+    // SSE event stream — long-lived connection, no throttle limit
+    // Android connects once; server pushes commands instantly when dispatched
+    Route::get('/events', [DeviceEventsController::class, 'stream'])->withoutMiddleware(['throttle:120,1']);
 });
 
 // Public API routes (no authentication required)

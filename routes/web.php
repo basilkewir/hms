@@ -4049,16 +4049,10 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
             'session_timeout', 'password_min_length', 'require_2fa', 'force_password_change',
             'pos_print_paper_width', 'pos_print_font_size', 'pos_print_show_logo',
             'frontdesk_print_paper_width', 'frontdesk_print_font_size', 'frontdesk_print_show_logo',
-            'iptv_server_url', 'default_channel_package', 'enable_vod', 'enable_parental_controls',
             'backup_frequency', 'backup_retention_days',
         ];
-        $generalSettings = [];
-        foreach ($generalKeys as $key) {
-            $setting = \App\Models\Setting::where('key', $key)->first();
-            if ($setting) {
-                $generalSettings[$key] = $setting->value;
-            }
-        }
+        $generalSettings = \App\Models\Setting::whereIn('key', $generalKeys)
+            ->pluck('value', 'key')->toArray();
 
         $themeKeys = [
             'theme_mode', 'theme_primary_color', 'theme_secondary_color', 'theme_success_color',
@@ -4066,20 +4060,37 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
             'theme_card_color', 'theme_text_primary', 'theme_text_secondary', 'theme_text_tertiary',
             'theme_border_color', 'theme_radius', 'theme_shadow', 'theme_transition',
         ];
-        $themeSettings = [];
-        foreach ($themeKeys as $key) {
-            $setting = \App\Models\Setting::where('key', $key)->first();
-            if ($setting) {
-                $themeSettings[$key] = $setting->value;
-            }
-        }
+        $themeSettings = \App\Models\Setting::whereIn('key', $themeKeys)
+            ->pluck('value', 'key')->toArray();
+
+        // ── IPTV / Android TV settings ──────────────────────────────────────
+        $iptvKeys = [
+            // Xtream Codes
+            'xtream_url', 'xtream_username', 'xtream_password', 'xtream_use_https',
+            // Hotel branding on TV
+            'hotel_welcome_message', 'hotel_primary_color', 'welcome_background_url',
+            // Weather widget
+            'weather_api_key', 'weather_city', 'weather_units', 'weather_enabled',
+            // TV UI & behaviour
+            'iptv_ui_theme', 'iptv_show_epg', 'iptv_auto_launch_seconds',
+            'iptv_show_clock', 'iptv_show_room_number',
+            'iptv_enable_vod', 'iptv_enable_series', 'iptv_enable_radio',
+            'iptv_parental_pin',
+            // Security / PIN
+            'admin_pin',
+        ];
+        $iptvSettings = \App\Models\Setting::whereIn('key', $iptvKeys)
+            ->pluck('value', 'key')->toArray();
 
         return Inertia::render('Admin/Settings/Index', [
             'user'     => $user,
             'settings' => [
                 'general' => $generalSettings,
                 'theme'   => $themeSettings,
+                'iptv'    => $iptvSettings,
             ],
+            // Expose this server's base URL so the app knows where to register
+            'server_url' => rtrim(config('app.url'), '/'),
         ]);
     })->name('settings.index');
     Route::post('/settings', function () {
@@ -4088,17 +4099,36 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
     Route::put('/settings', function (Request $request) {
         $settings = $request->input('settings', []);
 
-        $booleanKeys = [
+        $generalBoolKeys = [
             'auto_apply_guest_type_discount', 'auto_apply_vip_discount',
             'require_2fa', 'force_password_change',
             'pos_print_show_logo', 'frontdesk_print_show_logo',
             'enable_vod', 'enable_parental_controls',
         ];
 
+        $iptvKeys = [
+            'xtream_url', 'xtream_username', 'xtream_password',
+            'hotel_welcome_message', 'hotel_primary_color', 'welcome_background_url',
+            'weather_api_key', 'weather_city', 'weather_units',
+            'iptv_ui_theme', 'iptv_parental_pin', 'admin_pin',
+        ];
+        $iptvBoolKeys = [
+            'xtream_use_https', 'weather_enabled',
+            'iptv_show_epg', 'iptv_show_clock', 'iptv_show_room_number',
+            'iptv_enable_vod', 'iptv_enable_series', 'iptv_enable_radio',
+        ];
+        $iptvIntKeys = ['iptv_auto_launch_seconds'];
+
         foreach ($settings as $key => $value) {
             if (strpos($key, 'theme_') === 0) {
                 \App\Models\Setting::set($key, $value, 'string', 'theme');
-            } elseif (in_array($key, $booleanKeys, true)) {
+            } elseif (in_array($key, $iptvBoolKeys, true)) {
+                \App\Models\Setting::set($key, $value ? '1' : '0', 'boolean', 'iptv');
+            } elseif (in_array($key, $iptvIntKeys, true)) {
+                \App\Models\Setting::set($key, (int) $value, 'integer', 'iptv');
+            } elseif (in_array($key, $iptvKeys, true)) {
+                \App\Models\Setting::set($key, $value, 'string', 'iptv');
+            } elseif (in_array($key, $generalBoolKeys, true)) {
                 \App\Models\Setting::set($key, $value ? '1' : '0', 'boolean', 'general');
             } elseif (is_numeric($value) && strpos((string) $value, '.') !== false) {
                 \App\Models\Setting::set($key, $value, 'float', 'general');
@@ -4109,8 +4139,59 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
             }
         }
 
+        // Bump settings_version on all devices whenever IPTV settings change
+        $hasIptvChange = !empty(array_intersect(
+            array_keys($settings),
+            array_merge($iptvKeys, $iptvBoolKeys, $iptvIntKeys)
+        ));
+        if ($hasIptvChange) {
+            // Propagate any Xtream credential changes into per-device pushed_settings
+            // so devices with existing overrides also pick up the new global values.
+            $xtreamOverrides = array_filter([
+                'xtream_url'      => $settings['xtream_url']      ?? null,
+                'xtream_username' => $settings['xtream_username']  ?? null,
+                'xtream_password' => $settings['xtream_password']  ?? null,
+            ], fn($v) => $v !== null && $v !== '');
+
+            \App\Models\IptvDevice::where('is_active', true)->each(function ($device) use ($xtreamOverrides) {
+                $newPushed = array_merge($device->pushed_settings ?? [], $xtreamOverrides);
+                $device->update([
+                    'pushed_settings'  => $newPushed,
+                    'settings_version' => ($device->settings_version ?? 0) + 1,
+                ]);
+                // Dispatch push_settings command so the device is notified immediately via SSE/heartbeat
+                $device->dispatchCommand('push_settings', ['settings_version' => $device->settings_version]);
+            });
+        }
+
         return response()->json(['success' => true, 'message' => 'Settings updated successfully']);
     })->name('settings.update');
+
+    // Test HMS API connectivity (used by Settings → IPTV tab "Test Connection" button)
+    Route::post('/settings/test-hms-connection', function (Request $request) {
+        $url = rtrim($request->input('url', config('app.url')), '/');
+        try {
+            $response = \Illuminate\Support\Facades\Http::timeout(8)
+                ->withOptions(['verify' => false])
+                ->get($url . '/api/android/ping');
+            if ($response->successful() && ($response->json('success') === true)) {
+                return response()->json([
+                    'success'     => true,
+                    'message'     => 'Connection successful! Server responded at ' . $url,
+                    'server_time' => $response->json('server_time'),
+                ]);
+            }
+            return response()->json([
+                'success' => false,
+                'message' => 'Server returned HTTP ' . $response->status() . '. Check the URL.',
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Connection failed: ' . $e->getMessage(),
+            ]);
+        }
+    })->name('settings.test-hms-connection');
 
     // Logo upload / remove
     Route::post('/settings/logo', [\App\Http\Controllers\SettingsController::class, 'uploadLogo'])->name('settings.logo.upload');
@@ -4138,6 +4219,21 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
         // Status refresh (JSON endpoint for live polling)
         Route::get('/devices-status', [\App\Http\Controllers\Admin\IPTV\DeviceController::class, 'statusRefresh'])->name('devices.status');
 
+        // Quick stats for Settings → IPTV tab dashboard
+        Route::get('/devices/stats', function () {
+            $registered = \App\Models\IptvDevice::where('is_active', true)->count();
+            $online      = \App\Models\IptvDevice::where('is_active', true)
+                ->where('status', 'online')
+                ->where('last_heartbeat', '>=', now()->subMinutes(3))
+                ->count();
+            $pending     = \App\Models\DeviceCommand::where('status', 'pending')->count();
+            return response()->json([
+                'registered'      => $registered,
+                'online'          => $online,
+                'pending_commands'=> $pending,
+            ]);
+        })->name('devices.stats');
+
         // Push settings to ALL active devices
         Route::post('/devices/push-all', [\App\Http\Controllers\Admin\IPTV\DeviceController::class, 'pushSettingsAll'])->name('devices.push-all');
 
@@ -4152,6 +4248,72 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
         Route::post('/devices/{device}/command', [\App\Http\Controllers\Admin\IPTV\DeviceController::class, 'sendCommand'])->name('devices.command');
         Route::post('/devices/{device}/push-settings', [\App\Http\Controllers\Admin\IPTV\DeviceController::class, 'pushSettings'])->name('devices.push-settings');
         Route::post('/devices/{device}/regenerate-token', [\App\Http\Controllers\Admin\IPTV\DeviceController::class, 'regenerateToken'])->name('devices.regenerate-token');
+
+        // Live poll — used by Show.vue to auto-refresh commands & heartbeats
+        Route::get('/devices/{device}/poll', [\App\Http\Controllers\Admin\IPTV\DeviceController::class, 'devicePoll'])->name('devices.poll');
+
+        // ── Weather management page ──────────────────────────────────────
+        Route::get('/weather', function () {
+            $settings = \App\Models\Setting::whereIn('key', [
+                'weather_api_key', 'weather_city', 'weather_units', 'weather_enabled',
+            ])->pluck('value', 'key')->toArray();
+
+            // Current cached weather
+            $weather = \Illuminate\Support\Facades\Cache::get('weather_data');
+            if (!$weather) {
+                $raw = \App\Models\Setting::where('key', 'weather_cache')->value('value');
+                if ($raw) $weather = json_decode($raw, true);
+            }
+
+            $deviceCount = \App\Models\IptvDevice::where('is_active', true)->count();
+
+            return inertia('Admin/IPTV/Weather/Index', [
+                'user'        => auth()->user()->load('roles'),
+                'navigation'  => app(\App\Http\Controllers\DashboardController::class)->getNavigationForRole('admin'),
+                'settings'    => $settings,
+                'weather'     => $weather,
+                'deviceCount' => $deviceCount,
+            ]);
+        })->name('weather.index');
+
+        Route::post('/weather/save', function (\Illuminate\Http\Request $request) {
+            $request->validate([
+                'weather_api_key' => 'nullable|string|max:64',
+                'weather_city'    => 'nullable|string|max:128',
+                'weather_units'   => 'nullable|in:metric,imperial',
+                'weather_enabled' => 'nullable|boolean',
+            ]);
+
+            $map = [
+                'weather_api_key' => $request->weather_api_key ?? '',
+                'weather_city'    => $request->weather_city    ?? '',
+                'weather_units'   => $request->weather_units   ?? 'metric',
+                'weather_enabled' => $request->boolean('weather_enabled', true) ? '1' : '0',
+            ];
+
+            foreach ($map as $key => $value) {
+                \App\Models\Setting::updateOrCreate(['key' => $key], ['value' => $value]);
+            }
+
+            return back()->with('success', 'Weather settings saved.');
+        })->name('weather.save');
+
+        Route::post('/weather/fetch', function () {
+            try {
+                \Illuminate\Support\Facades\Artisan::call('weather:fetch');
+                $weather = \Illuminate\Support\Facades\Cache::get('weather_data');
+                if ($weather) {
+                    return response()->json([
+                        'success' => true,
+                        'message' => "Weather updated: {$weather['city']}, {$weather['country']} → {$weather['temperature']}{$weather['unit_symbol']}, {$weather['description']}",
+                        'weather' => $weather,
+                    ]);
+                }
+                return response()->json(['success' => false, 'message' => 'Fetch ran but no data returned. Check API key and city name.']);
+            } catch (\Exception $e) {
+                return response()->json(['success' => false, 'message' => 'Error: ' . $e->getMessage()], 500);
+            }
+        })->name('weather.fetch');
     });
 
     // Settings (main route for frontend)

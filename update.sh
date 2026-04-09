@@ -228,22 +228,30 @@ success "Caches cleared"
 step "Rebuilding Frontend Assets"
 
 cd "$INSTALL_DIR"
-info "Running npm install..."
-timeout 600 npm install --prefer-offline --no-audit --no-fund 2>&1 | tail -5
 
-# Restore execute bits on node_modules/.bin (npm install --prefer-offline may skip this)
-info "Restoring node_modules/.bin permissions..."
-find "$INSTALL_DIR/node_modules/.bin" \( -type f -o -type l \) -exec chmod +x {} + 2>/dev/null || true
+# Read install mode — IPTV-only has no Blade UI, skip the npm build entirely
+INSTALL_MODE=$(grep '^INSTALL_MODE=' "$INSTALL_DIR/.env" 2>/dev/null | cut -d= -f2 | tr -d '"' || echo "both")
 
-# Generate Ziggy route file so app.js can resolve ../../vendor/tightenco/ziggy
-info "Generating Ziggy routes..."
-php artisan ziggy:generate 2>/dev/null || true
-
-info "Running npm run build..."
-if timeout 900 npm run build 2>&1 | tail -5; then
-    success "Frontend assets rebuilt"
+if [[ "$INSTALL_MODE" == "iptv" ]]; then
+    info "Skipping front-end build — IPTV-only installation has no Blade UI"
 else
-    warning "npm build failed — pages may show old assets. Check logs."
+    info "Running npm install..."
+    timeout 600 npm install --prefer-offline --no-audit --no-fund 2>&1 | tail -5
+
+    # Restore execute bits on node_modules/.bin (npm install --prefer-offline may skip this)
+    info "Restoring node_modules/.bin permissions..."
+    find "$INSTALL_DIR/node_modules/.bin" \( -type f -o -type l \) -exec chmod +x {} + 2>/dev/null || true
+
+    # Generate Ziggy route file so app.js can resolve ../../vendor/tightenco/ziggy
+    info "Generating Ziggy routes..."
+    php artisan ziggy:generate 2>/dev/null || true
+
+    info "Running npm run build..."
+    if timeout 900 npm run build 2>&1 | tail -5; then
+        success "Frontend assets rebuilt"
+    else
+        warning "npm build failed — pages may show old assets. Check logs."
+    fi
 fi
 
 success "Caches cleared"
