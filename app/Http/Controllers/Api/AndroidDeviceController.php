@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 namespace App\Http\Controllers\Api;
 
@@ -19,19 +19,19 @@ use Illuminate\Support\Str;
  * AndroidDeviceController
  *
  * All endpoints consumed by the Android IPTV client.
- * No auth token needed — devices identify via device_id + registration_token.
+ * No auth token needed â€” devices identify via device_id + registration_token.
  *
  * Endpoints:
- *   POST   /api/android/register          → first-time registration by entering server URL
- *   POST   /api/android/heartbeat         → periodic ping (every 30s), returns pending commands
- *   POST   /api/android/command-ack       → device acks a command as executed or failed
- *   GET    /api/android/settings          → pull latest pushed settings
- *   GET    /api/android/iptv-config       → get Xtream credentials
- *   GET    /api/android/hotel-info        → get hotel name, logo, etc.
+ *   POST   /api/android/register          â†’ first-time registration by entering server URL
+ *   POST   /api/android/heartbeat         â†’ periodic ping (every 30s), returns pending commands
+ *   POST   /api/android/command-ack       â†’ device acks a command as executed or failed
+ *   GET    /api/android/settings          â†’ pull latest pushed settings
+ *   GET    /api/android/iptv-config       â†’ get Xtream credentials
+ *   GET    /api/android/hotel-info        â†’ get hotel name, logo, etc.
  */
 class AndroidDeviceController extends Controller
 {
-    // ── Registration ───────────────────────────────────────────────────────
+    // â”€â”€ Registration â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /**
      * Called once when the user adds the server address in the Android app.
@@ -99,7 +99,7 @@ class AndroidDeviceController extends Controller
         }
     }
 
-    // ── Heartbeat ──────────────────────────────────────────────────────────
+    // â”€â”€ Heartbeat â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /**
      * Called every 30 seconds by the Android app.
@@ -168,7 +168,7 @@ class AndroidDeviceController extends Controller
         ]);
     }
 
-    // ── Command acknowledgement ────────────────────────────────────────────
+    // â”€â”€ Command acknowledgement â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     public function commandAck(Request $request): JsonResponse
     {
@@ -195,7 +195,7 @@ class AndroidDeviceController extends Controller
         return response()->json(['success' => true]);
     }
 
-    // ── Settings pull ──────────────────────────────────────────────────────
+    // â”€â”€ Settings pull â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /**
      * Device pulls its full settings whenever heartbeat says needs_settings_update=true
@@ -221,7 +221,7 @@ class AndroidDeviceController extends Controller
         ]);
     }
 
-    // ── IPTV Config ───────────────────────────────────────────────────────
+    // â”€â”€ IPTV Config â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     public function getIptvConfig(Request $request): JsonResponse
     {
@@ -251,7 +251,7 @@ class AndroidDeviceController extends Controller
         ]);
     }
 
-    // ── Hotel Info (public, no token) ─────────────────────────────────────
+    // â”€â”€ Hotel Info (public, no token) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     public function hotelInfo(Request $request): JsonResponse
     {
@@ -276,13 +276,13 @@ class AndroidDeviceController extends Controller
         ]);
     }
 
-    // ── Weather (server-cached) ────────────────────────────────────────────
+    // â”€â”€ Weather (server-cached) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /**
      * Returns weather data that was last fetched by the `weather:fetch` artisan
      * command (runs every 15 minutes via the scheduler).
      *
-     * This endpoint is PUBLIC — no device token required — so devices can call
+     * This endpoint is PUBLIC â€” no device token required â€” so devices can call
      * it even before registration, and the hotel logo / welcome screen shows
      * weather immediately.
      */
@@ -304,7 +304,7 @@ class AndroidDeviceController extends Controller
         }
 
         if (!$weather) {
-            // No cached data yet — try to run the fetch command inline (first boot)
+            // No cached data yet â€” try to run the fetch command inline (first boot)
             try {
                 Artisan::call('weather:fetch');
                 $weather = Cache::get('weather_data');
@@ -326,7 +326,7 @@ class AndroidDeviceController extends Controller
         ]);
     }
 
-    // ── Private helpers ────────────────────────────────────────────────────
+    // â”€â”€ Private helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private function findDevice(string $deviceId, string $token): ?IptvDevice
     {
@@ -360,13 +360,13 @@ class AndroidDeviceController extends Controller
         $pushed = $device->pushed_settings ?? [];
 
         return array_merge([
-            // ── Xtream Codes ──────────────────────────────────────────────
+            // â”€â”€ Xtream Codes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             'xtream_url'              => $db['xtream_url'] ?? '',
             'xtream_username'         => $db['xtream_username'] ?? '',   // overridden per-device
             'xtream_password'         => $db['xtream_password'] ?? '',   // overridden per-device
             'xtream_use_https'        => (bool)($db['xtream_use_https'] ?? false),
 
-            // ── Hotel branding ────────────────────────────────────────────
+            // â”€â”€ Hotel branding â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             'hotel_name'              => $db['hotel_name'] ?? '',
             'hotel_logo_url'          => $db['hotel_logo'] ?? '',
             'hotel_address'           => $db['hotel_address'] ?? '',
@@ -375,13 +375,13 @@ class AndroidDeviceController extends Controller
             'hotel_welcome_message'   => $db['hotel_welcome_message'] ?? 'Welcome',
             'welcome_background_url'  => $db['welcome_background_url'] ?? '',
 
-            // ── Weather widget ────────────────────────────────────────────
+            // â”€â”€ Weather widget â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             'weather_enabled'         => (bool)($db['weather_enabled'] ?? true),
             'weather_api_key'         => $db['weather_api_key'] ?? '',
             'weather_city'            => $db['weather_city'] ?? '',
             'weather_units'           => $db['weather_units'] ?? 'metric',
 
-            // ── TV UI & behaviour ─────────────────────────────────────────
+            // â”€â”€ TV UI & behaviour â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             'ui_theme'                => $db['iptv_ui_theme'] ?? 'dark',
             'show_epg'                => (bool)($db['iptv_show_epg'] ?? true),
             'auto_launch_seconds'     => (int)($db['iptv_auto_launch_seconds'] ?? 15),
@@ -392,16 +392,63 @@ class AndroidDeviceController extends Controller
             'enable_radio'            => (bool)($db['iptv_enable_radio'] ?? true),
             'parental_pin'            => $db['iptv_parental_pin'] ?? '',
 
-            // ── Security ──────────────────────────────────────────────────
+            // â”€â”€ Security â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             'admin_pin'               => $db['admin_pin'] ?? '1234',
 
-            // ── Device context ────────────────────────────────────────────
+            // â”€â”€ Device context â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             'room_number'             => $device->room?->room_number ?? '',
             'package'                 => $device->package ?? 'basic',
             'settings_version'        => $device->settings_version ?? 0,
         ], $pushed);  // pushed_settings (per-device username/password etc.) win
     }
 
+    /**
+     * Check if the system has an active license.
+     * Called by Android TV apps to validate without per-device keys.
+     */
+    public function licenseCheck(Request $request): JsonResponse
+    {
+        try {
+            // Try to find an active license record
+            $license = null;
+            if (class_exists(\App\Models\License::class)) {
+                $license = \App\Models\License::where('status', 'active')->first();
+            }
+
+            // Try LicenseValidationService if available
+            $isLicensed = false;
+            if (class_exists(\App\Services\LicenseValidationService::class)) {
+                $isLicensed = \App\Services\LicenseValidationService::isSystemLicensed();
+            } elseif ($license) {
+                $isLicensed = true;
+            } else {
+                // Fallback: if no license table exists, treat as licensed (self-hosted)
+                $isLicensed = true;
+            }
+
+            $hotelName = '';
+            try {
+                $hotelName = \App\Models\Setting::where('key', 'hotel_name')->value('value') ?? '';
+            } catch (\Exception $e) {}
+
+            return response()->json([
+                'licensed'    => $isLicensed,
+                'plan'        => $license?->plan ?? 'standard',
+                'expires_at'  => $license?->expires_at ?? null,
+                'max_devices' => $license?->max_devices ?? 999,
+                'hotel_name'  => $hotelName,
+            ]);
+        } catch (\Exception $e) {
+            // If anything fails, grant access (don't lock out TVs due to server error)
+            return response()->json([
+                'licensed'    => true,
+                'plan'        => 'standard',
+                'expires_at'  => null,
+                'max_devices' => 999,
+                'hotel_name'  => '',
+            ]);
+        }
+    }
     private function getDbSettings(array $keys): array
     {
         try {
@@ -411,3 +458,4 @@ class AndroidDeviceController extends Controller
         }
     }
 }
+

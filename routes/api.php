@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -16,17 +16,20 @@ use App\Http\Controllers\Api\DeviceEventsController;
 |--------------------------------------------------------------------------
 */
 
-// ── Android IPTV Device API ────────────────────────────────────────────────
+// â”€â”€ Android IPTV Device API â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // All Android TV / Android Box clients connect through these endpoints.
-// No session/cookie auth — devices identify via device_id + registration_token.
+// No session/cookie auth â€” devices identify via device_id + registration_token.
 Route::prefix('android')->group(function () {
-    // Public — called before token exists
+    // Public â€” called before token exists
     Route::get('/hotel-info',   [AndroidDeviceController::class, 'hotelInfo']);
 
-    // Weather — public, no token — server-cached data fetched every 15 min by scheduler
+    // Weather â€” public, no token â€” server-cached data fetched every 15 min by scheduler
     Route::get('/weather',      [AndroidDeviceController::class, 'weather']);
 
-    // Connectivity test — no auth needed, lets the admin UI verify the API is reachable
+    // License check - Android TVs call this instead of per-device license keys
+    Route::get('/license-check', [AndroidDeviceController::class, 'licenseCheck']);
+
+    // Connectivity test â€” no auth needed, lets the admin UI verify the API is reachable
     Route::get('/ping', function () {
         return response()->json([
             'success'     => true,
@@ -49,7 +52,7 @@ Route::prefix('android')->group(function () {
         Route::get('/iptv-config',   [AndroidDeviceController::class, 'getIptvConfig']);
     });
 
-    // SSE event stream — long-lived connection, no throttle limit
+    // SSE event stream â€” long-lived connection, no throttle limit
     // Android connects once; server pushes commands instantly when dispatched
     Route::get('/events', [DeviceEventsController::class, 'stream'])->withoutMiddleware(['throttle:120,1']);
 });
@@ -84,7 +87,7 @@ Route::prefix('public')->middleware(['throttle:60,1'])->group(function () {
 // Online Booking Sync API (for hotel website integration)
 // All write endpoints require X-Booking-Token header (set in Settings > Integration)
 Route::prefix('booking')->group(function () {
-    // Room availability + services (public read — 60 req/min)
+    // Room availability + services (public read â€” 60 req/min)
     Route::middleware(['throttle:60,1'])->group(function () {
         Route::get('/availability', [OnlineBookingController::class, 'checkAvailability']);
         Route::get('/services', [OnlineBookingController::class, 'getServices']);
@@ -92,7 +95,7 @@ Route::prefix('booking')->group(function () {
         Route::get('/guest-lookup', [OnlineBookingController::class, 'guestLookup']);
     });
 
-    // Write endpoints — tighter limit (10 req/min per IP)
+    // Write endpoints â€” tighter limit (10 req/min per IP)
     Route::middleware(['throttle:10,1'])->group(function () {
         // Create booking (token-protected)
         Route::post('/create', [OnlineBookingController::class, 'createBooking']);
@@ -102,7 +105,7 @@ Route::prefix('booking')->group(function () {
     });
 });
 
-// Mobile App Authentication (Public) — throttled to prevent brute-force
+// Mobile App Authentication (Public) â€” throttled to prevent brute-force
 Route::middleware(['throttle:5,1'])->post('/login', function (Request $request) {
     $request->validate([
         'email' => 'required|email',
@@ -1118,12 +1121,12 @@ Route::middleware('auth:sanctum')->group(function () {
     // Route::get('/settings/general', [\App\Http\Controllers\SettingsController::class, 'getGeneralSettings']);
 });
 
-    // License API endpoints (throttled — no public access to info without auth)
+    // License API endpoints (throttled â€” no public access to info without auth)
 Route::prefix('license')->middleware(['throttle:20,1'])->group(function () {
     Route::post('/validate-token', [\App\Http\Controllers\SystemLicenseController::class, 'validateToken']);
     Route::post('/refresh-token', [\App\Http\Controllers\SystemLicenseController::class, 'refreshToken']);
     Route::post('/heartbeat', [\App\Http\Controllers\SystemLicenseController::class, 'sendHeartbeat']);
-    // /info requires auth:sanctum — license metadata is not public
+    // /info requires auth:sanctum â€” license metadata is not public
     Route::middleware('auth:sanctum')->get('/info', [\App\Http\Controllers\SystemLicenseController::class, 'getLicenseInfo']);
 });
 
@@ -1167,3 +1170,4 @@ Route::get('/docs', function () {
         ]
     ]);
 });
+
