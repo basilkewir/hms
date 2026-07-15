@@ -248,6 +248,17 @@ if [[ "$INSTALL_MODE" == "iptv" || "$INSTALL_MODE" == "both" ]]; then
         IPTV_NETWORK_INTERFACE="${IFACES[0]}"
         echo "  Single interface detected: ${IPTV_NETWORK_INTERFACE}"
     else
+        # Auto-select the interface that is UP; fall back to first
+        IPTV_NETWORK_INTERFACE=""
+        for iface in "${IFACES[@]}"; do
+            state=$(cat "/sys/class/net/${iface}/operstate" 2>/dev/null || echo "")
+            if [[ "$state" == "up" ]]; then
+                IPTV_NETWORK_INTERFACE="$iface"
+                break
+            fi
+        done
+        IPTV_NETWORK_INTERFACE="${IPTV_NETWORK_INTERFACE:-${IFACES[0]}}"
+
         echo "Available network interfaces:"
         echo ""
         for i in "${!IFACES[@]}"; do
@@ -260,18 +271,18 @@ if [[ "$INSTALL_MODE" == "iptv" || "$INSTALL_MODE" == "both" ]]; then
             SPEED_RAW=$(cat "/sys/class/net/${IFACE_NAME}/speed" 2>/dev/null || echo "")
             [[ "$SPEED_RAW" =~ ^[0-9]+$ && "$SPEED_RAW" != "-1" ]] && IFACE_SPEED=" ${SPEED_RAW}Mbps"
             IFACE_IP="${IFACE_IP:-No IP}"
-            echo "  $((i+1))) ${IFACE_NAME}  IP: ${IFACE_IP}  State: ${IFACE_STATE}${IFACE_SPEED}  MAC: ${IFACE_MAC}"
+            MARKER=""
+            [[ "$IFACE_NAME" == "$IPTV_NETWORK_INTERFACE" ]] && MARKER="  <-- selected"
+            echo "  $((i+1))) ${IFACE_NAME}  IP: ${IFACE_IP}  State: ${IFACE_STATE}${IFACE_SPEED}  MAC: ${IFACE_MAC}${MARKER}"
         done
         echo ""
-        read -rp "Select IPTV network interface [1-${IFACE_COUNT}]: " IFACE_CHOICE
-        IFACE_CHOICE="${IFACE_CHOICE:-1}"
-        if [[ "$IFACE_CHOICE" =~ ^[0-9]+$ ]] && (( IFACE_CHOICE >= 1 && IFACE_CHOICE <= IFACE_COUNT )); then
-            IPTV_NETWORK_INTERFACE="${IFACES[$((IFACE_CHOICE-1))]}"
+        read -rp "Use ${IPTV_NETWORK_INTERFACE}? (y/n) [y]: " IFACE_CONFIRM
+        if [[ ! "$IFACE_CONFIRM" =~ ^[Nn]$ ]]; then
+            success "Selected IPTV interface: ${IPTV_NETWORK_INTERFACE}"
         else
-            IPTV_NETWORK_INTERFACE="${IFACES[0]}"
-            warn "Invalid selection — defaulting to ${IPTV_NETWORK_INTERFACE}"
+            read -rp "Enter interface name: " IPTV_NETWORK_INTERFACE
+            success "Selected IPTV interface: ${IPTV_NETWORK_INTERFACE}"
         fi
-        success "Selected IPTV interface: ${IPTV_NETWORK_INTERFACE}"
     fi
 
     if [[ -n "$IPTV_NETWORK_INTERFACE" ]]; then
