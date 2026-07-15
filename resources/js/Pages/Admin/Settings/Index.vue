@@ -678,6 +678,59 @@
                     </div>
                 </div>
 
+                <!-- Network Settings -->
+                <div v-show="activeTab === 'network'" class="space-y-6">
+                    <h3 class="text-lg font-semibold text-kotel-text-primary mb-4">Network Interface Configuration</h3>
+                    <p class="text-sm text-kotel-text-tertiary mb-6">
+                        Configure which network card the server uses for delivering streams to Android TV devices.
+                        Changes here will be sent to all active devices on the next settings push.
+                    </p>
+
+                    <div class="bg-kotel-dark border border-kotel-border rounded-lg p-6">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div class="md:col-span-2">
+                                <label class="block text-sm font-medium text-kotel-text-secondary mb-2">Network Interface</label>
+                                <select v-model="settings.iptv_network_interface"
+                                        class="w-full border border-kotel-border rounded-md px-3 py-2 bg-kotel-black text-kotel-text-primary focus:outline-none focus:ring-2 focus:ring-kotel-yellow">
+                                    <option value="">Auto-detect (use default route)</option>
+                                    <option v-for="iface in network_interfaces" :key="iface.name" :value="iface.name">
+                                        {{ iface.label }}
+                                    </option>
+                                </select>
+                                <p class="mt-1 text-xs text-kotel-text-tertiary">
+                                    All channel streams and VOD content will be served through this interface's IP address.
+                                </p>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-kotel-text-secondary mb-2">Stream Port</label>
+                                <input type="number" v-model="settings.iptv_stream_port"
+                                       min="1" max="65535"
+                                       placeholder="8080"
+                                       class="w-full border border-kotel-border rounded-md px-3 py-2 bg-kotel-black text-kotel-text-primary focus:outline-none focus:ring-2 focus:ring-kotel-yellow">
+                                <p class="mt-1 text-xs text-kotel-text-tertiary">Port appended to the interface IP in stream URLs sent to devices.</p>
+                            </div>
+                            <div class="flex items-center">
+                                <input type="checkbox" v-model="settings.iptv_force_interface"
+                                       class="h-4 w-4 text-kotel-yellow focus:ring-kotel-yellow border-kotel-border rounded bg-kotel-black">
+                                <label class="ml-2 block text-sm text-kotel-text-secondary">Force all stream traffic through this interface</label>
+                            </div>
+                        </div>
+
+                        <!-- Interface preview -->
+                        <div v-if="settings.iptv_network_interface" class="mt-4 p-3 bg-kotel-black/50 border border-kotel-border rounded-lg">
+                            <p class="text-sm text-kotel-text-secondary">
+                                <span class="font-medium text-kotel-yellow">Preview:</span>
+                                Stream URLs will use IP
+                                <span class="font-mono text-kotel-sky-blue">
+                                    {{ (network_interfaces.find(i => i.name === settings.iptv_network_interface) || {}).ipv4 || '???' }}
+                                </span>
+                                on port
+                                <span class="font-mono text-kotel-sky-blue">{{ settings.iptv_stream_port }}</span>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- IPTV / Android TV Settings -->
                 <div v-show="activeTab === 'iptv'" class="space-y-8">
 
@@ -1289,7 +1342,8 @@ import {
     CloudArrowUpIcon,
     PrinterIcon,
     LinkIcon,
-    PaintBrushIcon
+    PaintBrushIcon,
+    ServerStackIcon
 } from '@heroicons/vue/24/outline'
 
 // Icons for new tabs
@@ -1520,6 +1574,7 @@ const tabs = [
     { id: 'theme', name: 'Theme', icon: PaintBrushIcon },
     { id: 'print', name: 'Print', icon: PrinterIcon },
     { id: 'security', name: 'Security', icon: ShieldCheckIcon },
+    { id: 'network', name: 'Network', icon: ServerStackIcon },
     { id: 'iptv', name: 'IPTV', icon: TvIcon },
     { id: 'integrations', name: 'Integrations', icon: LinkIcon },
     { id: 'license', name: 'License', icon: ShieldCheckIcon },

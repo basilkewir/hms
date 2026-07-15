@@ -226,82 +226,80 @@ LICENSE_SERVER_URL="${LICENSE_SERVER_URL:-https://kewirdev.com/api/license}"
 IPTV_NETWORK_INTERFACE=""
 IPTV_STREAM_PORT="8080"
 
-if [[ "$INSTALL_MODE" == "iptv" || "$INSTALL_MODE" == "both" ]]; then
-    echo ""
-    echo -e "${BOLD}Network Interface Configuration (IPTV)${RESET}"
-    echo "The server will use one network card for IPTV stream delivery to Android TV devices."
-    echo "Typically, eth0 receives internet and a second card (eth1/enp0s8) connects to the TV LAN."
-    echo ""
+echo ""
+echo -e "${BOLD}Network Interface Configuration${RESET}"
+echo "The server can use a specific network card for delivering IPTV streams to Android TV devices."
+echo "If you have only one NIC (or want to use the default route), accept the auto-selected interface."
+echo ""
 
-    # Detect available interfaces
-    IFACES=()
-    for iface_path in /sys/class/net/*; do
-        iface_name=$(basename "$iface_path")
-        [[ "$iface_name" == "lo" ]] && continue
-        IFACES+=("$iface_name")
-    done
-    IFACE_COUNT=${#IFACES[@]}
+# Detect available interfaces
+IFACES=()
+for iface_path in /sys/class/net/*; do
+    iface_name=$(basename "$iface_path")
+    [[ "$iface_name" == "lo" ]] && continue
+    IFACES+=("$iface_name")
+done
+IFACE_COUNT=${#IFACES[@]}
 
-    if [[ $IFACE_COUNT -eq 0 ]]; then
-        warn "No network interfaces detected — using default route"
-    elif [[ $IFACE_COUNT -eq 1 ]]; then
-        IPTV_NETWORK_INTERFACE="${IFACES[0]}"
-        echo "  Single interface detected: ${IPTV_NETWORK_INTERFACE}"
-    else
-        # Auto-select the interface that is UP; fall back to first
-        IPTV_NETWORK_INTERFACE=""
-        for iface in "${IFACES[@]}"; do
-            state=$(cat "/sys/class/net/${iface}/operstate" 2>/dev/null || echo "")
-            if [[ "$state" == "up" ]]; then
-                IPTV_NETWORK_INTERFACE="$iface"
-                break
-            fi
-        done
-        IPTV_NETWORK_INTERFACE="${IPTV_NETWORK_INTERFACE:-${IFACES[0]}}"
-
-        echo "Available network interfaces:"
-        echo ""
-        for i in "${!IFACES[@]}"; do
-            IFACE_NAME="${IFACES[$i]}"
-            IFACE_IP=$(ip -4 addr show dev "$IFACE_NAME" 2>/dev/null | awk '/inet /{print $2}' | cut -d/ -f1 | head -1)
-            IFACE_STATE="down"
-            [[ -f "/sys/class/net/${IFACE_NAME}/operstate" ]] && IFACE_STATE=$(cat "/sys/class/net/${IFACE_NAME}/operstate" 2>/dev/null)
-            IFACE_MAC=$(cat "/sys/class/net/${IFACE_NAME}/address" 2>/dev/null || echo "N/A")
-            IFACE_SPEED=""
-            SPEED_RAW=$(cat "/sys/class/net/${IFACE_NAME}/speed" 2>/dev/null || echo "")
-            [[ "$SPEED_RAW" =~ ^[0-9]+$ && "$SPEED_RAW" != "-1" ]] && IFACE_SPEED=" ${SPEED_RAW}Mbps"
-            IFACE_IP="${IFACE_IP:-No IP}"
-            MARKER=""
-            [[ "$IFACE_NAME" == "$IPTV_NETWORK_INTERFACE" ]] && MARKER="  <-- selected"
-            echo "  $((i+1))) ${IFACE_NAME}  IP: ${IFACE_IP}  State: ${IFACE_STATE}${IFACE_SPEED}  MAC: ${IFACE_MAC}${MARKER}"
-        done
-        echo ""
-        read -rp "Use ${IPTV_NETWORK_INTERFACE}? (y/n) [y]: " IFACE_CONFIRM
-        if [[ ! "$IFACE_CONFIRM" =~ ^[Nn]$ ]]; then
-            success "Selected IPTV interface: ${IPTV_NETWORK_INTERFACE}"
-        else
-            read -rp "Enter interface name: " IPTV_NETWORK_INTERFACE
-            success "Selected IPTV interface: ${IPTV_NETWORK_INTERFACE}"
+if [[ $IFACE_COUNT -eq 0 ]]; then
+    warn "No network interfaces detected — using default route"
+elif [[ $IFACE_COUNT -eq 1 ]]; then
+    IPTV_NETWORK_INTERFACE="${IFACES[0]}"
+    echo "  Single interface detected: ${IPTV_NETWORK_INTERFACE}"
+else
+    # Auto-select the interface that is UP; fall back to first
+    IPTV_NETWORK_INTERFACE=""
+    for iface in "${IFACES[@]}"; do
+        state=$(cat "/sys/class/net/${iface}/operstate" 2>/dev/null || echo "")
+        if [[ "$state" == "up" ]]; then
+            IPTV_NETWORK_INTERFACE="$iface"
+            break
         fi
-    fi
+    done
+    IPTV_NETWORK_INTERFACE="${IPTV_NETWORK_INTERFACE:-${IFACES[0]}}"
 
-    if [[ -n "$IPTV_NETWORK_INTERFACE" ]]; then
-        IPTV_IP=$(ip -4 addr show dev "$IPTV_NETWORK_INTERFACE" 2>/dev/null | awk '/inet /{print $2}' | cut -d/ -f1 | head -1)
-        echo ""
-        read -rp "IPTV stream port [${IPTV_STREAM_PORT}]: " IPTV_STREAM_PORT_INPUT
-        IPTV_STREAM_PORT="${IPTV_STREAM_PORT_INPUT:-$IPTV_STREAM_PORT}"
-        success "IPTV streams will be served at ${IPTV_IP:-<interface IP>}:${IPTV_STREAM_PORT}"
-    fi
+    echo "Available network interfaces:"
     echo ""
+    for i in "${!IFACES[@]}"; do
+        IFACE_NAME="${IFACES[$i]}"
+        IFACE_IP=$(ip -4 addr show dev "$IFACE_NAME" 2>/dev/null | awk '/inet /{print $2}' | cut -d/ -f1 | head -1)
+        IFACE_STATE="down"
+        [[ -f "/sys/class/net/${IFACE_NAME}/operstate" ]] && IFACE_STATE=$(cat "/sys/class/net/${IFACE_NAME}/operstate" 2>/dev/null)
+        IFACE_MAC=$(cat "/sys/class/net/${IFACE_NAME}/address" 2>/dev/null || echo "N/A")
+        IFACE_SPEED=""
+        SPEED_RAW=$(cat "/sys/class/net/${IFACE_NAME}/speed" 2>/dev/null || echo "")
+        [[ "$SPEED_RAW" =~ ^[0-9]+$ && "$SPEED_RAW" != "-1" ]] && IFACE_SPEED=" ${SPEED_RAW}Mbps"
+        IFACE_IP="${IFACE_IP:-No IP}"
+        MARKER=""
+        [[ "$IFACE_NAME" == "$IPTV_NETWORK_INTERFACE" ]] && MARKER="  <-- selected"
+        echo "  $((i+1))) ${IFACE_NAME}  IP: ${IFACE_IP}  State: ${IFACE_STATE}${IFACE_SPEED}  MAC: ${IFACE_MAC}${MARKER}"
+    done
+    echo ""
+    read -rp "Use ${IPTV_NETWORK_INTERFACE}? (y/n) [y]: " IFACE_CONFIRM
+    if [[ ! "$IFACE_CONFIRM" =~ ^[Nn]$ ]]; then
+        success "Selected interface: ${IPTV_NETWORK_INTERFACE}"
+    else
+        read -rp "Enter interface name: " IPTV_NETWORK_INTERFACE
+        success "Selected interface: ${IPTV_NETWORK_INTERFACE}"
+    fi
 fi
+
+if [[ -n "$IPTV_NETWORK_INTERFACE" ]]; then
+    IPTV_IP=$(ip -4 addr show dev "$IPTV_NETWORK_INTERFACE" 2>/dev/null | awk '/inet /{print $2}' | cut -d/ -f1 | head -1)
+    echo ""
+    read -rp "Stream delivery port [${IPTV_STREAM_PORT}]: " IPTV_STREAM_PORT_INPUT
+    IPTV_STREAM_PORT="${IPTV_STREAM_PORT_INPUT:-$IPTV_STREAM_PORT}"
+    success "Streams will be served at ${IPTV_IP:-<interface IP>}:${IPTV_STREAM_PORT}"
+fi
+echo ""
 
 echo ""
 echo -e "${BOLD}Summary:${RESET}"
-echo "  Mode    : ${MODE_LABEL}"
-echo "  URL     : ${APP_URL}"
-[[ "$INSTALL_MODE" != "iptv" ]] && echo "  Hotel   : ${HOTEL_NAME}"
-[[ -n "$IPTV_NETWORK_INTERFACE" ]] && echo "  IPTV NIC: ${IPTV_NETWORK_INTERFACE} (${IPTV_STREAM_PORT})"
-echo "  DB      : ${DB_DATABASE}"
+echo "  Mode       : ${MODE_LABEL}"
+echo "  URL        : ${APP_URL}"
+[[ "$INSTALL_MODE" != "iptv" ]] && echo "  Hotel      : ${HOTEL_NAME}"
+[[ -n "$IPTV_NETWORK_INTERFACE" ]] && echo "  Stream NIC : ${IPTV_NETWORK_INTERFACE} (port ${IPTV_STREAM_PORT})"
+echo "  DB         : ${DB_DATABASE}"
 echo ""
 read -rp "Proceed? (y/n) [y]: " CONFIRM
 [[ ! "$CONFIRM" =~ ^[Yy]?$ ]] && { info "Cancelled"; exit 0; }
@@ -397,9 +395,10 @@ INSTALL_MODE=${INSTALL_MODE}
 FEATURE_HMS=${ENABLE_HMS}
 FEATURE_IPTV=${ENABLE_IPTV}
 
-# ── IPTV network interface (set during install, configurable via Settings UI) ──
+# ── Network interface for stream delivery (configurable via Settings UI) ─────
 IPTV_NETWORK_INTERFACE=${IPTV_NETWORK_INTERFACE}
 IPTV_STREAM_PORT=${IPTV_STREAM_PORT}
+IPTV_FORCE_INTERFACE=${IPTV_FORCE_INTERFACE:-false}
 ENDENV
 
 chown www-data:www-data "${INSTALL_DIR}/.env"
@@ -453,14 +452,14 @@ fi
 
 # IPTV note: device defaults live in SettingsSeeder (already run above)
 
-# Store the selected IPTV network interface in the database
-if [[ -n "$IPTV_NETWORK_INTERFACE" && "$INSTALL_MODE" == "iptv" || "$INSTALL_MODE" == "both" ]]; then
-    info "Configuring IPTV network interface: ${IPTV_NETWORK_INTERFACE}..."
+# Store the selected network interface in the database
+if [[ -n "$IPTV_NETWORK_INTERFACE" ]]; then
+    info "Configuring stream delivery interface: ${IPTV_NETWORK_INTERFACE}..."
     sudo -u www-data php artisan tinker --execute="
         \App\Models\Setting::set('iptv_network_interface', '${IPTV_NETWORK_INTERFACE}', 'string', 'iptv');
         \App\Models\Setting::set('iptv_stream_port', '${IPTV_STREAM_PORT}', 'string', 'iptv');
     " 2>/dev/null || true
-    success "IPTV network interface configured: ${IPTV_NETWORK_INTERFACE}"
+    success "Stream delivery interface configured: ${IPTV_NETWORK_INTERFACE}"
 fi
 
 # Configure iptables to allow IPTV traffic on the selected interface
