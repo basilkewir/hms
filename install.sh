@@ -247,7 +247,7 @@ if [[ "$INSTALL_MODE" == "iptv" || "$INSTALL_MODE" == "both" ]]; then
         echo ""
         for i in "${!IFACES[@]}"; do
             IFACE_NAME="${IFACES[$i]}"
-            IFACE_IP=$(ip -4 addr show dev "$IFACE_NAME" 2>/dev/null | grep -oP 'inet \K[\d.]+' | head -1)
+            IFACE_IP=$(ip -4 addr show dev "$IFACE_NAME" 2>/dev/null | awk '/inet /{print $2}' | cut -d/ -f1 | head -1)
             IFACE_STATE=$(cat "/sys/class/net/${IFACE_NAME}/operstate" 2>/dev/null || echo "unknown")
             IFACE_MAC=$(cat "/sys/class/net/${IFACE_NAME}/address" 2>/dev/null || echo "N/A")
             IFACE_SPEED=""
@@ -269,7 +269,7 @@ if [[ "$INSTALL_MODE" == "iptv" || "$INSTALL_MODE" == "both" ]]; then
     fi
 
     if [[ -n "$IPTV_NETWORK_INTERFACE" ]]; then
-        IPTV_IP=$(ip -4 addr show dev "$IPTV_NETWORK_INTERFACE" 2>/dev/null | grep -oP 'inet \K[\d.]+' | head -1)
+        IPTV_IP=$(ip -4 addr show dev "$IPTV_NETWORK_INTERFACE" 2>/dev/null | awk '/inet /{print $2}' | cut -d/ -f1 | head -1)
         echo ""
         read -rp "IPTV stream port [${IPTV_STREAM_PORT}]: " IPTV_STREAM_PORT_INPUT
         IPTV_STREAM_PORT="${IPTV_STREAM_PORT_INPUT:-$IPTV_STREAM_PORT}"
