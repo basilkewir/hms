@@ -233,8 +233,8 @@ if [[ "$INSTALL_MODE" == "iptv" || "$INSTALL_MODE" == "both" ]]; then
     echo "Typically, eth0 receives internet and a second card (eth1/enp0s8) connects to the TV LAN."
     echo ""
 
-    # Detect available interfaces
-    mapfile -t IFACES < <(ip -o link show | awk -F': ' '!/lo/{print $2}' | sort)
+    # Detect available interfaces (robust across Ubuntu versions)
+    mapfile -t IFACES < <(ls /sys/class/net | grep -v '^lo$' | sort)
     IFACE_COUNT=${#IFACES[@]}
 
     if [[ $IFACE_COUNT -eq 0 ]]; then
