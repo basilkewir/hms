@@ -4272,6 +4272,10 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
     // Tunnel / Application URL update (writes to .env and clears config cache)
     Route::post('/settings/tunnel-url', [\App\Http\Controllers\SettingsController::class, 'updateTunnelUrl'])->name('settings.tunnel-url.update');
 
+    // Network interface listing for IPTV NIC selection
+    Route::get('/settings/network-interfaces', [\App\Http\Controllers\Api\NetworkInterfaceController::class, 'index'])->name('settings.network-interfaces');
+    Route::post('/settings/network-interfaces/validate', [\App\Http\Controllers\Api\NetworkInterfaceController::class, 'validateInterface'])->name('settings.network-interfaces.validate');
+
     // Backup
     Route::get('/settings/backup', [BackupController::class, 'index'])->name('settings.backup');
     Route::post('/settings/backup', [BackupController::class, 'create'])->name('settings.backup.create');
@@ -9769,6 +9773,9 @@ Route::middleware(['auth', 'role:manager'])->prefix('manager')->name('manager.')
 
     // Tunnel / Application URL update (manager can also trigger this)
     Route::post('/settings/tunnel-url', [\App\Http\Controllers\SettingsController::class, 'updateTunnelUrl'])->name('settings.tunnel-url.update');
+
+    // Network interface listing for IPTV NIC selection (manager can also view)
+    Route::get('/settings/network-interfaces', [\App\Http\Controllers\Api\NetworkInterfaceController::class, 'index'])->name('settings.network-interfaces');
 
     // Room Service Charge Settings
     Route::get('/room-service-settings', function () {

@@ -745,6 +745,61 @@
                         </div>
                     </div>
 
+                    <!-- Section: Network Interface for IPTV Streams -->
+                    <div class="bg-kotel-dark border border-kotel-border rounded-lg p-6">
+                        <h3 class="text-lg font-semibold text-kotel-yellow mb-1 flex items-center gap-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/></svg>
+                            Network Interface (IPTV Stream Delivery)
+                        </h3>
+                        <p class="text-sm text-kotel-text-tertiary mb-5">
+                            Select which network card to use for sending IPTV channels to Android TV devices.
+                            The first card (eth0/enp0s3) typically receives internet; the second card should be
+                            connected to the hotel LAN/VLAN where TVs are deployed.
+                        </p>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div class="md:col-span-2">
+                                <label class="block text-sm font-medium text-kotel-text-secondary mb-2">Network Interface</label>
+                                <select v-model="settings.iptv_network_interface"
+                                        class="w-full border border-kotel-border rounded-md px-3 py-2 bg-kotel-black text-kotel-text-primary focus:outline-none focus:ring-2 focus:ring-kotel-yellow">
+                                    <option value="">Auto-detect (use default route)</option>
+                                    <option v-for="iface in network_interfaces" :key="iface.name" :value="iface.name">
+                                        {{ iface.label }}
+                                    </option>
+                                </select>
+                                <p class="mt-1 text-xs text-kotel-text-tertiary">
+                                    All channel streams and VOD content will be served through this interface's IP address.
+                                    Changes require devices to re-fetch settings.
+                                </p>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-kotel-text-secondary mb-2">Stream Port</label>
+                                <input type="number" v-model="settings.iptv_stream_port"
+                                       min="1" max="65535"
+                                       placeholder="8080"
+                                       class="w-full border border-kotel-border rounded-md px-3 py-2 bg-kotel-black text-kotel-text-primary focus:outline-none focus:ring-2 focus:ring-kotel-yellow">
+                                <p class="mt-1 text-xs text-kotel-text-tertiary">Port appended to the interface IP in stream URLs sent to devices.</p>
+                            </div>
+                            <div class="flex items-center">
+                                <input type="checkbox" v-model="settings.iptv_force_interface"
+                                       class="h-4 w-4 text-kotel-yellow focus:ring-kotel-yellow border-kotel-border rounded bg-kotel-black">
+                                <label class="ml-2 block text-sm text-kotel-text-secondary">Force all IPTV traffic through this interface</label>
+                            </div>
+                        </div>
+
+                        <!-- Interface preview -->
+                        <div v-if="settings.iptv_network_interface" class="mt-4 p-3 bg-kotel-black/50 border border-kotel-border rounded-lg">
+                            <p class="text-sm text-kotel-text-secondary">
+                                <span class="font-medium text-kotel-yellow">Preview:</span>
+                                Stream URLs will use IP
+                                <span class="font-mono text-kotel-sky-blue">
+                                    {{ (network_interfaces.find(i => i.name === settings.iptv_network_interface) || {}).ipv4 || '???' }}
+                                </span>
+                                on port
+                                <span class="font-mono text-kotel-sky-blue">{{ settings.iptv_stream_port }}</span>
+                            </p>
+                        </div>
+                    </div>
+
                     <!-- Section: Xtream Codes Server -->
                     <div class="bg-kotel-dark border border-kotel-border rounded-lg p-6">
                         <h3 class="text-lg font-semibold text-kotel-yellow mb-1 flex items-center gap-2">
@@ -1532,6 +1587,10 @@ const settings = ref({
     xtream_username:          props.settings?.iptv?.xtream_username || '',
     xtream_password:          props.settings?.iptv?.xtream_password || '',
     xtream_use_https:         props.settings?.iptv?.xtream_use_https == '1' || false,
+    // Network interface for IPTV stream delivery
+    iptv_network_interface:   props.settings?.iptv?.iptv_network_interface || '',
+    iptv_stream_port:         props.settings?.iptv?.iptv_stream_port || '8080',
+    iptv_force_interface:     props.settings?.iptv?.iptv_force_interface == '1' || false,
     // Hotel branding on TV
     hotel_welcome_message:    props.settings?.iptv?.hotel_welcome_message || 'Welcome to our Hotel',
     hotel_primary_color:      props.settings?.iptv?.hotel_primary_color || '#FFD700',
@@ -1827,6 +1886,10 @@ const saveSettings = async () => {
             settingsToSave.xtream_username = settings.value.xtream_username
             settingsToSave.xtream_password = settings.value.xtream_password
             settingsToSave.xtream_use_https = settings.value.xtream_use_https
+            // Network interface for stream delivery
+            settingsToSave.iptv_network_interface = settings.value.iptv_network_interface
+            settingsToSave.iptv_stream_port = settings.value.iptv_stream_port
+            settingsToSave.iptv_force_interface = settings.value.iptv_force_interface
             // Hotel branding on TV
             settingsToSave.hotel_welcome_message = settings.value.hotel_welcome_message
             settingsToSave.hotel_primary_color = settings.value.hotel_primary_color

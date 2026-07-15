@@ -341,6 +341,8 @@ class AndroidDeviceController extends Controller
         $db = $this->getDbSettings([
             // Xtream Codes
             'xtream_url', 'xtream_username', 'xtream_password', 'xtream_use_https',
+            // Network interface for stream delivery
+            'iptv_network_interface', 'iptv_stream_port', 'iptv_force_interface',
             // Hotel branding
             'hotel_name', 'hotel_logo', 'hotel_address', 'hotel_phone',
             'hotel_primary_color', 'hotel_welcome_message', 'welcome_background_url',
@@ -355,18 +357,33 @@ class AndroidDeviceController extends Controller
             'admin_pin',
         ]);
 
+        // Resolve the IP address of the selected network interface
+        $streamIp = '';
+        $selectedInterface = $db['iptv_network_interface'] ?? '';
+        if ($selectedInterface) {
+            $streamIp = $this->resolveInterfaceIp($selectedInterface);
+        }
+
+        $streamPort = $db['iptv_stream_port'] ?? '8080';
+
         // Per-device overrides take precedence over global settings.
         // Each device has its OWN xtream_username/password stored in pushed_settings.
         $pushed = $device->pushed_settings ?? [];
 
         return array_merge([
-            // â”€â”€ Xtream Codes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Xtream Codes ──
             'xtream_url'              => $db['xtream_url'] ?? '',
             'xtream_username'         => $db['xtream_username'] ?? '',   // overridden per-device
             'xtream_password'         => $db['xtream_password'] ?? '',   // overridden per-device
             'xtream_use_https'        => (bool)($db['xtream_use_https'] ?? false),
 
-            // â”€â”€ Hotel branding â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Network / Stream Delivery ──
+            'iptv_network_interface'  => $selectedInterface,
+            'iptv_stream_ip'          => $streamIp,
+            'iptv_stream_port'        => $streamPort,
+            'iptv_force_interface'    => (bool)($db['iptv_force_interface'] ?? false),
+
+            // ── Hotel branding ──
             'hotel_name'              => $db['hotel_name'] ?? '',
             'hotel_logo_url'          => $db['hotel_logo'] ?? '',
             'hotel_address'           => $db['hotel_address'] ?? '',
@@ -375,13 +392,13 @@ class AndroidDeviceController extends Controller
             'hotel_welcome_message'   => $db['hotel_welcome_message'] ?? 'Welcome',
             'welcome_background_url'  => $db['welcome_background_url'] ?? '',
 
-            // â”€â”€ Weather widget â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Weather widget ──
             'weather_enabled'         => (bool)($db['weather_enabled'] ?? true),
             'weather_api_key'         => $db['weather_api_key'] ?? '',
             'weather_city'            => $db['weather_city'] ?? '',
             'weather_units'           => $db['weather_units'] ?? 'metric',
 
-            // â”€â”€ TV UI & behaviour â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── TV UI & behaviour ──
             'ui_theme'                => $db['iptv_ui_theme'] ?? 'dark',
             'show_epg'                => (bool)($db['iptv_show_epg'] ?? true),
             'auto_launch_seconds'     => (int)($db['iptv_auto_launch_seconds'] ?? 15),
@@ -392,14 +409,40 @@ class AndroidDeviceController extends Controller
             'enable_radio'            => (bool)($db['iptv_enable_radio'] ?? true),
             'parental_pin'            => $db['iptv_parental_pin'] ?? '',
 
-            // â”€â”€ Security â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Security ──
             'admin_pin'               => $db['admin_pin'] ?? '1234',
 
-            // â”€â”€ Device context â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── Device context ──
             'room_number'             => $device->room?->room_number ?? '',
             'package'                 => $device->package ?? 'basic',
             'settings_version'        => $device->settings_version ?? 0,
         ], $pushed);  // pushed_settings (per-device username/password etc.) win
+    }
+
+    /**
+     * Resolve the IPv4 address of a named network interface.
+     * Returns empty string if the interface is not found.
+     */
+    private function resolveInterfaceIp(string $interfaceName): string
+    {
+        // Method 1: PHP net_get_interfaces()
+        if (function_exists('net_get_interfaces')) {
+            $interfaces = net_get_interfaces();
+            if (isset($interfaces[$interfaceName]['ipv4'][0]['address'])) {
+                return $interfaces[$interfaceName]['ipv4'][0]['address'];
+            }
+        }
+
+        // Method 2: Parse ip command
+        $output = [];
+        exec("ip -4 -o addr show dev " . escapeshellarg($interfaceName) . " 2>/dev/null", $output, $exitCode);
+        if ($exitCode === 0 && !empty($output)) {
+            if (preg_match('/inet\s+(\d+\.\d+\.\d+\.\d+)/', $output[0], $m)) {
+                return $m[1];
+            }
+        }
+
+        return '';
     }
 
     /**
