@@ -233,22 +233,28 @@ if [[ "$INSTALL_MODE" == "iptv" || "$INSTALL_MODE" == "both" ]]; then
     echo "Typically, eth0 receives internet and a second card (eth1/enp0s8) connects to the TV LAN."
     echo ""
 
-    # Detect available interfaces (robust across Ubuntu versions)
-    mapfile -t IFACES < <(ls /sys/class/net | grep -v '^lo$' | sort)
+    # Detect available interfaces
+    IFACES=()
+    for iface_path in /sys/class/net/*; do
+        iface_name=$(basename "$iface_path")
+        [[ "$iface_name" == "lo" ]] && continue
+        IFACES+=("$iface_name")
+    done
     IFACE_COUNT=${#IFACES[@]}
 
     if [[ $IFACE_COUNT -eq 0 ]]; then
         warn "No network interfaces detected — using default route"
     elif [[ $IFACE_COUNT -eq 1 ]]; then
-        warn "Only one interface detected (${IFACES[0]}) — IPTV and internet will share it"
         IPTV_NETWORK_INTERFACE="${IFACES[0]}"
+        echo "  Single interface detected: ${IPTV_NETWORK_INTERFACE}"
     else
         echo "Available network interfaces:"
         echo ""
         for i in "${!IFACES[@]}"; do
             IFACE_NAME="${IFACES[$i]}"
             IFACE_IP=$(ip -4 addr show dev "$IFACE_NAME" 2>/dev/null | awk '/inet /{print $2}' | cut -d/ -f1 | head -1)
-            IFACE_STATE=$(cat "/sys/class/net/${IFACE_NAME}/operstate" 2>/dev/null || echo "unknown")
+            IFACE_STATE="down"
+            [[ -f "/sys/class/net/${IFACE_NAME}/operstate" ]] && IFACE_STATE=$(cat "/sys/class/net/${IFACE_NAME}/operstate" 2>/dev/null)
             IFACE_MAC=$(cat "/sys/class/net/${IFACE_NAME}/address" 2>/dev/null || echo "N/A")
             IFACE_SPEED=""
             SPEED_RAW=$(cat "/sys/class/net/${IFACE_NAME}/speed" 2>/dev/null || echo "")
