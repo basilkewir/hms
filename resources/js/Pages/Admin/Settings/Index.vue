@@ -1247,6 +1247,10 @@ const props = defineProps({
     settings: Object,
     allSettings: Object,
     server_url: String,
+    network_interfaces: {
+        type: Array,
+        default: () => [],
+    },
 })
 
 const activeTab = ref('general')

@@ -4067,6 +4067,8 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
         $iptvKeys = [
             // Xtream Codes
             'xtream_url', 'xtream_username', 'xtream_password', 'xtream_use_https',
+            // Network interface for stream delivery
+            'iptv_network_interface', 'iptv_stream_port', 'iptv_force_interface',
             // Hotel branding on TV
             'hotel_welcome_message', 'hotel_primary_color', 'welcome_background_url',
             // Weather widget
@@ -4082,6 +4084,73 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
         $iptvSettings = \App\Models\Setting::whereIn('key', $iptvKeys)
             ->pluck('value', 'key')->toArray();
 
+        // ── Detect available network interfaces ────────────────────────────────
+        $networkInterfaces = [];
+        try {
+            if (function_exists('net_get_interfaces')) {
+                $raw = net_get_interfaces();
+                foreach ($raw as $name => $details) {
+                    if ($name === 'lo') continue;
+                    $ipv4 = $details['ipv4'][0]['address'] ?? '';
+                    $mac = $details['hardware_address'] ?? $details['mac_address'] ?? '';
+                    $isUp = ($details['flags'] & 1) === 1;
+                    $speed = '';
+                    $speedPath = "/sys/class/net/{$name}/speed";
+                    if (file_exists($speedPath)) {
+                        $s = trim(file_get_contents($speedPath));
+                        if ($s && $s !== '-1') $speed = number_format((int)$s) . ' Mbps';
+                    }
+                    $status = $isUp ? 'Active' : 'Down';
+                    $label = "{$name}" . ($ipv4 ? " — {$ipv4}" : ' — No IP') . " [{$status}]" . ($speed ? " ({$speed})" : '');
+                    $networkInterfaces[] = [
+                        'name' => $name,
+                        'ipv4' => $ipv4,
+                        'mac'  => strtoupper($mac),
+                        'is_up' => $isUp,
+                        'speed' => $speed,
+                        'label' => $label,
+                    ];
+                }
+            } else {
+                $output = [];
+                exec('ip -4 -o addr show 2>/dev/null', $output, $exitCode);
+                if ($exitCode === 0) {
+                    $parsed = [];
+                    foreach ($output as $line) {
+                        if (preg_match('/^\d+:\s+(\S+)\s+inet\s+(\d+\.\d+\.\d+\.\d+)\/(\d+)/', $line, $m)) {
+                            $n = $m[1];
+                            if (!isset($parsed[$n])) $parsed[$n] = ['name' => $n, 'ipv4' => $m[2]];
+                        }
+                    }
+                    foreach ($parsed as $name => $info) {
+                        if ($name === 'lo') continue;
+                        $macPath = "/sys/class/net/{$name}/address";
+                        $mac = file_exists($macPath) ? strtoupper(trim(file_get_contents($macPath))) : '';
+                        $statePath = "/sys/class/net/{$name}/operstate";
+                        $isUp = file_exists($statePath) ? trim(file_get_contents($statePath)) === 'up' : false;
+                        $speed = '';
+                        $speedPath = "/sys/class/net/{$name}/speed";
+                        if (file_exists($speedPath)) {
+                            $s = trim(file_get_contents($speedPath));
+                            if ($s && $s !== '-1') $speed = number_format((int)$s) . ' Mbps';
+                        }
+                        $status = $isUp ? 'Active' : 'Down';
+                        $label = "{$name}" . ($info['ipv4'] ? " — {$info['ipv4']}" : ' — No IP') . " [{$status}]" . ($speed ? " ({$speed})" : '');
+                        $networkInterfaces[] = [
+                            'name' => $name,
+                            'ipv4' => $info['ipv4'],
+                            'mac'  => $mac,
+                            'is_up' => $isUp,
+                            'speed' => $speed,
+                            'label' => $label,
+                        ];
+                    }
+                }
+            }
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::warning('Failed to detect network interfaces: ' . $e->getMessage());
+        }
+
         return Inertia::render('Admin/Settings/Index', [
             'user'     => $user,
             'settings' => [
@@ -4091,6 +4160,8 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
             ],
             // Expose this server's base URL so the app knows where to register
             'server_url' => rtrim(config('app.url'), '/'),
+            // Available network interfaces for IPTV NIC selection
+            'network_interfaces' => $networkInterfaces,
         ]);
     })->name('settings.index');
     Route::post('/settings', function () {
@@ -4108,12 +4179,13 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
 
         $iptvKeys = [
             'xtream_url', 'xtream_username', 'xtream_password',
+            'iptv_network_interface', 'iptv_stream_port',
             'hotel_welcome_message', 'hotel_primary_color', 'welcome_background_url',
             'weather_api_key', 'weather_city', 'weather_units',
             'iptv_ui_theme', 'iptv_parental_pin', 'admin_pin',
         ];
         $iptvBoolKeys = [
-            'xtream_use_https', 'weather_enabled',
+            'xtream_use_https', 'weather_enabled', 'iptv_force_interface',
             'iptv_show_epg', 'iptv_show_clock', 'iptv_show_room_number',
             'iptv_enable_vod', 'iptv_enable_series', 'iptv_enable_radio',
         ];
@@ -9659,9 +9731,29 @@ Route::middleware(['auth', 'role:manager'])->prefix('manager')->name('manager.')
             'pos_print_show_logo', 'frontdesk_print_show_logo',
             'enable_vod', 'enable_parental_controls',
         ];
+        $iptvKeys = [
+            'xtream_url', 'xtream_username', 'xtream_password',
+            'iptv_network_interface', 'iptv_stream_port',
+            'hotel_welcome_message', 'hotel_primary_color', 'welcome_background_url',
+            'weather_api_key', 'weather_city', 'weather_units',
+            'iptv_ui_theme', 'iptv_parental_pin', 'admin_pin',
+        ];
+        $iptvBoolKeys = [
+            'xtream_use_https', 'weather_enabled', 'iptv_force_interface',
+            'iptv_show_epg', 'iptv_show_clock', 'iptv_show_room_number',
+            'iptv_enable_vod', 'iptv_enable_series', 'iptv_enable_radio',
+        ];
+        $iptvIntKeys = ['iptv_auto_launch_seconds'];
+
         foreach ($settings as $key => $value) {
             if (strpos($key, 'theme_') === 0) {
                 \App\Models\Setting::set($key, $value, 'string', 'theme');
+            } elseif (in_array($key, $iptvBoolKeys, true)) {
+                \App\Models\Setting::set($key, $value ? '1' : '0', 'boolean', 'iptv');
+            } elseif (in_array($key, $iptvIntKeys, true)) {
+                \App\Models\Setting::set($key, (int) $value, 'integer', 'iptv');
+            } elseif (in_array($key, $iptvKeys, true)) {
+                \App\Models\Setting::set($key, $value, 'string', 'iptv');
             } elseif (in_array($key, $booleanKeys, true)) {
                 \App\Models\Setting::set($key, $value ? '1' : '0', 'boolean', 'general');
             } elseif (is_numeric($value) && strpos((string) $value, '.') !== false) {

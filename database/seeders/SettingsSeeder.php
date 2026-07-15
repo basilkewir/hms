@@ -184,6 +184,11 @@ class SettingsSeeder extends Seeder
             ['key' => 'iptv_parental_pin',       'value' => '',        'type' => 'string',  'group' => 'iptv', 'description' => 'Global parental control PIN (4 digits) – empty = disabled'],
             ['key' => 'admin_pin',               'value' => '1234',    'type' => 'string',  'group' => 'iptv', 'description' => 'Admin PIN to access TV settings panel'],
 
+            // IPTV Settings — Network interface for stream delivery
+            ['key' => 'iptv_network_interface',  'value' => '',        'type' => 'string',  'group' => 'iptv', 'description' => 'Network interface used for IPTV stream delivery (e.g. eth1). Empty = auto-detect.'],
+            ['key' => 'iptv_stream_port',        'value' => '8080',    'type' => 'string',  'group' => 'iptv', 'description' => 'Port used for IPTV stream URLs on the selected network interface'],
+            ['key' => 'iptv_force_interface',    'value' => '0',       'type' => 'boolean', 'group' => 'iptv', 'description' => 'Force all IPTV traffic through the selected network interface'],
+
             // IPTV Settings — Legacy (kept for compatibility)
             ['key' => 'iptv_server_url',         'value' => '',        'type' => 'string',  'group' => 'iptv', 'description' => 'Legacy IPTV server URL (use xtream_url instead)'],
             ['key' => 'default_channel_package', 'value' => 'premium', 'type' => 'string',  'group' => 'iptv', 'description' => 'Default channel package'],
