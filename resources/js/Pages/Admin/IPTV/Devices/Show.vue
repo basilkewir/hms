@@ -100,15 +100,19 @@
                     </div>
                 </div>
 
-                <!-- Notes / edit -->
+                <!-- Edit name / notes -->
                 <div class="mt-4 pt-4 border-t" :style="{ borderColor: themeColors.border }">
-                    <label :style="{ color: themeColors.textSecondary }" class="block text-xs mb-1">Notes</label>
+                    <label :style="{ color: themeColors.textSecondary }" class="block text-xs mb-1">Device Name</label>
+                    <input v-model="editForm.device_name" placeholder="e.g., Room 101 TV"
+                           :style="{ backgroundColor: themeColors.background, color: themeColors.textPrimary, borderColor: themeColors.border }"
+                           class="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none" />
+                    <label :style="{ color: themeColors.textSecondary }" class="block text-xs mt-3 mb-1">Notes</label>
                     <textarea v-model="editForm.notes" rows="2"
                               :style="{ backgroundColor: themeColors.background, color: themeColors.textPrimary, borderColor: themeColors.border }"
                               class="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none resize-none" />
                     <div class="flex justify-end mt-2">
-                        <button @click="saveNotes" class="text-xs px-4 py-1.5 rounded-lg bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30">
-                            Save Notes
+                        <button @click="saveChanges" class="text-xs px-4 py-1.5 rounded-lg bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30">
+                            Save Changes
                         </button>
                     </div>
                 </div>
@@ -466,10 +470,19 @@ const cmdBadgeClass = (s) => {
     return 'bg-red-500/20 text-red-400'
 }
 
-// Edit notes
-const editForm = useForm({ notes: props.device.notes || '' })
-const saveNotes = () => {
-    router.put(route('admin.iptv.devices.update', props.device.id), { notes: editForm.notes }, { preserveScroll: true })
+// Edit device name / notes
+const editForm = useForm({
+    device_name: props.device.device_name || '',
+    notes: props.device.notes || '',
+})
+const saveChanges = () => {
+    router.put(route('admin.iptv.devices.update', props.device.id), {
+        device_name: editForm.device_name,
+        notes: editForm.notes,
+    }, {
+        preserveScroll: true,
+        onSuccess: () => { liveDevice.value.device_name = editForm.device_name }
+    })
 }
 
 // Send command

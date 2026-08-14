@@ -157,6 +157,10 @@
                                                   class="text-xs px-2 py-1 rounded bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30">
                                                 Manage
                                             </Link>
+                                            <button @click.stop="openRename(device)"
+                                                    class="text-xs px-2 py-1 rounded bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30">
+                                                Rename
+                                            </button>
                                             <button @click.stop="quickCommand(device, 'reboot')"
                                                     class="text-xs px-2 py-1 rounded bg-blue-500/20 text-blue-400 hover:bg-blue-500/30">
                                                 Reboot
@@ -344,6 +348,40 @@
             </div>
         </Teleport>
 
+        <!-- Rename Device Modal -->
+        <Teleport to="body">
+            <div v-if="showRenameModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+                <div :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }"
+                     class="w-full max-w-md mx-4 rounded-xl border shadow-2xl">
+                    <div :style="{ borderColor: themeColors.border }" class="flex items-center justify-between px-6 py-4 border-b">
+                        <h2 :style="{ color: themeColors.textPrimary }" class="text-lg font-bold">Rename Device</h2>
+                        <button @click="showRenameModal = false" class="text-gray-400 hover:text-white">✕</button>
+                    </div>
+                    <form @submit.prevent="submitRename" class="p-6 space-y-4">
+                        <div>
+                            <label :style="{ color: themeColors.textSecondary }" class="block text-sm mb-1">Device Name</label>
+                            <input v-model="renameForm.device_name" placeholder="e.g., Room 101 TV"
+                                   :style="{ backgroundColor: themeColors.background, color: themeColors.textPrimary, borderColor: themeColors.border }"
+                                   class="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-1 focus:ring-yellow-500" />
+                            <p :style="{ color: themeColors.textSecondary }" class="text-xs mt-1 font-mono">
+                                {{ renameTarget?.device_id }}
+                            </p>
+                        </div>
+                        <div class="flex items-center justify-end gap-3 pt-2">
+                            <button type="button" @click="showRenameModal = false"
+                                    class="px-5 py-2 rounded-lg text-sm bg-gray-700 hover:bg-gray-600 text-white">
+                                Cancel
+                            </button>
+                            <button type="submit" :disabled="renameForm.processing"
+                                    class="px-5 py-2 rounded-lg text-sm font-semibold bg-yellow-500 hover:bg-yellow-400 text-black disabled:opacity-50">
+                                {{ renameForm.processing ? 'Saving...' : 'Save Name' }}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </Teleport>
+
     </DashboardLayout>
 </template>
 
@@ -512,6 +550,27 @@ const submitAdd = () => {
 const confirmDelete = (device) => {
     if (!confirm(`Remove device "${device.device_name || device.device_id}"? This cannot be undone.`)) return
     router.delete(route('admin.iptv.devices.destroy', device.id), { preserveScroll: true })
+}
+
+// Rename device
+const showRenameModal = ref(false)
+const renameTarget = ref(null)
+const renameForm = useForm({ device_name: '' })
+
+const openRename = (device) => {
+    renameTarget.value = device
+    renameForm.device_name = device.device_name && device.device_name !== device.device_id ? device.device_name : ''
+    showRenameModal.value = true
+}
+
+const submitRename = () => {
+    renameForm.put(route('admin.iptv.devices.update', renameTarget.value.id), {
+        preserveScroll: true,
+        onSuccess: () => {
+            if (renameTarget.value) renameTarget.value.device_name = renameForm.device_name
+            showRenameModal.value = false
+        }
+    })
 }
 
 // Push settings to all
