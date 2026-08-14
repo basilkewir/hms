@@ -329,6 +329,42 @@
                     </div>
                 </div>
 
+                <!-- Default Channel -->
+                <div :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }"
+                     class="rounded-xl border p-5">
+                    <h3 :style="{ color: themeColors.textPrimary }" class="font-semibold mb-2 flex items-center gap-2">
+                        <TvIcon class="h-4 w-4 text-yellow-400" />
+                        Default Channel
+                    </h3>
+                    <p :style="{ color: themeColors.textSecondary }" class="text-xs mb-3">
+                        Channel that always starts when the TV app is launched. Devices pick it up on their next settings sync.
+                    </p>
+                    <div class="space-y-2">
+                        <select v-model="defaultChannel"
+                                class="w-full border rounded-md px-3 py-2 text-sm bg-transparent"
+                                :style="{ borderColor: themeColors.border, color: themeColors.textPrimary }">
+                            <option value="" :style="{ color: '#888' }">— No default channel —</option>
+                            <option v-for="ch in channels" :key="ch.id" :value="ch.id"
+                                    :style="{ color: '#111' }">
+                                {{ ch.name }} (ch {{ ch.number }})
+                            </option>
+                        </select>
+                        <div class="flex items-center gap-3">
+                            <button @click="saveDefaultChannel" :disabled="savingDefault"
+                                    class="px-3 py-1.5 rounded-lg text-xs font-medium bg-yellow-500 hover:bg-yellow-400 text-black disabled:opacity-50">
+                                {{ savingDefault ? 'Saving…' : 'Save Default Channel' }}
+                            </button>
+                            <button v-if="channels.length === 0" @click="loadChannels"
+                                    class="px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-600 hover:bg-blue-500 text-white">
+                                {{ loadingChannels ? 'Loading…' : 'Reload Channels' }}
+                            </button>
+                        </div>
+                        <p :style="{ color: themeColors.textSecondary }" class="text-xs">
+                            {{ channels.length ? channels.length + ' channels available from Xtream.' : 'Could not load channels — check Xtream credentials.' }}
+                        </p>
+                    </div>
+                </div>
+
                 <!-- Server URL Info Box -->
                 <div :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }"
                      class="rounded-xl border p-5">
@@ -741,6 +777,39 @@ const removeBg = async () => {
     }
 }
 
+// ── Default channel ─────────────────────────────────────────────────────
+const channels = ref([])
+const loadingChannels = ref(false)
+const savingDefault = ref(false)
+const defaultChannel = ref(props.globalSettings?.iptv_default_channel || '')
+
+const loadChannels = async () => {
+    loadingChannels.value = true
+    try {
+        const res = await fetch(route('admin.iptv.channels'), {
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+        })
+        const data = await res.json()
+        if (data.success) {
+            channels.value = data.channels || []
+        } else {
+            channels.value = []
+        }
+    } catch (_) {
+        channels.value = []
+    } finally {
+        loadingChannels.value = false
+    }
+}
+
+const saveDefaultChannel = () => {
+    savingDefault.value = true
+    router.post(route('admin.iptv.default-channel'), { channel_id: defaultChannel.value || '' }, {
+        preserveScroll: true,
+        onFinish: () => { savingDefault.value = false }
+    })
+}
+
 // Auto-refresh every 15 seconds
 let pollTimer = null
 const startPolling = () => {
@@ -765,6 +834,6 @@ const startPolling = () => {
     }, 15000)
 }
 
-onMounted(startPolling)
+onMounted(() => { startPolling(); loadChannels() })
 onUnmounted(() => clearInterval(pollTimer))
 </script>

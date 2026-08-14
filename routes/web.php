@@ -4183,6 +4183,7 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
             'hotel_welcome_message', 'hotel_primary_color', 'welcome_background_url',
             'weather_api_key', 'weather_city', 'weather_units',
             'iptv_ui_theme', 'iptv_parental_pin', 'admin_pin',
+            'iptv_default_channel',
         ];
         $iptvBoolKeys = [
             'xtream_use_https', 'weather_enabled', 'iptv_force_interface',
@@ -4323,6 +4324,11 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
         Route::get('/devices/{device}', [\App\Http\Controllers\Admin\IPTV\DeviceController::class, 'show'])->name('devices.show');
         Route::put('/devices/{device}', [\App\Http\Controllers\Admin\IPTV\DeviceController::class, 'update'])->name('devices.update');
         Route::delete('/devices/{device}', [\App\Http\Controllers\Admin\IPTV\DeviceController::class, 'destroy'])->name('devices.destroy');
+
+        // Channel list for the Default Channel selector (from the Xtream player API)
+        Route::get('/channels', [\App\Http\Controllers\Admin\IPTV\DeviceController::class, 'channels'])->name('channels');
+        // Save the global default channel (Xtream stream_id) and notify all devices
+        Route::post('/default-channel', [\App\Http\Controllers\Admin\IPTV\DeviceController::class, 'setDefaultChannel'])->name('default-channel');
 
         // Remote management actions
         Route::post('/devices/{device}/command', [\App\Http\Controllers\Admin\IPTV\DeviceController::class, 'sendCommand'])->name('devices.command');
@@ -9745,6 +9751,7 @@ Route::middleware(['auth', 'role:manager'])->prefix('manager')->name('manager.')
             'hotel_welcome_message', 'hotel_primary_color', 'welcome_background_url',
             'weather_api_key', 'weather_city', 'weather_units',
             'iptv_ui_theme', 'iptv_parental_pin', 'admin_pin',
+            'iptv_default_channel',
         ];
         $iptvBoolKeys = [
             'xtream_use_https', 'weather_enabled', 'iptv_force_interface',

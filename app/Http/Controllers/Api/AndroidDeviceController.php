@@ -352,7 +352,7 @@ class AndroidDeviceController extends Controller
             'iptv_ui_theme', 'iptv_show_epg', 'iptv_auto_launch_seconds',
             'iptv_show_clock', 'iptv_show_room_number',
             'iptv_enable_vod', 'iptv_enable_series', 'iptv_enable_radio',
-            'iptv_parental_pin',
+            'iptv_parental_pin', 'iptv_default_channel',
             // Security
             'admin_pin',
         ]);
@@ -408,6 +408,7 @@ class AndroidDeviceController extends Controller
             'enable_series'           => (bool)($db['iptv_enable_series'] ?? true),
             'enable_radio'            => (bool)($db['iptv_enable_radio'] ?? true),
             'parental_pin'            => $db['iptv_parental_pin'] ?? '',
+            'default_channel'         => $db['iptv_default_channel'] ?? '',
 
             // ── Security ──
             'admin_pin'               => $db['admin_pin'] ?? '1234',

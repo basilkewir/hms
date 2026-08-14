@@ -182,6 +182,7 @@ class SettingsSeeder extends Seeder
             ['key' => 'iptv_enable_series',      'value' => '1',       'type' => 'boolean', 'group' => 'iptv', 'description' => 'Enable Series tab in TV app'],
             ['key' => 'iptv_enable_radio',       'value' => '1',       'type' => 'boolean', 'group' => 'iptv', 'description' => 'Enable Radio tab in TV app'],
             ['key' => 'iptv_parental_pin',       'value' => '',        'type' => 'string',  'group' => 'iptv', 'description' => 'Global parental control PIN (4 digits) – empty = disabled'],
+            ['key' => 'iptv_default_channel',    'value' => '',        'type' => 'string',  'group' => 'iptv', 'description' => 'Xtream stream_id of the channel that always starts when the TV app launches'],
             ['key' => 'admin_pin',               'value' => '1234',    'type' => 'string',  'group' => 'iptv', 'description' => 'Admin PIN to access TV settings panel'],
 
             // IPTV Settings — Network interface for stream delivery

@@ -143,6 +143,82 @@ class DeviceController extends Controller
         return redirect()->back()->with('success', 'Device updated');
     }
 
+    // ── Default channel management ────────────────────────────────────────
+
+    /**
+     * Live channel list for the "Default Channel" selector.
+     * Fetched from the Xtream player API using the global Xtream credentials,
+     * falling back to the first active device's pushed credentials.
+     */
+    public function channels(Request $request)
+    {
+        $settings = $this->getGlobalSettings();
+        $base = $settings['xtream_url'] ?? '';
+        $user = $settings['xtream_username'] ?? '';
+        $pass = $settings['xtream_password'] ?? '';
+
+        if (empty($base) || empty($user) || empty($pass)) {
+            $device = IptvDevice::where('is_active', true)->first();
+            $pushed = $device?->pushed_settings ?? [];
+            if (empty($base)) $base = $pushed['xtream_url'] ?? '';
+            if (empty($user)) $user = $pushed['xtream_username'] ?? '';
+            if (empty($pass)) $pass = $pushed['xtream_password'] ?? '';
+        }
+
+        if (empty($base) || empty($user) || empty($pass)) {
+            return response()->json(['success' => false, 'channels' => []]);
+        }
+
+        $url = rtrim($base, '/') . '/player_api.php?username=' . urlencode($user)
+            . '&password=' . urlencode($pass) . '&action=get_live_streams';
+
+        try {
+            $client = new \GuzzleHttp\Client(['timeout' => 15, 'verify' => false]);
+            $json   = $client->get($url)->getBody()->getContents();
+        } catch (\Throwable $e) {
+            return response()->json(['success' => false, 'channels' => []]);
+        }
+
+        $data = json_decode($json, true);
+        if (!is_array($data)) {
+            return response()->json(['success' => false, 'channels' => []]);
+        }
+
+        $channels = [];
+        foreach ($data as $s) {
+            $sid = $s['stream_id'] ?? null;
+            if ($sid === null || $sid === '') continue;
+            $channels[] = [
+                'id'     => (string) $sid,
+                'number' => $s['num'] ?? count($channels) + 1,
+                'name'   => $s['name'] ?? ('Channel ' . $sid),
+            ];
+        }
+
+        return response()->json(['success' => true, 'channels' => $channels]);
+    }
+
+    /**
+     * Save the global default channel (Xtream stream_id) and bump every
+     * active device so the TV app picks it up on its next settings sync.
+     */
+    public function setDefaultChannel(Request $request)
+    {
+        $validated = $request->validate([
+            'channel_id' => 'nullable|string|max:64',
+        ]);
+        \App\Models\Setting::set('iptv_default_channel', $validated['channel_id'] ?? '', 'string', 'iptv');
+
+        IptvDevice::where('is_active', true)->each(function ($device) {
+            $device->update([
+                'settings_version' => ($device->settings_version ?? 0) + 1,
+            ]);
+            $device->dispatchCommand('push_settings', ['settings_version' => $device->settings_version]);
+        });
+
+        return redirect()->back()->with('success', 'Default channel updated — TVs will apply it on their next sync.');
+    }
+
     // ── Destroy ────────────────────────────────────────────────────────────
 
     public function destroy(IptvDevice $device)
@@ -388,7 +464,7 @@ class DeviceController extends Controller
                 'iptv_ui_theme', 'iptv_show_epg', 'iptv_auto_launch_seconds',
                 'iptv_show_clock', 'iptv_show_room_number',
                 'iptv_enable_vod', 'iptv_enable_series', 'iptv_enable_radio',
-                'iptv_parental_pin', 'admin_pin',
+                'iptv_parental_pin', 'iptv_default_channel', 'admin_pin',
             ];
             return Setting::whereIn('key', $keys)->pluck('value', 'key')->toArray();
         } catch (\Exception $e) {
