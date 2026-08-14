@@ -88,12 +88,12 @@ class HotelIptvController extends Controller
 
             // Get hotel information
             $hotelInfo = [
-                'name' => Setting::getValue('hotel_name', 'Grand Hotel'),
-                'address' => Setting::getValue('hotel_address', ''),
-                'phone' => Setting::getValue('hotel_phone', ''),
-                'email' => Setting::getValue('hotel_email', ''),
-                'website' => Setting::getValue('hotel_website', ''),
-                'logo_url' => Setting::getValue('hotel_logo_url', ''),
+                'name' => Setting::get('hotel_name', 'Grand Hotel'),
+                'address' => Setting::get('hotel_address', ''),
+                'phone' => Setting::get('hotel_phone', ''),
+                'email' => Setting::get('hotel_email', ''),
+                'website' => Setting::get('hotel_website', ''),
+                'logo_url' => Setting::get('hotel_logo', ''),
             ];
 
             return response()->json([
@@ -126,13 +126,13 @@ class HotelIptvController extends Controller
     {
         try {
             // Get hotel location from settings
-            $latitude = Setting::getValue('hotel_latitude', '6.5244'); // Lagos default
-            $longitude = Setting::getValue('hotel_longitude', '3.3792');
-            $city = Setting::getValue('hotel_city', 'Lagos');
-            $country = Setting::getValue('hotel_country', 'Nigeria');
+            $latitude = Setting::get('hotel_latitude', '6.5244'); // Lagos default
+            $longitude = Setting::get('hotel_longitude', '3.3792');
+            $city = Setting::get('hotel_city', 'Lagos');
+            $country = Setting::get('hotel_country', 'Nigeria');
 
             // Get weather from OpenWeatherMap API (if API key is configured)
-            $weatherApiKey = Setting::getValue('openweather_api_key');
+            $weatherApiKey = Setting::get('openweather_api_key');
             $weatherData = null;
 
             if ($weatherApiKey) {
@@ -194,43 +194,43 @@ class HotelIptvController extends Controller
             $contacts = [
                 'reception' => [
                     'name' => 'Front Desk',
-                    'phone' => Setting::getValue('reception_phone', '0'),
-                    'extension' => Setting::getValue('reception_extension', '0'),
-                    'email' => Setting::getValue('reception_email', ''),
-                    'hours' => Setting::getValue('reception_hours', '24/7'),
+                    'phone' => Setting::get('reception_phone', '0'),
+                    'extension' => Setting::get('reception_extension', '0'),
+                    'email' => Setting::get('reception_email', ''),
+                    'hours' => Setting::get('reception_hours', '24/7'),
                 ],
                 'concierge' => [
                     'name' => 'Concierge',
-                    'phone' => Setting::getValue('concierge_phone', ''),
-                    'extension' => Setting::getValue('concierge_extension', '1'),
-                    'email' => Setting::getValue('concierge_email', ''),
-                    'hours' => Setting::getValue('concierge_hours', '6:00 AM - 10:00 PM'),
+                    'phone' => Setting::get('concierge_phone', ''),
+                    'extension' => Setting::get('concierge_extension', '1'),
+                    'email' => Setting::get('concierge_email', ''),
+                    'hours' => Setting::get('concierge_hours', '6:00 AM - 10:00 PM'),
                 ],
                 'room_service' => [
                     'name' => 'Room Service',
-                    'phone' => Setting::getValue('room_service_phone', ''),
-                    'extension' => Setting::getValue('room_service_extension', '2'),
-                    'email' => Setting::getValue('room_service_email', ''),
-                    'hours' => Setting::getValue('room_service_hours', '24/7'),
+                    'phone' => Setting::get('room_service_phone', ''),
+                    'extension' => Setting::get('room_service_extension', '2'),
+                    'email' => Setting::get('room_service_email', ''),
+                    'hours' => Setting::get('room_service_hours', '24/7'),
                 ],
                 'housekeeping' => [
                     'name' => 'Housekeeping',
-                    'phone' => Setting::getValue('housekeeping_phone', ''),
-                    'extension' => Setting::getValue('housekeeping_extension', '3'),
-                    'email' => Setting::getValue('housekeeping_email', ''),
-                    'hours' => Setting::getValue('housekeeping_hours', '8:00 AM - 6:00 PM'),
+                    'phone' => Setting::get('housekeeping_phone', ''),
+                    'extension' => Setting::get('housekeeping_extension', '3'),
+                    'email' => Setting::get('housekeeping_email', ''),
+                    'hours' => Setting::get('housekeeping_hours', '8:00 AM - 6:00 PM'),
                 ],
                 'maintenance' => [
                     'name' => 'Maintenance',
-                    'phone' => Setting::getValue('maintenance_phone', ''),
-                    'extension' => Setting::getValue('maintenance_extension', '4'),
-                    'email' => Setting::getValue('maintenance_email', ''),
-                    'hours' => Setting::getValue('maintenance_hours', '24/7'),
+                    'phone' => Setting::get('maintenance_phone', ''),
+                    'extension' => Setting::get('maintenance_extension', '4'),
+                    'email' => Setting::get('maintenance_email', ''),
+                    'hours' => Setting::get('maintenance_hours', '24/7'),
                 ],
                 'emergency' => [
                     'name' => 'Emergency',
-                    'phone' => Setting::getValue('emergency_phone', '911'),
-                    'extension' => Setting::getValue('emergency_extension', '911'),
+                    'phone' => Setting::get('emergency_phone', '911'),
+                    'extension' => Setting::get('emergency_extension', '911'),
                     'description' => 'For life-threatening emergencies',
                 ],
             ];
@@ -239,8 +239,8 @@ class HotelIptvController extends Controller
                 'success' => true,
                 'data' => [
                     'contacts' => $contacts,
-                    'hotel_phone' => Setting::getValue('hotel_phone', ''),
-                    'hotel_address' => Setting::getValue('hotel_address', ''),
+                    'hotel_phone' => Setting::get('hotel_phone', ''),
+                    'hotel_address' => Setting::get('hotel_address', ''),
                 ]
             ]);
 
@@ -303,7 +303,7 @@ class HotelIptvController extends Controller
                 'room_number' => $room->room_number,
                 'check_in_date' => $currentReservation->check_in_date,
                 'check_out_date' => $currentReservation->check_out_date,
-                'currency' => Setting::getValue('currency_symbol', '$'),
+                'currency' => Setting::get('currency_symbol', '$'),
                 'total_amount' => 0,
                 'paid_amount' => 0,
                 'balance_amount' => 0,
@@ -364,21 +364,21 @@ class HotelIptvController extends Controller
                             'name' => 'Main Restaurant',
                             'description' => 'Fine dining experience',
                             'hours' => '6:00 AM - 11:00 PM',
-                            'phone' => Setting::getValue('restaurant_phone', ''),
+                            'phone' => Setting::get('restaurant_phone', ''),
                             'location' => 'Ground Floor',
                         ],
                         [
                             'name' => 'Room Service',
                             'description' => '24-hour room service',
                             'hours' => '24/7',
-                            'phone' => Setting::getValue('room_service_phone', ''),
+                            'phone' => Setting::get('room_service_phone', ''),
                             'extension' => '2',
                         ],
                         [
                             'name' => 'Bar & Lounge',
                             'description' => 'Cocktails and light snacks',
                             'hours' => '4:00 PM - 2:00 AM',
-                            'phone' => Setting::getValue('bar_phone', ''),
+                            'phone' => Setting::get('bar_phone', ''),
                             'location' => 'Lobby Level',
                         ],
                     ]
@@ -391,7 +391,7 @@ class HotelIptvController extends Controller
                             'name' => 'Spa Services',
                             'description' => 'Massage and beauty treatments',
                             'hours' => '9:00 AM - 9:00 PM',
-                            'phone' => Setting::getValue('spa_phone', ''),
+                            'phone' => Setting::get('spa_phone', ''),
                             'location' => '2nd Floor',
                         ],
                         [
@@ -422,7 +422,7 @@ class HotelIptvController extends Controller
                             'name' => 'Conference Rooms',
                             'description' => 'Meeting and event spaces',
                             'hours' => 'By appointment',
-                            'phone' => Setting::getValue('events_phone', ''),
+                            'phone' => Setting::get('events_phone', ''),
                             'location' => '3rd Floor',
                         ],
                     ]
@@ -435,14 +435,14 @@ class HotelIptvController extends Controller
                             'name' => 'Airport Shuttle',
                             'description' => 'Complimentary airport transfer',
                             'hours' => '5:00 AM - 11:00 PM',
-                            'phone' => Setting::getValue('shuttle_phone', ''),
+                            'phone' => Setting::get('shuttle_phone', ''),
                             'advance_booking' => '2 hours',
                         ],
                         [
                             'name' => 'Taxi Service',
                             'description' => 'Local taxi arrangements',
                             'hours' => '24/7',
-                            'phone' => Setting::getValue('taxi_phone', ''),
+                            'phone' => Setting::get('taxi_phone', ''),
                         ],
                     ]
                 ],
@@ -454,13 +454,13 @@ class HotelIptvController extends Controller
                             'name' => 'Laundry Service',
                             'description' => 'Same-day laundry and dry cleaning',
                             'hours' => '8:00 AM - 6:00 PM',
-                            'phone' => Setting::getValue('laundry_phone', ''),
+                            'phone' => Setting::get('laundry_phone', ''),
                         ],
                         [
                             'name' => 'Lost & Found',
                             'description' => 'Lost item assistance',
                             'hours' => '24/7',
-                            'phone' => Setting::getValue('reception_phone', ''),
+                            'phone' => Setting::get('reception_phone', ''),
                         ],
                     ]
                 ],
@@ -470,7 +470,7 @@ class HotelIptvController extends Controller
                 'success' => true,
                 'data' => [
                     'services' => $services,
-                    'hotel_name' => Setting::getValue('hotel_name', 'Grand Hotel'),
+                    'hotel_name' => Setting::get('hotel_name', 'Grand Hotel'),
                     'last_updated' => now()->toISOString(),
                 ]
             ]);
@@ -515,9 +515,9 @@ class HotelIptvController extends Controller
 
             $config = [
                 'xtream_api' => [
-                    'url' => Setting::getValue('xtream_api_url'),
-                    'username' => Setting::getValue('xtream_username'),
-                    'password' => Setting::getValue('xtream_password'),
+                    'url' => Setting::get('xtream_api_url'),
+                    'username' => Setting::get('xtream_username'),
+                    'password' => Setting::get('xtream_password'),
                 ],
                 'package' => $iptvPackage ? [
                     'name' => $iptvPackage->name,
@@ -617,33 +617,33 @@ class HotelIptvController extends Controller
                 'emergency_contacts' => [
                     [
                         'name' => 'Hotel Security',
-                        'phone' => Setting::getValue('security_phone', '0'),
-                        'extension' => Setting::getValue('security_extension', '911'),
+                        'phone' => Setting::get('security_phone', '0'),
+                        'extension' => Setting::get('security_extension', '911'),
                         'description' => 'Hotel security and emergency response',
                         'priority' => 1,
                     ],
                     [
                         'name' => 'Fire Department',
-                        'phone' => Setting::getValue('fire_department_phone', '911'),
+                        'phone' => Setting::get('fire_department_phone', '911'),
                         'description' => 'Fire emergency services',
                         'priority' => 2,
                     ],
                     [
                         'name' => 'Police',
-                        'phone' => Setting::getValue('police_phone', '911'),
+                        'phone' => Setting::get('police_phone', '911'),
                         'description' => 'Police emergency services',
                         'priority' => 3,
                     ],
                     [
                         'name' => 'Medical Emergency',
-                        'phone' => Setting::getValue('medical_emergency_phone', '911'),
+                        'phone' => Setting::get('medical_emergency_phone', '911'),
                         'description' => 'Medical emergency services',
                         'priority' => 4,
                     ],
                 ],
                 'evacuation_info' => [
-                    'assembly_point' => Setting::getValue('assembly_point', 'Main Parking Area'),
-                    'evacuation_routes' => Setting::getValue('evacuation_routes', 'Follow illuminated exit signs'),
+                    'assembly_point' => Setting::get('assembly_point', 'Main Parking Area'),
+                    'evacuation_routes' => Setting::get('evacuation_routes', 'Follow illuminated exit signs'),
                     'emergency_instructions' => [
                         'Stay calm and do not panic',
                         'Follow staff instructions',
@@ -654,7 +654,7 @@ class HotelIptvController extends Controller
                 ],
                 'hotel_emergency_contact' => [
                     'name' => 'Front Desk',
-                    'phone' => Setting::getValue('reception_phone', '0'),
+                    'phone' => Setting::get('reception_phone', '0'),
                     'extension' => '0',
                 ],
             ];

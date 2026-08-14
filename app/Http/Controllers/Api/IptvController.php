@@ -177,9 +177,9 @@ class IptvController extends Controller
     private function getXtreamChannels($package, $roomSettings = null)
     {
         // Get Xtream Codes API credentials from settings
-        $xtreamUrl = Setting::getValue('xtream_api_url');
-        $xtreamUsername = Setting::getValue('xtream_username');
-        $xtreamPassword = Setting::getValue('xtream_password');
+        $xtreamUrl = Setting::get('xtream_api_url');
+        $xtreamUsername = Setting::get('xtream_username');
+        $xtreamPassword = Setting::get('xtream_password');
 
         if (!$xtreamUrl || !$xtreamUsername || !$xtreamPassword) {
             return [];
