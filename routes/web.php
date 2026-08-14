@@ -4269,6 +4269,10 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
     Route::post('/settings/logo', [\App\Http\Controllers\SettingsController::class, 'uploadLogo'])->name('settings.logo.upload');
     Route::delete('/settings/logo', [\App\Http\Controllers\SettingsController::class, 'removeLogo'])->name('settings.logo.remove');
 
+    // TV welcome-screen background upload / remove
+    Route::post('/settings/background', [\App\Http\Controllers\SettingsController::class, 'uploadBackground'])->name('settings.background.upload');
+    Route::delete('/settings/background', [\App\Http\Controllers\SettingsController::class, 'removeBackground'])->name('settings.background.remove');
+
     // Tunnel / Application URL update (writes to .env and clears config cache)
     Route::post('/settings/tunnel-url', [\App\Http\Controllers\SettingsController::class, 'updateTunnelUrl'])->name('settings.tunnel-url.update');
 

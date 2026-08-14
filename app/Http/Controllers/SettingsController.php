@@ -246,6 +246,58 @@ class SettingsController extends Controller
     }
 
     /**
+     * Upload hotel TV welcome-screen background image (dedicated endpoint — multipart/form-data)
+     * Stores the file on disk (storage/app/public/logos/) and saves the public URL.
+     */
+    public function uploadBackground(Request $request)
+    {
+        $request->validate([
+            'background' => 'required|file|mimes:jpeg,png,jpg,webp|max:8192',
+        ]);
+
+        try {
+            // Delete any old background file from disk
+            $oldUrl = Setting::get('welcome_background_url', '');
+            if ($oldUrl && str_contains($oldUrl, '/storage/logos/')) {
+                $oldPath = 'logos/' . basename($oldUrl);
+                Storage::disk('public')->delete($oldPath);
+            }
+
+            $background = $request->file('background');
+            $filename = 'bg_' . time() . '.' . $background->getClientOriginalExtension();
+            $path = $background->storeAs('logos', $filename, 'public');
+
+            $backgroundUrl = asset('storage/' . $path);
+
+            Setting::set('welcome_background_url', $backgroundUrl, 'string', 'general');
+
+            return response()->json([
+                'success'           => true,
+                'message'           => 'Background uploaded successfully',
+                'background_url'    => $backgroundUrl,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error uploading background: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Failed to upload background: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Remove TV welcome-screen background image
+     */
+    public function removeBackground()
+    {
+        $oldUrl = Setting::get('welcome_background_url', '');
+        if ($oldUrl && str_contains($oldUrl, '/storage/logos/')) {
+            $oldPath = 'logos/' . basename($oldUrl);
+            Storage::disk('public')->delete($oldPath);
+        }
+
+        Setting::set('welcome_background_url', '', 'string', 'general');
+        return response()->json(['success' => true, 'message' => 'Background removed successfully']);
+    }
+
+    /**
      * Remove hotel logo
      */
     public function removeLogo()
