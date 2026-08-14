@@ -321,6 +321,7 @@ export const getNavigationForRole = (role, userPermissions = []) => {
                 { name: 'Devices', href: '/admin/iptv/devices', permission: 'manage_iptv_devices', roles: ['admin'] },
                 { name: 'Content', href: '/admin/iptv/content', permission: 'manage_iptv', roles: ['admin'] },
                 { name: 'Packages', href: '/admin/iptv/packages', permission: 'manage_iptv', roles: ['admin'] },
+                { name: 'Weather', href: '/admin/iptv/weather', permission: 'manage_iptv', roles: ['admin'] },
             ]
         },
 

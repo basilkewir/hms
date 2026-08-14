@@ -95,14 +95,14 @@
                         <table class="min-w-full text-sm">
                             <thead :style="{ backgroundColor: themeColors.background }">
                                 <tr>
-                                    <th v-for="col in ['Device', 'Room', 'Status', 'Last Seen', 'Version', 'Actions']" :key="col"
+                                    <th v-for="col in ['Device', 'Room', 'Guest', 'Status', 'Last Seen', 'Version', 'Actions']" :key="col"
                                         :style="{ color: themeColors.textSecondary }"
                                         class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider">{{ col }}</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <tr v-if="filteredDevices.length === 0">
-                                    <td colspan="6" class="px-4 py-12 text-center text-gray-400">
+                                    <td colspan="7" class="px-4 py-12 text-center text-gray-400">
                                         No devices found. Add your first Android TV device to get started.
                                     </td>
                                 </tr>
@@ -127,9 +127,31 @@
                                     </td>
                                     <!-- Room -->
                                     <td class="px-4 py-3">
-                                        <span :style="{ color: themeColors.textPrimary }">
-                                            {{ device.room_number ? 'Room ' + device.room_number : '—' }}
+                                        <div class="flex items-center gap-2">
+                                            <span :style="{ color: themeColors.textPrimary }">
+                                                {{ device.room_number ? 'Room ' + device.room_number : '—' }}
+                                            </span>
+                                            <select :value="device.room_id || ''"
+                                                    @change="assignRoom(device, $event.target.value)"
+                                                    :style="{ backgroundColor: themeColors.background, color: themeColors.textPrimary, borderColor: themeColors.border }"
+                                                    class="border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-yellow-500"
+                                                    title="Assign this device to a room">
+                                                <option value="">Assign…</option>
+                                                <option v-for="room in availableRooms" :key="room.id" :value="room.id">
+                                                    Room {{ room.room_number }}{{ room.room_type ? ' — ' + room.room_type : '' }}
+                                                </option>
+                                            </select>
+                                        </div>
+                                    </td>
+                                    <!-- Guest (checked-in) -->
+                                    <td class="px-4 py-3">
+                                        <span v-if="device.guest_name" :style="{ color: themeColors.success }" class="font-medium">
+                                            {{ device.guest_name }}
                                         </span>
+                                        <span v-else-if="device.room_id" :style="{ color: themeColors.textTertiary }" class="text-xs">
+                                            No guest checked in
+                                        </span>
+                                        <span v-else :style="{ color: themeColors.textTertiary }" class="text-xs">—</span>
                                     </td>
                                     <!-- Status -->
                                     <td class="px-4 py-3">
@@ -261,6 +283,49 @@
                                 class="w-full py-2.5 rounded-lg text-sm font-semibold bg-purple-600 hover:bg-purple-500 text-white disabled:opacity-50">
                             {{ pushingAll ? 'Pushing to all devices...' : '⬆ Push to All Devices' }}
                         </button>
+                    </div>
+                </div>
+
+                <!-- Welcome Screen Background -->
+                <div :style="{ backgroundColor: themeColors.card, borderColor: themeColors.border }"
+                     class="rounded-xl border p-5">
+                    <h3 :style="{ color: themeColors.textPrimary }" class="font-semibold mb-2 flex items-center gap-2">
+                        <TvIcon class="h-4 w-4 text-yellow-400" />
+                        Welcome Screen Background
+                    </h3>
+                    <p :style="{ color: themeColors.textSecondary }" class="text-xs mb-3">
+                        Background image shown on the Android TV home screen. Devices pick it up on their next settings sync.
+                    </p>
+                    <div v-if="bgUrl" class="mb-3">
+                        <img :src="bgUrl" alt="Background preview"
+                             class="h-28 w-full rounded border object-cover"
+                             :style="{ borderColor: themeColors.border }"
+                             @error="$event.target.style.display='none'" />
+                    </div>
+                    <div class="space-y-2">
+                        <input type="file" ref="bgInput" @change="handleBgSelect"
+                               accept="image/png,image/jpeg,image/jpg,image/webp"
+                               class="hidden" />
+                        <div class="flex flex-wrap gap-2">
+                            <button @click="bgInput && bgInput.click()"
+                                    class="px-3 py-1.5 rounded-lg text-xs font-medium bg-yellow-500 hover:bg-yellow-400 text-black">
+                                {{ bgUrl ? 'Change Image' : 'Upload Image' }}
+                            </button>
+                            <button v-if="bgFile" @click="saveBg" :disabled="bgSaving"
+                                    class="px-3 py-1.5 rounded-lg text-xs font-medium bg-green-600 hover:bg-green-500 text-white disabled:opacity-50">
+                                {{ bgSaving ? 'Saving…' : 'Save' }}
+                            </button>
+                            <button v-if="bgUrl && !bgFile" @click="removeBg"
+                                    class="px-3 py-1.5 rounded-lg text-xs font-medium bg-red-600 hover:bg-red-500 text-white">
+                                Remove
+                            </button>
+                        </div>
+                        <p :style="{ color: themeColors.textSecondary }" class="text-xs">
+                            PNG, JPG or WEBP. Recommended 1920×1080, max 8 MB.
+                        </p>
+                        <p v-if="bgFile && !bgSaving" :style="{ color: themeColors.warning }" class="text-xs">
+                            ✓ Image selected — click "Save".
+                        </p>
                     </div>
                 </div>
 
@@ -594,6 +659,86 @@ const pushSettingsAll = () => {
 // Copy to clipboard
 const copyToken = (text) => {
     navigator.clipboard.writeText(text).then(() => alert('Copied to clipboard!'))
+}
+
+// ── Assign room to a device ────────────────────────────────────────────
+const assignRoom = (device, roomId) => {
+    if (device.room_id == roomId) return
+    router.put(route('admin.iptv.devices.update', device.id), { room_id: roomId || null }, {
+        preserveScroll: true,
+        onSuccess: () => router.reload({ only: ['devices'], preserveScroll: true }),
+        onError: () => alert('Failed to assign room. The room may already be in use by another device.')
+    })
+}
+
+// ── Welcome screen background management ───────────────────────────────
+const bgInput = ref(null)
+const bgFile = ref(null)
+const bgSaving = ref(false)
+const bgUrl = ref(props.globalSettings?.welcome_background_url || '')
+
+const handleBgSelect = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!['image/png', 'image/jpeg', 'image/jpg', 'image/webp'].includes(file.type)) {
+        alert('Please choose a PNG, JPG or WEBP image.')
+        return
+    }
+    if (file.size > 8 * 1024 * 1024) {
+        alert('Image must be smaller than 8 MB.')
+        return
+    }
+    bgFile.value = file
+}
+
+const saveBg = async () => {
+    if (!bgFile.value) return
+    bgSaving.value = true
+    const fd = new FormData()
+    fd.append('background', bgFile.value)
+    fd.append('_token', document.querySelector('meta[name="csrf-token"]')?.content ?? '')
+    try {
+        const res = await fetch(route('admin.settings.background.upload'), {
+            method: 'POST',
+            body: fd,
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        })
+        const data = await res.json()
+        if (data.success) {
+            bgUrl.value = data.background_url
+            bgFile.value = null
+            if (bgInput.value) bgInput.value.value = ''
+            alert('Background saved. Devices will apply it on their next settings sync.')
+        } else {
+            alert(data.message || 'Failed to save background.')
+        }
+    } catch {
+        alert('Network error while saving background.')
+    } finally {
+        bgSaving.value = false
+    }
+}
+
+const removeBg = async () => {
+    if (!confirm('Remove the welcome screen background image?')) return
+    try {
+        const res = await fetch(route('admin.settings.background.remove'), {
+            method: 'DELETE',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content ?? '',
+            },
+        })
+        const data = await res.json()
+        if (data.success) {
+            bgUrl.value = ''
+            bgFile.value = null
+        } else {
+            alert(data.message || 'Failed to remove background.')
+        }
+    } catch {
+        // silently ignore network errors for remove
+    }
 }
 
 // Auto-refresh every 15 seconds

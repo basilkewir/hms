@@ -904,41 +904,6 @@
                                        placeholder="Welcome to our Hotel"
                                        class="w-full border border-kotel-border rounded-md px-3 py-2 bg-kotel-black text-kotel-text-primary focus:outline-none focus:ring-2 focus:ring-kotel-yellow">
                             </div>
-                            <div class="md:col-span-2">
-                                <label class="block text-sm font-medium text-kotel-text-secondary mb-2">Welcome Screen Background Image</label>
-                                <input type="url" v-model="settings.welcome_background_url"
-                                       placeholder="https://example.com/background.jpg"
-                                       class="w-full border border-kotel-border rounded-md px-3 py-2 bg-kotel-black text-kotel-text-primary focus:outline-none focus:ring-2 focus:ring-kotel-yellow">
-                                <p class="mt-1 text-xs text-kotel-text-tertiary">Background image displayed on the Android TV welcome screen. Pushed automatically to all devices on next sync. Paste a URL above or upload a file below.</p>
-                                <div v-if="settings.welcome_background_url" class="mt-2">
-                                    <img :src="settings.welcome_background_url" alt="Background preview" class="h-32 w-full rounded border border-kotel-border object-cover" @error="$event.target.style.display='none'">
-                                </div>
-                                <div class="mt-3">
-                                    <input type="file" ref="bgInput" @change="handleBgUpload"
-                                           accept="image/png,image/jpeg,image/jpg,image/webp"
-                                           class="hidden">
-                                    <div class="flex flex-wrap gap-3">
-                                        <button @click="bgInput && bgInput.click()" type="button"
-                                                class="px-4 py-2 bg-kotel-yellow text-kotel-black font-medium rounded-md hover:bg-yellow-400 transition-colors text-sm">
-                                            {{ settings.welcome_background_url ? 'Change Background' : 'Upload Background' }}
-                                        </button>
-                                        <button v-if="uploadedBg" @click="saveBackground" type="button"
-                                                :disabled="isBgSaving"
-                                                class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-md transition-colors text-sm disabled:opacity-50">
-                                            {{ isBgSaving ? 'Saving...' : 'Save Background' }}
-                                        </button>
-                                        <button v-if="settings.welcome_background_url && !uploadedBg" @click="handleRemoveBackground" type="button"
-                                                class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-md transition-colors text-sm">
-                                            Remove Background
-                                        </button>
-                                    </div>
-                                    <p class="mt-1 text-xs text-kotel-text-tertiary">PNG, JPG or WEBP. Recommended 1920x1080, max 8 MB.</p>
-                                    <p v-if="bgError" class="text-xs text-red-400 mt-1">{{ bgError }}</p>
-                                    <p v-if="uploadedBg && !isBgSaving" class="text-xs text-kotel-yellow mt-1">
-                                        ✓ New background selected — click "Save Background" to apply.
-                                    </p>
-                                </div>
-                            </div>
                             <div>
                                 <label class="block text-sm font-medium text-kotel-text-secondary mb-2">TV Accent Colour</label>
                                 <div class="flex gap-3">
@@ -1395,11 +1360,6 @@ const logoPreview = ref(null)
 const uploadedLogo = ref(null)
 const isLogoSaving = ref(false)
 const logoError = ref('')
-const bgInput = ref(null)
-const bgPreview = ref(null)
-const uploadedBg = ref(null)
-const isBgSaving = ref(false)
-const bgError = ref('')
 
 const handleLogoUpload = (event) => {
     const file = event.target.files[0]
@@ -1477,77 +1437,6 @@ const handleRemoveLogo = async () => {
 }
 
 const removeLogo = handleRemoveLogo
-
-const handleBgUpload = (event) => {
-    const file = event.target.files?.[0]
-    if (!file) return
-
-    bgError.value = ''
-    if (!['image/png', 'image/jpeg', 'image/jpg', 'image/webp'].includes(file.type)) {
-        bgError.value = 'Please select an image file (PNG, JPG, WEBP).'
-        return
-    }
-    if (file.size > 8 * 1024 * 1024) {
-        bgError.value = 'File size must be less than 8 MB.'
-        return
-    }
-
-    uploadedBg.value = file
-    const reader = new FileReader()
-    reader.onload = (e) => {
-        bgPreview.value = e.target.result
-        settings.value.welcome_background_url = e.target.result
-    }
-    reader.readAsDataURL(file)
-}
-
-const saveBackground = async () => {
-    if (!uploadedBg.value) return
-    isBgSaving.value = true
-    bgError.value = ''
-    try {
-        const formData = new FormData()
-        formData.append('background', uploadedBg.value)
-        formData.append('_token', document.querySelector('meta[name="csrf-token"]').getAttribute('content'))
-
-        const { data: result } = await window.axios.post('/admin/settings/background', formData, {
-            headers: { 'Content-Type': 'multipart/form-data' },
-        })
-
-        if (result.success) {
-            settings.value.welcome_background_url = result.background_url
-            bgPreview.value = result.background_url
-            uploadedBg.value = null
-            notify.success('Background saved successfully!')
-        } else {
-            const msg = result.message || result.errors?.background?.[0] || 'Failed to save background.'
-            bgError.value = msg
-            notify.error(msg)
-        }
-    } catch (e) {
-        bgError.value = 'Network error while saving background.'
-        notify.error(bgError.value)
-    } finally {
-        isBgSaving.value = false
-    }
-}
-
-const handleRemoveBackground = async () => {
-    if (!confirm('Remove the welcome screen background image?')) return
-    uploadedBg.value = null
-    bgPreview.value = null
-    settings.value.welcome_background_url = null
-    if (bgInput.value) bgInput.value.value = ''
-
-    try {
-        await window.axios.delete('/admin/settings/background')
-        notify.success('Background removed.')
-    } catch {
-        // silently ignore network errors for remove
-    }
-}
-
-const removeBackground = handleRemoveBackground
 
 // Initialize logo preview from existing settings
 onMounted(() => {
@@ -1750,7 +1639,6 @@ const settings = ref({
     // Hotel branding on TV
     hotel_welcome_message:    props.settings?.iptv?.hotel_welcome_message || 'Welcome to our Hotel',
     hotel_primary_color:      props.settings?.iptv?.hotel_primary_color || '#FFD700',
-    welcome_background_url:   props.settings?.iptv?.welcome_background_url || '',
     // Weather widget
     weather_enabled:          props.settings?.iptv?.weather_enabled != '0',
     weather_api_key:          props.settings?.iptv?.weather_api_key || '',
@@ -2049,7 +1937,6 @@ const saveSettings = async () => {
             // Hotel branding on TV
             settingsToSave.hotel_welcome_message = settings.value.hotel_welcome_message
             settingsToSave.hotel_primary_color = settings.value.hotel_primary_color
-            settingsToSave.welcome_background_url = settings.value.welcome_background_url
             // Weather
             settingsToSave.weather_enabled = settings.value.weather_enabled
             settingsToSave.weather_api_key = settings.value.weather_api_key

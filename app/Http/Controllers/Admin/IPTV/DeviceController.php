@@ -323,8 +323,10 @@ class DeviceController extends Controller
             'device_type'        => $d->device_type ?? 'android_tv',
             'mac_address'        => $d->mac_address ?? '—',
             'ip_address'         => $d->ip_address ?? '—',
+            'room_id'            => $d->room_id,
             'room_number'        => $d->room?->room_number ?? 'Unassigned',
             'room_type'          => $d->room?->roomType?->name ?? '—',
+            'guest_name'         => $d->room ? $this->currentGuestForRoom($d->room) : null,
             'computed_status'    => $d->computedStatus(),
             'package'            => $d->package ?? 'basic',
             // ISO strings — the Vue ago() helper parses these with new Date()
@@ -348,6 +350,29 @@ class DeviceController extends Controller
         return round(($online / $total) * 100, 1);
     }
 
+    /**
+     * Resolve the currently checked-in guest name for a room.
+     * Mirrors the logic used by GET /api/iptv/client-info so the admin
+     * devices page shows exactly what the TV welcome screen will display.
+     */
+    private function currentGuestForRoom(Room $room): ?string
+    {
+        try {
+            $reservation = \App\Models\Reservation::where('room_id', $room->id)
+                ->where('status', 'checked_in')
+                ->whereDate('check_in_date', '<=', now())
+                ->whereDate('check_out_date', '>=', now())
+                ->with('guest')
+                ->first();
+            if ($reservation && $reservation->guest) {
+                return trim($reservation->guest->first_name . ' ' . $reservation->guest->last_name);
+            }
+        } catch (\Throwable $e) {
+            // ignore — treat as no guest
+        }
+        return null;
+    }
+
     private function getGlobalSettings(): array
     {
         try {
@@ -356,7 +381,7 @@ class DeviceController extends Controller
                 'xtream_url', 'xtream_username', 'xtream_password', 'xtream_use_https',
                 // Hotel branding for TV
                 'hotel_name', 'hotel_logo', 'hotel_address', 'hotel_phone',
-                'hotel_primary_color', 'hotel_welcome_message',
+                'hotel_primary_color', 'hotel_welcome_message', 'welcome_background_url',
                 // Weather widget
                 'weather_api_key', 'weather_city', 'weather_units', 'weather_enabled',
                 // TV UI & behaviour
