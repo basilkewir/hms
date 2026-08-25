@@ -238,7 +238,7 @@ class ReservationController extends Controller
         }
 
         $validated = $request->validate([
-            'guest_id' => $guestId ? 'required|exists:guests,id' : 'required|exists:guests,id',
+            'guest_id' => $guestId ? 'nullable' : 'required|exists:guests,id',
             'room_type_id' => 'required|exists:room_types,id',
             'room_id' => 'nullable|exists:rooms,id',
             'number_of_rooms' => 'required|integer|min:1|max:10',
@@ -275,6 +275,10 @@ class ReservationController extends Controller
             'selected_rooms.*.room_type_id' => 'nullable|exists:room_types,id',
             'selected_rooms.*.room_id' => 'nullable|exists:rooms,id',
         ]);
+
+        if ($guestId) {
+            $validated['guest_id'] = $guestId;
+        }
 
         // Check for overbooking
         $overbookingLimit = Setting::get('overbooking_limit', 10); // Default 10% overbooking allowed

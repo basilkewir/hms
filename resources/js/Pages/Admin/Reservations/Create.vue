@@ -26,12 +26,34 @@
             </div>
 
             <form @submit.prevent="submit" class="space-y-6">
+                <div v-if="form.hasErrors"
+                     class="rounded-lg border p-4 text-sm"
+                     :style="{ borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)', color: '#ef4444' }">
+                    <p class="font-semibold mb-1">Please fix the following:</p>
+                    <ul class="list-disc list-inside space-y-0.5">
+                        <li v-for="(message, field) in form.errors" :key="field">{{ message }}</li>
+                    </ul>
+                </div>
                 <!-- Guest Selection -->
                 <div>
                     <h3 class="text-lg font-medium mb-4"
                         :style="{ color: themeColors.textPrimary }">Guest Information</h3>
+                    <div class="flex items-center gap-2 mb-4">
+                        <button type="button"
+                                class="px-4 py-2 text-sm rounded-md border transition-colors"
+                                :style="walkInGuestMode === 'existing' ? { backgroundColor: themeColors.primary, color: '#fff', borderColor: themeColors.primary } : { borderColor: themeColors.border, color: themeColors.textSecondary }"
+                                @click="walkInGuestMode = 'existing'">
+                            Existing Guest
+                        </button>
+                        <button type="button"
+                                class="px-4 py-2 text-sm rounded-md border transition-colors"
+                                :style="walkInGuestMode === 'new' ? { backgroundColor: themeColors.primary, color: '#fff', borderColor: themeColors.primary } : { borderColor: themeColors.border, color: themeColors.textSecondary }"
+                                @click="walkInGuestMode = 'new'">
+                            New Walk-In Guest
+                        </button>
+                    </div>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div>
+                        <div v-if="walkInGuestMode === 'existing'">
                             <label class="block text-sm font-medium mb-2"
                                    :style="{ color: themeColors.textSecondary }">Select Guest *</label>
                             <div class="relative">
@@ -87,6 +109,35 @@
                                     ⭐ VIP Guest
                                 </div>
                             </div>
+                        </div>
+                        <div v-else>
+                            <label class="block text-sm font-medium mb-2"
+                                   :style="{ color: themeColors.textSecondary }">First Name *</label>
+                            <input v-model="form.guest_first_name" type="text" required
+                                   class="w-full rounded-md px-3 py-2 focus:outline-none transition-colors mb-3"
+                                   :style="{ backgroundColor: themeColors.background, borderColor: themeColors.border, color: themeColors.textPrimary, borderWidth: '1px', borderStyle: 'solid' }"
+                                   placeholder="Guest first name" />
+                            <label class="block text-sm font-medium mb-2"
+                                   :style="{ color: themeColors.textSecondary }">Last Name *</label>
+                            <input v-model="form.guest_last_name" type="text" required
+                                   class="w-full rounded-md px-3 py-2 focus:outline-none transition-colors mb-3"
+                                   :style="{ backgroundColor: themeColors.background, borderColor: themeColors.border, color: themeColors.textPrimary, borderWidth: '1px', borderStyle: 'solid' }"
+                                   placeholder="Guest last name" />
+                            <label class="block text-sm font-medium mb-2"
+                                   :style="{ color: themeColors.textSecondary }">Email *</label>
+                            <input v-model="form.guest_email" type="email" required
+                                   class="w-full rounded-md px-3 py-2 focus:outline-none transition-colors mb-3"
+                                   :style="{ backgroundColor: themeColors.background, borderColor: themeColors.border, color: themeColors.textPrimary, borderWidth: '1px', borderStyle: 'solid' }"
+                                   placeholder="guest@email.com" />
+                            <label class="block text-sm font-medium mb-2"
+                                   :style="{ color: themeColors.textSecondary }">Phone</label>
+                            <input v-model="form.guest_phone" type="text"
+                                   class="w-full rounded-md px-3 py-2 focus:outline-none transition-colors"
+                                   :style="{ backgroundColor: themeColors.background, borderColor: themeColors.border, color: themeColors.textPrimary, borderWidth: '1px', borderStyle: 'solid' }"
+                                   placeholder="+1234567890" />
+                            <p class="text-xs mt-2" :style="{ color: themeColors.textTertiary }">
+                                A guest profile will be created automatically (matched by email).
+                            </p>
                         </div>
                         <div>
                             <label class="block text-sm font-medium mb-2"
@@ -622,8 +673,15 @@ const navigation = computed(() => getNavigationForRole('admin'))
 
 const minDate = new Date().toISOString().split('T')[0]
 
+const walkInGuestMode = ref('existing')
+
 const form = useForm({
     guest_id: '',
+    guest_first_name: '',
+    guest_last_name: '',
+    guest_email: '',
+    guest_phone: '',
+    guest_address: '',
     room_type_id: '',
     room_id: null,
     number_of_rooms: 1,
@@ -891,6 +949,28 @@ const submit = () => {
     if (overbookingWarning.value && !allowOverbooking.value) {
         alert('Please allow overbooking or adjust dates to proceed.')
         return
+    }
+
+    if (walkInGuestMode.value === 'existing') {
+        if (!form.guest_id) {
+            form.setError('guest_id', 'Please search and select a guest, or switch to "New Walk-In Guest".')
+            return
+        }
+        form.guest_first_name = ''
+        form.guest_last_name = ''
+        form.guest_email = ''
+        form.guest_phone = ''
+        form.guest_address = ''
+    } else {
+        form.guest_id = ''
+        if (!String(form.guest_first_name || '').trim() || !String(form.guest_last_name || '').trim()) {
+            form.setError('guest_first_name', 'First and last name are required for a new walk-in guest.')
+            return
+        }
+        if (!String(form.guest_email || '').trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.guest_email)) {
+            form.setError('guest_email', 'A valid email is required for a new walk-in guest.')
+            return
+        }
     }
 
     const formData = {
