@@ -213,10 +213,23 @@ class LicenseValidationService
         );
     }
 
+    private function normalizeFeatures(mixed $features): array
+    {
+        if (!is_array($features)) {
+            return [];
+        }
+
+        if (array_is_list($features)) {
+            return array_fill_keys(array_map('strval', $features), true);
+        }
+
+        return $features;
+    }
+
     private function syncLicenseFromRemote(array $remote, string $licenseKey, ?string $hotelName, array $deviceInfo): License
     {
         $data       = $remote['license'] ?? $remote;
-        $features   = (array) ($data['features'] ?? $remote['features'] ?? []);
+        $features   = $this->normalizeFeatures($data['features'] ?? $remote['features'] ?? []);
         $rawType    = strtolower((string) ($data['license_type'] ?? $remote['license_type'] ?? 'basic'));
         $expiresAt  = $this->normalizeExpiry($data['expires_at'] ?? $remote['expires_at'] ?? null, $rawType);
         $maxRooms   = (int) ($features['max_users'] ?? $data['max_rooms'] ?? $remote['max_rooms'] ?? -1);
@@ -326,7 +339,7 @@ class LicenseValidationService
 
     private function buildLicenseData(License $license): array
     {
-        $features  = $license->features ?? [];
+        $features  = $this->normalizeFeatures($license->features ?? []);
         $maxRooms  = (int) ($features['max_users'] ?? $license->max_rooms ?? -1);
         $roomId    = $this->getDeviceId();
 
@@ -414,6 +427,10 @@ class LicenseValidationService
             'verified_online'   => $verifiedOnline,
             'online_verified_at'=> optional($lastValidated)->toISOString(),
         ]);
+
+        if (array_key_exists('features', $status)) {
+            $status['features'] = $this->normalizeFeatures($status['features']);
+        }
 
         return ['licensed' => !$this->isLicenseRowExpired($license), 'status' => $status];
     }
