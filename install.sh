@@ -488,6 +488,13 @@ step "8 — Nginx"
 NGINX_SITE="hms"
 [[ "$INSTALL_MODE" == "iptv" ]] && NGINX_SITE="iptv"
 
+# Detect the actual PHP-FPM socket (installed minor may differ from PHP_VERSION)
+FPM_SOCK="/var/run/php/php${PHP_VERSION}-fpm.sock"
+if [[ ! -S "$FPM_SOCK" ]]; then
+    FPM_SOCK="$(ls -1 /var/run/php/php*-fpm.sock 2>/dev/null | head -n1 || true)"
+fi
+[[ -z "${FPM_SOCK:-}" ]] && { error "No PHP-FPM socket found"; }
+
 cat > /etc/nginx/sites-available/${NGINX_SITE} << ENDNGINX
 server {
     listen 80;
@@ -500,7 +507,7 @@ server {
     }
 
     location ~ \.php$ {
-        fastcgi_pass unix:/var/run/php/php${PHP_VERSION}-fpm.sock;
+        fastcgi_pass unix:${FPM_SOCK};
         fastcgi_index index.php;
         fastcgi_param SCRIPT_FILENAME \$realpath_root\$fastcgi_script_name;
         include fastcgi_params;
