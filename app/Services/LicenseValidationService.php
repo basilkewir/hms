@@ -193,6 +193,11 @@ class LicenseValidationService
             );
         }
 
+        if (!is_array($license->license_data) || empty($license->license_data)) {
+            $license->update(['license_data' => $this->buildLicenseData($license)]);
+            $license->refresh();
+        }
+
         $license->updateValidation();
         $device->updateLastSeen();
         Cache::forget('license_valid');
@@ -317,6 +322,33 @@ class LicenseValidationService
 
             return $device;
         });
+    }
+
+    private function buildLicenseData(License $license): array
+    {
+        $features  = $license->features ?? [];
+        $maxRooms  = (int) ($features['max_users'] ?? $license->max_rooms ?? -1);
+        $roomId    = $this->getDeviceId();
+
+        return [
+            'license_key'       => $license->license_key,
+            'hotel_name'        => $license->hotel_name ?? config('app.name'),
+            'license_type'      => strtoupper((string) $license->license_type),
+            'status'            => 'ACTIVE',
+            'expires_at'        => optional($license->expires_at)->toISOString(),
+            'features'          => $features,
+            'max_rooms'         => $maxRooms,
+            'rooms_used'        => Room::count(),
+            'rooms_limit'       => $maxRooms,
+            'total_used'        => Room::count(),
+            'total_limit'       => $maxRooms,
+            'validated_at'      => now()->toISOString(),
+            'token'             => null,
+            'device_id'         => $roomId,
+            'token_expires_at'  => null,
+            'offline_activated' => true,
+            'offline_reason'    => 'local_fallback',
+        ];
     }
 
     private function logAndBuild(
