@@ -19,6 +19,14 @@
         </div>
 
         <form @submit.prevent="submit" class="space-y-6">
+            <div v-if="form.hasErrors"
+                 class="rounded-lg border p-4 text-sm"
+                 :style="{ borderColor: themeColors.danger || '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)', color: themeColors.danger || '#ef4444' }">
+                <p class="font-semibold mb-1">Please fix the following:</p>
+                <ul class="list-disc list-inside space-y-0.5">
+                    <li v-for="(message, field) in form.errors" :key="field">{{ message }}</li>
+                </ul>
+            </div>
             <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
                 <div class="xl:col-span-2 space-y-6">
                     <section class="shadow rounded-lg p-6"
@@ -401,6 +409,14 @@ const selectGuest = (guest) => {
 const formatMoney = (amount) => formatCurrency(Number(amount || 0))
 
 const submit = () => {
+    if (guestMode.value === 'existing' && !form.guest_id) {
+        form.setError('guest_id', 'Please search and select an existing guest, or switch to "New Walk-In".')
+        return
+    }
+    if (guestMode.value === 'new' && !String(form.phone || '').trim() && !String(form.email || '').trim()) {
+        form.setError('phone', 'Provide at least a phone number or email for the guest.')
+        return
+    }
     form.post(route(`${props.routePrefix}.quick-checkin.store`))
 }
 </script>
