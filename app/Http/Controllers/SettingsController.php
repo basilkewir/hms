@@ -271,10 +271,15 @@ class SettingsController extends Controller
 
             Setting::set('welcome_background_url', $backgroundUrl, 'string', 'general');
 
+            // Bump settings_version on all active devices so they pull the new background
+            \App\Models\IptvDevice::where('is_active', true)->each(function ($device) {
+                $device->increment('settings_version');
+            });
+
             return response()->json([
-                'success'           => true,
-                'message'           => 'Background uploaded successfully',
-                'background_url'    => $backgroundUrl,
+                'success'        => true,
+                'message'        => 'Background uploaded successfully',
+                'background_url' => $backgroundUrl,
             ]);
         } catch (\Exception $e) {
             Log::error('Error uploading background: ' . $e->getMessage());
@@ -294,6 +299,12 @@ class SettingsController extends Controller
         }
 
         Setting::set('welcome_background_url', '', 'string', 'general');
+
+        // Bump settings_version on all active devices so they clear the background
+        \App\Models\IptvDevice::where('is_active', true)->each(function ($device) {
+            $device->increment('settings_version');
+        });
+
         return response()->json(['success' => true, 'message' => 'Background removed successfully']);
     }
 
