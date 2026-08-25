@@ -58,14 +58,30 @@ Route::post('/register', function () {
     abort(403, 'Registration is disabled.');
 });
 
+// License Activation Gate (public — accessible when system is unlicensed)
 Route::get('/license/activate', function () {
-    // License check is temporarily disabled — redirect straight to login
-    return redirect()->route('login');
+    return Inertia::render('Auth/LicenseActivate');
 })->name('license.activate');
 
 Route::post('/license/activate', function (Request $request) {
-    // License check is temporarily disabled — redirect straight to login
-    return redirect()->route('login');
+    $request->validate([
+        'license_key' => 'required|string|min:10',
+        'hotel_name'  => 'nullable|string|max:255',
+    ]);
+
+    $service = app(\App\Services\LicenseValidationService::class);
+    $result  = $service->validateLicense(
+        $request->license_key,
+        $request->hotel_name ?: config('app.name')
+    );
+
+    \Illuminate\Support\Facades\Cache::forget('license_valid');
+
+    if (!$result['valid']) {
+        return back()->withErrors(['license_key' => $result['message']])->withInput();
+    }
+
+    return redirect()->intended(route('login'))->with('success', 'License activated! Please log in.');
 })->name('license.activate.store');
 
 if (!function_exists('hms_label_to_key')) {
@@ -4380,6 +4396,9 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
             foreach ($map as $key => $value) {
                 \App\Models\Setting::updateOrCreate(['key' => $key], ['value' => $value]);
             }
+
+            // Bump settings_version on all active devices so they re-sync weather config
+            \App\Models\IptvDevice::where('is_active', true)->each(fn ($d) => $d->increment('settings_version'));
 
             return back()->with('success', 'Weather settings saved.');
         })->name('weather.save');

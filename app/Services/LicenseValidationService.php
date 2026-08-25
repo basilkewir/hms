@@ -3,22 +3,24 @@
 namespace App\Services;
 
 use App\Models\License;
+use App\Models\LicenseDevice;
+use App\Models\LicenseValidationLog;
 use App\Models\Room;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class LicenseValidationService
 {
-    private string $licenseServer;
-    private ?string $jwtToken = null;
+    private KewirDevLicenseService $kewirDev;
     private ?string $deviceId = null;
+    private bool $lastAttemptWasNetworkError = false;
 
     public function __construct()
     {
-        $this->licenseServer = rtrim(env('LICENSE_SERVER_URL', 'https://kewirdev.com/api/license'), '/');
-        $this->loadStoredToken();
+        $this->kewirDev = new KewirDevLicenseService();
     }
 
     private function currentLicense(): ?License
@@ -30,37 +32,6 @@ class LicenseValidationService
             ->orderByDesc('activated_at')
             ->orderByDesc('id')
             ->first();
-    }
-
-    private function normalizePersistedExpiry(array $serverResponse): ?string
-    {
-        $status = strtoupper((string) ($serverResponse['status'] ?? 'ACTIVE'));
-        $licenseType = strtoupper((string) ($serverResponse['license_type'] ?? ''));
-        $expiresAt = $serverResponse['expires_at'] ?? null;
-
-        if ($expiresAt === null || $expiresAt === '' || $expiresAt === 'Never Expires') {
-            return null;
-        }
-
-        if ($status === 'ACTIVE') {
-            return null;
-        }
-
-        if (in_array($licenseType, ['PERPETUAL', 'LIFETIME'], true)) {
-            return null;
-        }
-
-        return $expiresAt;
-    }
-
-    private function loadStoredToken(): void
-    {
-        $license = $this->currentLicense();
-
-        if ($license && is_array($license->license_data)) {
-            $this->jwtToken = $license->license_data['token'] ?? null;
-            $this->deviceId = $license->license_data['device_id'] ?? null;
-        }
     }
 
     private function getDeviceId(): string
@@ -91,31 +62,19 @@ class LicenseValidationService
         return $generated;
     }
 
-    private function signatureSecret(): string
-    {
-        return (string) (config('services.license.signature_secret')
-            ?: env('LICENSE_SIGNATURE_SECRET')
-            ?: env('LICENSE_JWT_SECRET')
-            ?: config('app.key', ''));
-    }
-
-    private function computeSignature(array $payload): string
-    {
-        return hash_hmac('sha256', json_encode($payload), $this->signatureSecret());
-    }
-
-    private function buildValidatePayload(string $licenseKey, ?string $hotelName = null): array
+    private function buildDeviceInfo(string $licenseKey, ?string $hotelName = null): array
     {
         return [
             'license_key'       => $licenseKey,
             'device_id'         => $this->getDeviceId(),
-            'device_type'       => 'management_backend',
+            'device_type'       => License::DEVICE_TYPE_MANAGEMENT_BACKEND,
             'device_name'       => 'Hotel Management System',
             'device_model'      => 'Server',
             'device_os'         => php_uname('s'),
             'device_os_version' => php_uname('r'),
             'app_version'       => config('app.version', '1.0.0'),
             'mac_address'       => null,
+            'ip_address'        => request()?->ip(),
             'metadata'          => [
                 'hotel_name'  => $hotelName ?: config('app.name', 'Hotel Management System'),
                 'php_version' => PHP_VERSION,
@@ -123,233 +82,284 @@ class LicenseValidationService
         ];
     }
 
-    private function offlineActivationEnabled(): bool
+    public function validateLicense(string $licenseKey, ?string $hotelName = null, array $extraDeviceInfo = []): array
     {
-        return filter_var(env('LICENSE_ENABLE_OFFLINE_ACTIVATION', false), FILTER_VALIDATE_BOOL);
-    }
+        $startTime   = microtime(true);
+        $deviceInfo  = $this->buildDeviceInfo($licenseKey, $hotelName);
 
-    private function canActivateOffline(string $licenseKey): bool
-    {
-        if (!$this->offlineActivationEnabled()) {
-            return false;
-        }
-
-        $normalized = strtoupper(trim($licenseKey));
-
-        return str_contains($normalized, 'DEMO') || $normalized === 'DEMO-HMS-ENTERPRISE';
-    }
-
-    private function persistOfflineActivation(string $licenseKey, ?string $hotelName, ?string $reason = null): array
-    {
-        $maxRooms = 999999;
-        $deviceId = $this->getDeviceId();
-
-        $licenseData = [
-            'license_key' => $licenseKey,
-            'hotel_name' => $hotelName ?: config('app.name'),
-            'license_type' => 'DEMO',
-            'status' => 'ACTIVE',
-            'expires_at' => null,
-            'features' => [
-                'offline_mode' => true,
-                'max_users' => $maxRooms,
-            ],
-            'max_rooms' => $maxRooms,
-            'rooms_used' => Room::count(),
-            'rooms_limit' => $maxRooms,
-            'device_allocation' => [
-                ['type' => 'Rooms', 'used' => Room::count(), 'limit' => $maxRooms],
-            ],
-            'total_used' => Room::count(),
-            'total_limit' => $maxRooms,
-            'validated_at' => now()->toISOString(),
-            'token' => null,
-            'device_id' => $deviceId,
-            'token_expires_at' => null,
-            'offline_activated' => true,
-            'offline_reason' => $reason,
-        ];
-
-        License::updateOrCreate(
-            ['license_key' => $licenseKey],
-            [
-                'license_data' => $licenseData,
-                'product_name' => 'Hotel Management System',
-                'customer_name' => $licenseData['hotel_name'],
-                'customer_email' => 'admin@hotel.com',
-                'license_type' => 'DEMO',
-                'status' => 'active',
-                'issued_at' => now(),
-                'activated_at' => now(),
-                'last_validated_at' => now(),
-                'expires_at' => null,
-                'hardware_fingerprint' => $deviceId,
-                'max_rooms' => $maxRooms,
-            ]
-        );
-
-        Cache::forget('license_valid');
-
-        return [
-            'valid' => true,
-            'message' => 'Offline demo license activated successfully.',
-            'license' => $licenseData,
-            'token' => null,
-        ];
-    }
-
-    private function client()
-    {
-        return Http::withOptions([
-            'verify' => false,
-            'timeout' => 20,
-            'connect_timeout' => 10,
-        ])->asJson()->withHeaders([
-            'User-Agent' => 'HotelManagementSystem/1.0.0',
-            'Accept' => 'application/json',
-        ]);
-    }
-
-    public function validateLicense(string $licenseKey, ?string $hotelName = null, array $deviceInfo = []): array
-    {
-        $payload = $this->buildValidatePayload($licenseKey, $hotelName);
-
-        if (!empty($deviceInfo)) {
-            $payload = array_merge($payload, array_intersect_key($deviceInfo, array_flip([
-                'device_name', 'device_model', 'device_os', 'device_os_version', 'app_version', 'mac_address', 'metadata', 'device_type', 'device_id'
+        if (!empty($extraDeviceInfo)) {
+            $deviceInfo = array_merge($deviceInfo, array_intersect_key($extraDeviceInfo, array_flip([
+                'device_name', 'device_model', 'device_os', 'device_os_version',
+                'app_version', 'mac_address', 'metadata', 'device_type', 'device_id',
             ])));
         }
 
-        try {
-            $response = $this->client()
-                ->withHeaders(['X-License-Signature' => $this->computeSignature($payload)])
-                ->post($this->licenseServer . '/validate', $payload);
+        $this->lastAttemptWasNetworkError = false;
 
-            if (!$response->successful()) {
-                if ($response->status() >= 500 && $this->canActivateOffline($licenseKey)) {
-                    Log::warning('License server unavailable (5xx); using offline activation fallback.');
-                    return $this->persistOfflineActivation($licenseKey, $hotelName, 'server_unavailable');
+        try {
+            $remoteResult    = $this->kewirDev->validateLicense($licenseKey, $deviceInfo);
+            $remoteReachable = !str_contains($remoteResult['message'] ?? '', 'unreachable')
+                && !str_contains($remoteResult['message'] ?? '', 'error');
+
+            if (!empty($remoteResult['success'])) {
+                $license = $this->syncLicenseFromRemote($remoteResult, $licenseKey, $hotelName, $deviceInfo);
+
+                $deviceFingerprint = LicenseDevice::generateFingerprint($deviceInfo);
+                $device = $this->handleDeviceBinding($license, $deviceInfo, $deviceFingerprint);
+
+                if (!$device) {
+                    return $this->logAndBuild(
+                        false,
+                        'Device limit reached or device blocked',
+                        null,
+                        $licenseKey,
+                        $deviceInfo,
+                        $startTime,
+                        LicenseValidationLog::STATUS_BLOCKED
+                    );
                 }
 
-                Log::warning('License validation failed', [
-                    'status' => $response->status(),
-                    'body' => $response->body(),
-                ]);
+                $license->updateValidation();
+                $device->updateLastSeen();
+                Cache::forget('license_valid');
 
-                return $this->mapHttpError($response->status(), (array) ($response->json() ?? []));
+                return $this->logAndBuild(
+                    true,
+                    'License validated successfully.',
+                    $license,
+                    $licenseKey,
+                    $deviceInfo,
+                    $startTime,
+                    LicenseValidationLog::STATUS_SUCCESS
+                );
             }
 
-            $body = (array) ($response->json() ?? []);
-
-            if (!($body['success'] ?? false)) {
-                return [
-                    'valid' => false,
-                    'message' => $body['message'] ?? $body['error'] ?? 'License validation failed.',
-                ];
+            if ($remoteReachable) {
+                return $this->logAndBuild(
+                    false,
+                    $remoteResult['message'] ?? 'Invalid license key.',
+                    null,
+                    $licenseKey,
+                    $deviceInfo,
+                    $startTime,
+                    LicenseValidationLog::STATUS_INVALID
+                );
             }
 
-            return $this->persistValidatedLicense($licenseKey, $hotelName, $body);
-        } catch (\Throwable $e) {
-            Log::error('License validation exception: ' . $e->getMessage());
-
-            if ($this->canActivateOffline($licenseKey)) {
-                Log::warning('License server unreachable; using offline activation fallback.');
-                return $this->persistOfflineActivation($licenseKey, $hotelName, 'network_unreachable');
-            }
-
-            return [
-                'valid' => false,
-                'message' => 'Could not reach the license server. Please try again.',
-            ];
+            $this->lastAttemptWasNetworkError = true;
+            Log::info('License server unreachable, falling back to local validation.', [
+                'license_key' => $licenseKey,
+            ]);
+        } catch (\Exception $e) {
+            $this->lastAttemptWasNetworkError = true;
+            Log::error('License validation error, falling back to local.', ['error' => $e->getMessage()]);
         }
+
+        return $this->validateLocally($licenseKey, $deviceInfo, $startTime);
     }
 
-    private function persistValidatedLicense(string $licenseKey, ?string $hotelName, array $serverResponse): array
+    private function validateLocally(string $licenseKey, array $deviceInfo, float $startTime): array
     {
-        $features = (array) ($serverResponse['features'] ?? []);
-        $maxRooms = (int) ($features['max_users'] ?? $serverResponse['max_rooms'] ?? -1);
-        $deviceId = $this->getDeviceId();
+        $license = License::where('license_key', $licenseKey)->first();
 
-        $persistedExpiry = $this->normalizePersistedExpiry($serverResponse);
+        if (!$license || !$license->isValid()) {
+            $status = $license && $license->isExpired()
+                ? LicenseValidationLog::STATUS_EXPIRED
+                : LicenseValidationLog::STATUS_INVALID;
 
-        $licenseData = [
-            'license_key' => $licenseKey,
-            'hotel_name' => $hotelName ?: ($serverResponse['hotel_name'] ?? config('app.name')),
-            'license_type' => strtoupper((string) ($serverResponse['license_type'] ?? 'BASIC')),
-            'status' => strtoupper((string) ($serverResponse['status'] ?? 'ACTIVE')),
-            'expires_at' => $serverResponse['expires_at'] ?? null,
-            'features' => $features,
-            'max_rooms' => $maxRooms,
-            'rooms_used' => Room::count(),
-            'rooms_limit' => $maxRooms,
-            'device_allocation' => [
-                ['type' => 'Rooms', 'used' => Room::count(), 'limit' => $maxRooms],
-            ],
-            'total_used' => Room::count(),
-            'total_limit' => $maxRooms,
-            'validated_at' => now()->toISOString(),
-            'token' => $serverResponse['token'] ?? null,
-            'device_id' => $deviceId,
-            'token_expires_at' => $serverResponse['token_expires_at'] ?? $serverResponse['expires_at'] ?? null,
-        ];
+            return $this->logAndBuild(
+                false,
+                'Invalid license key.',
+                $license,
+                $licenseKey,
+                $deviceInfo,
+                $startTime,
+                $status
+            );
+        }
 
-        License::updateOrCreate(
+        $deviceFingerprint = LicenseDevice::generateFingerprint($deviceInfo);
+        $device = $this->handleDeviceBinding($license, $deviceInfo, $deviceFingerprint);
+
+        if (!$device) {
+            return $this->logAndBuild(
+                false,
+                'Device limit reached or device blocked',
+                $license,
+                $licenseKey,
+                $deviceInfo,
+                $startTime,
+                LicenseValidationLog::STATUS_BLOCKED
+            );
+        }
+
+        $license->updateValidation();
+        $device->updateLastSeen();
+        Cache::forget('license_valid');
+
+        return $this->logAndBuild(
+            true,
+            'License validated successfully (local fallback).',
+            $license,
+            $licenseKey,
+            $deviceInfo,
+            $startTime,
+            LicenseValidationLog::STATUS_SUCCESS
+        );
+    }
+
+    private function syncLicenseFromRemote(array $remote, string $licenseKey, ?string $hotelName, array $deviceInfo): License
+    {
+        $data       = $remote['license'] ?? $remote;
+        $features   = (array) ($data['features'] ?? $remote['features'] ?? []);
+        $rawType    = strtolower((string) ($data['license_type'] ?? $remote['license_type'] ?? 'basic'));
+        $expiresAt  = $this->normalizeExpiry($data['expires_at'] ?? $remote['expires_at'] ?? null, $rawType);
+        $maxRooms   = (int) ($features['max_users'] ?? $data['max_rooms'] ?? $remote['max_rooms'] ?? -1);
+        $deviceId   = $this->getDeviceId();
+
+        $license = License::updateOrCreate(
             ['license_key' => $licenseKey],
             [
-                'license_data' => $licenseData,
-                'product_name' => 'Hotel Management System',
-                'customer_name' => $licenseData['hotel_name'],
-                'customer_email' => 'admin@hotel.com',
-                'license_type' => $licenseData['license_type'],
-                'status' => 'active',
-                'issued_at' => now(),
-                'activated_at' => now(),
-                'last_validated_at' => now(),
-                'expires_at' => $persistedExpiry,
+                'hotel_id'             => $data['hotel_id'] ?? $licenseKey,
+                'hotel_name'           => $hotelName ?: ($data['hotel_name'] ?? config('app.name')),
+                'product_name'         => 'Hotel Management System',
+                'customer_name'        => $hotelName ?: ($data['hotel_name'] ?? config('app.name')),
+                'customer_email'       => $data['customer_email'] ?? 'admin@hotel.com',
+                'license_type'         => $rawType,
+                'status'               => License::STATUS_ACTIVE,
+                'max_devices'          => (int) ($data['max_devices'] ?? 5),
+                'max_rooms'            => $maxRooms,
+                'features'             => $features ?: null,
+                'expires_at'           => $expiresAt,
+                'issued_at'            => $data['issued_at'] ?? now(),
+                'activated_at'         => now(),
+                'last_validated_at'    => now(),
                 'hardware_fingerprint' => $deviceId,
-                'max_rooms' => $maxRooms,
+                'license_data'         => [
+                    'license_key'       => $licenseKey,
+                    'hotel_name'        => $hotelName ?: ($data['hotel_name'] ?? config('app.name')),
+                    'license_type'      => strtoupper($rawType),
+                    'status'            => 'ACTIVE',
+                    'expires_at'        => $expiresAt,
+                    'features'          => $features,
+                    'max_rooms'         => $maxRooms,
+                    'rooms_used'        => Room::count(),
+                    'rooms_limit'       => $maxRooms,
+                    'total_used'        => Room::count(),
+                    'total_limit'       => $maxRooms,
+                    'validated_at'      => now()->toISOString(),
+                    'token'             => $remote['token'] ?? $data['token'] ?? null,
+                    'device_id'         => $deviceId,
+                    'token_expires_at'  => $remote['expires_at'] ?? $data['expires_at'] ?? null,
+                ],
             ]
         );
 
-        $this->jwtToken = $licenseData['token'];
-        $this->deviceId = $deviceId;
-        Cache::forget('license_valid');
-
-        return [
-            'valid' => true,
-            'message' => 'License activated successfully.',
-            'license' => $licenseData,
-            'token' => $licenseData['token'],
-        ];
+        return $license->fresh() ?? $license;
     }
 
-    private function mapHttpError(int $status, array $body): array
+    private function normalizeExpiry(?string $expiresAt, string $licenseType): ?string
     {
-        if ($status === 429) {
-            return ['valid' => false, 'message' => 'Too many validation attempts. Please wait and try again.'];
+        if ($expiresAt === null || $expiresAt === '' || str_contains($expiresAt, 'Never')) {
+            return null;
         }
 
-        if ($status === 403) {
-            $reason = (string) ($body['reason'] ?? 'access_denied');
-            if (str_contains($reason, 'rate_limiting')) {
-                return ['valid' => false, 'message' => 'License rejected by server (Failed security checks: rate_limiting). Contact KewirDev support.'];
+        if (in_array(strtoupper($licenseType), ['PERPETUAL', 'LIFETIME'], true)) {
+            return null;
+        }
+
+        return $expiresAt;
+    }
+
+    private function handleDeviceBinding(License $license, array $deviceInfo, string $deviceFingerprint): ?LicenseDevice
+    {
+        return DB::transaction(function () use ($license, $deviceInfo, $deviceFingerprint) {
+            $license = License::lockForUpdate()->find($license->id);
+
+            $device = LicenseDevice::where('license_id', $license->id)
+                ->where('device_fingerprint', $deviceFingerprint)
+                ->first();
+
+            if ($device) {
+                if ($device->status === LicenseDevice::STATUS_BLOCKED) {
+                    return null;
+                }
+                if (!$device->isActive()) {
+                    $device->activate();
+                }
+                return $device;
             }
-            return ['valid' => false, 'message' => 'License rejected by server (' . $reason . '). Contact KewirDev support.'];
+
+            if (!$license->canAddDevice($deviceInfo['device_type'] ?? 'unknown')) {
+                return null;
+            }
+
+            $device = LicenseDevice::create([
+                'license_id'         => $license->id,
+                'device_id'          => $deviceInfo['device_id'] ?? '',
+                'device_fingerprint' => $deviceFingerprint,
+                'device_name'        => $deviceInfo['device_name'] ?? 'Unknown Device',
+                'device_type'        => $deviceInfo['device_type'] ?? 'unknown',
+                'device_model'       => $deviceInfo['device_model'] ?? '',
+                'device_os'          => $deviceInfo['device_os'] ?? '',
+                'device_os_version'  => $deviceInfo['device_os_version'] ?? '',
+                'app_version'        => $deviceInfo['app_version'] ?? '',
+                'ip_address'         => $deviceInfo['ip_address'] ?? request()?->ip(),
+                'mac_address'        => $deviceInfo['mac_address'] ?? '',
+                'status'             => LicenseDevice::STATUS_ACTIVE,
+                'first_activated_at' => now(),
+                'last_seen_at'       => now(),
+                'activation_count'   => 1,
+                'metadata'           => $deviceInfo['metadata'] ?? [],
+            ]);
+
+            $license->incrementDeviceCount($deviceInfo['device_type'] ?? 'unknown');
+
+            return $device;
+        });
+    }
+
+    private function logAndBuild(
+        bool $valid,
+        string $message,
+        ?License $license,
+        string $licenseKey,
+        array $deviceInfo,
+        float $startTime,
+        string $status
+    ): array {
+        $processingTime = microtime(true) - $startTime;
+
+        try {
+            LicenseValidationLog::create([
+                'license_id'      => $license?->id,
+                'device_id'       => $deviceInfo['device_id'] ?? null,
+                'validation_type' => LicenseValidationLog::TYPE_INITIAL,
+                'status'          => $status,
+                'ip_address'      => request()?->ip(),
+                'user_agent'      => request()?->userAgent(),
+                'request_data'    => [
+                    'license_key' => $licenseKey,
+                    'device_info' => $deviceInfo,
+                ],
+                'response_data'   => [
+                    'success' => $valid,
+                    'message' => $message,
+                ],
+                'error_message'   => $valid ? null : $message,
+                'processing_time' => $processingTime,
+                'validated_at'    => now(),
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('Unable to write license validation log: ' . $e->getMessage());
         }
 
-        if ($status === 404) {
-            return ['valid' => false, 'message' => 'License key not found.'];
-        }
-
-        if ($status === 401) {
-            return ['valid' => false, 'message' => 'Invalid license key.'];
-        }
-
-        if ($status === 400) {
-            return ['valid' => false, 'message' => $body['error'] ?? $body['message'] ?? 'Invalid request.'];
-        }
-
-        return ['valid' => false, 'message' => $body['error'] ?? $body['message'] ?? ('License server error (HTTP ' . $status . ').')];
+        return [
+            'valid'   => $valid,
+            'message' => $message,
+            'license' => $license && is_array($license->license_data) ? $license->license_data : null,
+            'token'   => $license?->license_data['token'] ?? null,
+        ];
     }
 
     public function getLicenseStatus(): array
@@ -361,7 +371,6 @@ class LicenseValidationService
         }
 
         $lastValidated = $license->last_validated_at;
-        // Consider "verified online" if validated within the last 30 days
         $verifiedOnline = $lastValidated && $lastValidated->gt(now()->subDays(30));
 
         $status = array_merge($license->license_data, [
@@ -374,7 +383,7 @@ class LicenseValidationService
             'online_verified_at'=> optional($lastValidated)->toISOString(),
         ]);
 
-        return ['licensed' => !$this->licenseExpired($license), 'status' => $status];
+        return ['licensed' => !$this->isLicenseRowExpired($license), 'status' => $status];
     }
 
     public function getTrialStatus(): array
@@ -390,7 +399,7 @@ class LicenseValidationService
             ];
         }
 
-        $expired = $this->licenseExpired($license);
+        $expired = $this->isLicenseRowExpired($license);
         $daysRemaining = $license->expires_at
             ? max(0, now()->startOfDay()->diffInDays($license->expires_at->copy()->startOfDay(), false))
             : 0;
@@ -405,28 +414,11 @@ class LicenseValidationService
 
     public function isSystemLicensed(): bool
     {
-        // --- LICENSE CHECK TEMPORARILY DISABLED ---
-        // TODO: Re-enable once license system is fully working
-        return true;
-
-        $license = $this->currentLicense();
-
-        if (!$license) {
-            return false;
-        }
-
-        if ($this->licenseExpired($license)) {
-            if ($license->status !== 'expired') {
-                $license->update(['status' => 'expired']);
-            }
-            return false;
-        }
-
-        if ($license->status === 'trial') {
-            return true;
-        }
-
-        return $this->periodicCheck();
+        return License::where('status', License::STATUS_ACTIVE)
+            ->where(function ($q) {
+                $q->whereNull('expires_at')->orWhere('expires_at', '>', now());
+            })
+            ->exists();
     }
 
     public function periodicCheck(bool $force = false): bool
@@ -437,7 +429,7 @@ class LicenseValidationService
             return false;
         }
 
-        if ($this->licenseExpired($license)) {
+        if ($license->isExpired()) {
             if ($license->status !== 'expired') {
                 $license->update(['status' => 'expired']);
             }
@@ -453,34 +445,19 @@ class LicenseValidationService
             return true;
         }
 
-        if (($license->license_data['offline_activated'] ?? false) && $this->offlineActivationEnabled()) {
-            if (!$force) {
-                $license->update(['last_validated_at' => now()]);
-            }
-            return true;
-        }
-
-        // Only re-verify online once every 7 days — not every 15 minutes.
-        // If already validated within the last 7 days, trust the stored result.
         if (!$force && $license->last_validated_at && $license->last_validated_at->gt(now()->subDays(7))) {
             return true;
         }
 
-        $result = $this->validateToken();
+        $result = $this->validateLicense($license->license_key, $license->hotel_name);
 
         if ($result['valid']) {
-            $license->update(['last_validated_at' => now()]);
             return true;
         }
 
-        // If the failure was a network/connectivity error (not a deliberate server rejection),
-        // continue trusting the last online-verified active license while offline.
-        // This prevents repeated license activation prompts during server/network outages.
-        if (!empty($result['network_error'])) {
-            if ($license->last_validated_at) {
-                Log::info('License server unreachable; using stored verification (grace period active).');
-                return true;
-            }
+        if ($this->lastAttemptWasNetworkError && $license->last_validated_at) {
+            Log::info('License server unreachable; using stored verification (grace period active).');
+            return true;
         }
 
         return false;
@@ -494,20 +471,20 @@ class LicenseValidationService
             return ['valid' => false, 'message' => 'No active license found.'];
         }
 
-        $token = $license->license_data['token'] ?? $this->jwtToken;
+        $token = $license->license_data['token'] ?? null;
 
         if (!$token) {
             return ['valid' => false, 'message' => 'No license token available.'];
         }
 
         try {
-            $response = $this->client()->post($this->licenseServer . '/validate-token', [
-                'token' => $token,
-            ]);
+            $response = Http::withOptions(['verify' => false, 'timeout' => 20])
+                ->asJson()
+                ->post(rtrim(config('license.api.base_url', 'https://kewirdev.com/api/license'), '/') . '/validate-token', [
+                    'token' => $token,
+                ]);
 
             if (!$response->successful()) {
-                // 4xx = server explicitly rejected — treat as hard failure
-                // 5xx = server-side error — treat as transient network issue
                 $networkError = $response->status() >= 500;
                 return ['valid' => false, 'network_error' => $networkError, 'message' => 'Token validation failed.'];
             }
@@ -526,7 +503,6 @@ class LicenseValidationService
                 'expires_at' => $body['expires_at'] ?? ($license->license_data['expires_at'] ?? null),
             ];
         } catch (\Throwable $e) {
-            // Connection refused, timeout, DNS failure, etc. — not a deliberate rejection
             Log::warning('Token validation network error: ' . $e->getMessage());
             return ['valid' => false, 'network_error' => true, 'message' => 'Could not reach license server.'];
         }
@@ -540,17 +516,19 @@ class LicenseValidationService
             return ['success' => false, 'message' => 'No active license found.'];
         }
 
-        $token = $license->license_data['token'] ?? $this->jwtToken;
+        $token = $license->license_data['token'] ?? null;
 
         if (!$token) {
             return ['success' => false, 'message' => 'No token to refresh.'];
         }
 
         try {
-            $response = $this->client()->post($this->licenseServer . '/refresh-token', [
-                'token' => $token,
-                'device_id' => $license->license_data['device_id'] ?? $this->getDeviceId(),
-            ]);
+            $response = Http::withOptions(['verify' => false, 'timeout' => 20])
+                ->asJson()
+                ->post(rtrim(config('license.api.base_url', 'https://kewirdev.com/api/license'), '/') . '/refresh-token', [
+                    'token'     => $token,
+                    'device_id' => $license->license_data['device_id'] ?? $this->getDeviceId(),
+                ]);
 
             if (!$response->successful()) {
                 return ['success' => false, 'message' => 'Failed to refresh token.'];
@@ -569,8 +547,6 @@ class LicenseValidationService
                 'license_data' => $licenseData,
                 'last_validated_at' => now(),
             ]);
-
-            $this->jwtToken = $body['token'];
 
             return [
                 'success' => true,
@@ -591,16 +567,18 @@ class LicenseValidationService
             return ['success' => false, 'message' => 'No active license found.'];
         }
 
-        $token = $license->license_data['token'] ?? $this->jwtToken;
+        $token = $license->license_data['token'] ?? null;
         if (!$token) {
             return ['success' => false, 'message' => 'No token available for heartbeat.'];
         }
 
         try {
-            $response = $this->client()->post($this->licenseServer . '/heartbeat', [
-                'token' => $token,
-                'device_id' => $license->license_data['device_id'] ?? $this->getDeviceId(),
-            ]);
+            $response = Http::withOptions(['verify' => false, 'timeout' => 20])
+                ->asJson()
+                ->post(rtrim(config('license.api.base_url', 'https://kewirdev.com/api/license'), '/') . '/heartbeat', [
+                    'token'     => $token,
+                    'device_id' => $license->license_data['device_id'] ?? $this->getDeviceId(),
+                ]);
 
             if (!$response->successful()) {
                 return ['success' => false, 'message' => 'Heartbeat failed.'];
@@ -622,9 +600,10 @@ class LicenseValidationService
     public function getLicenseInfo(string $licenseKey): array
     {
         try {
-            $response = $this->client()->get($this->licenseServer . '/info', [
-                'license_key' => $licenseKey,
-            ]);
+            $response = Http::withOptions(['verify' => false, 'timeout' => 20])
+                ->get(rtrim(config('license.api.base_url', 'https://kewirdev.com/api/license'), '/') . '/info', [
+                    'license_key' => $licenseKey,
+                ]);
 
             if (!$response->successful()) {
                 return ['success' => false, 'message' => 'License info not found.'];
@@ -662,21 +641,25 @@ class LicenseValidationService
     {
         $license = License::where('status', 'active')->latest('id')->first();
 
-        if (!$license || !is_array($license->license_data)) {
+        if (!$license) {
             return false;
         }
 
-        $token = $license->license_data['token'] ?? $this->jwtToken;
+        $license->update(['assigned_rooms' => $roomCount]);
+
+        $token = $license->license_data['token'] ?? null;
         if (!$token) {
             return false;
         }
 
         try {
-            $response = $this->client()->post($this->licenseServer . '/sync-rooms', [
-                'token' => $token,
-                'rooms' => $roomCount,
-                'device_id' => $license->license_data['device_id'] ?? $this->getDeviceId(),
-            ]);
+            $response = Http::withOptions(['verify' => false, 'timeout' => 20])
+                ->asJson()
+                ->post(rtrim(config('license.api.base_url', 'https://kewirdev.com/api/license'), '/') . '/sync-rooms', [
+                    'token'     => $token,
+                    'rooms'     => $roomCount,
+                    'device_id' => $license->license_data['device_id'] ?? $this->getDeviceId(),
+                ]);
 
             return $response->successful();
         } catch (\Throwable $e) {
@@ -689,10 +672,9 @@ class LicenseValidationService
     {
         License::whereIn('status', ['active', 'trial'])->update(['status' => 'inactive']);
         Cache::forget('license_valid');
-        $this->jwtToken = null;
     }
 
-    private function licenseExpired(License $license): bool
+    private function isLicenseRowExpired(License $license): bool
     {
         if ($license->status === 'active') {
             return false;
