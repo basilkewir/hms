@@ -11,6 +11,33 @@ export const getNavigationForRole = (role, userPermissions = []) => {
     // Normalize role name
     const normalizedRole = (roleString || '').toLowerCase().replace(/\s+/g, '_');
 
+    // Lite build: only surface guest name input, rooms management and full
+    // IPTV / Android device management for the roles that run the front desk.
+    if (normalizedRole === 'admin' || normalizedRole === 'front_desk') {
+        return [
+            { name: 'Dashboard', href: '/lite/dashboard', icon: 'HomeIcon', current: false },
+            { name: 'Guest Display', href: '/lite/dashboard', icon: 'TvIcon', current: false },
+            {
+                name: 'Rooms Management',
+                icon: 'BuildingOfficeIcon',
+                current: false,
+                children: [
+                    { name: 'Rooms', href: '/admin/rooms', icon: 'HomeIcon' },
+                    { name: 'Room Types', href: '/admin/room-types', icon: 'HomeIcon' },
+                ],
+            },
+            {
+                name: 'IPTV Management',
+                icon: 'TvIcon',
+                current: false,
+                children: [
+                    { name: 'Channels', href: '/admin/iptv/channels', icon: 'TvIcon' },
+                    { name: 'Devices', href: '/admin/iptv/devices', icon: 'TvIcon' },
+                ],
+            },
+        ];
+    }
+
     // Define navigation items with their required permissions
     // Admin has all permissions
     const isAdmin = normalizedRole === 'admin';

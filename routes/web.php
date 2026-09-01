@@ -5869,6 +5869,15 @@ $renderSelfSchedule = function ($user, $role) {
     ]);
 };
 
+// Lite Routes (guest name input for IPTV TV display)
+Route::middleware(['auth', 'role:admin|front_desk'])->prefix('lite')->name('lite.')->group(function () {
+    Route::get('/dashboard', [\App\Http\Controllers\Lite\LiteGuestController::class, 'dashboard'])->name('dashboard');
+    Route::post('/guests', [\App\Http\Controllers\Lite\LiteGuestController::class, 'storeGuest'])->name('guests.store');
+    Route::post('/guests/checkout', [\App\Http\Controllers\Lite\LiteGuestController::class, 'checkout'])->name('guests.checkout');
+    Route::post('/rooms', [\App\Http\Controllers\Lite\LiteGuestController::class, 'storeRoom'])->name('rooms.store');
+    Route::post('/devices/{device}/room', [\App\Http\Controllers\Lite\LiteGuestController::class, 'setDeviceRoom'])->name('devices.room');
+});
+
 // Front Desk Routes
 Route::middleware(['auth', 'role:front_desk'])->prefix('front-desk')->name('front-desk.')->group(function () use ($renderSelfRevenueReport, $renderSelfSchedule) {
     Route::get('/dashboard', function () {

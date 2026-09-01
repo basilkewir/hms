@@ -347,7 +347,40 @@ const primaryRole = computed(() => {
     return userRoles.value[0] || 'staff'
 })
 
-const roleNavigation = computed(() => navigationConfig[primaryRole.value] || [])
+const roleNavigation = computed(() => {
+    // Lite build: surface only guest name input, rooms and IPTV/Android management
+    if (primaryRole.value === 'admin' || primaryRole.value === 'front_desk') {
+        return [
+            {
+                section: 'Main',
+                condition: null,
+                flat: true,
+                items: [
+                    { label: 'Guest Display', routeName: 'lite.dashboard', icon: 'home' },
+                ],
+            },
+            {
+                section: '🏨 Rooms',
+                condition: null,
+                flat: true,
+                items: [
+                    { label: 'Rooms',      routeName: 'admin.rooms.index' },
+                    { label: 'Room Types', routeName: 'admin.room-types.index' },
+                ],
+            },
+            {
+                section: '📺 IPTV Management',
+                condition: null,
+                flat: true,
+                items: [
+                    { label: 'Channels', routeName: 'admin.iptv.channels' },
+                    { label: 'Devices',  routeName: 'admin.iptv.devices.index' },
+                ],
+            },
+        ]
+    }
+    return navigationConfig[primaryRole.value] || []
+})
 
 const checkCondition = (condition) => {
     if (!condition) return true

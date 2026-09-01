@@ -1138,7 +1138,7 @@ class DashboardController extends Controller
     public function getNavigationForRole($role)
     {
         // Dashboard href depends on role
-        $dashboardHref = $role === 'admin' ? '/admin/dashboard' : '/dashboard';
+        $dashboardHref = in_array($role, ['admin', 'front_desk']) ? '/lite/dashboard' : ($role === 'admin' ? '/admin/dashboard' : '/dashboard');
 
         $baseNavigation = [
             [
@@ -1150,176 +1150,7 @@ class DashboardController extends Controller
         ];
 
         $roleSpecificNavigation = [
-            'admin' => [
-                [
-                    'name' => 'User Management',
-                    'icon' => 'UserGroupIcon',
-                    'current' => false,
-                    'children' => [
-                        ['name' => 'All Users', 'href' => '/admin/users', 'icon' => 'UsersIcon'],
-                        ['name' => 'Roles & Permissions', 'href' => '/admin/roles', 'icon' => 'ShieldCheckIcon'],
-                        ['name' => 'Add User', 'href' => '/admin/users/create', 'icon' => 'UserPlusIcon']
-                    ]
-                ],
-                [
-                    'name' => 'Property Management',
-                    'icon' => 'BuildingOfficeIcon',
-                    'current' => false,
-                    'children' => [
-                        ['name' => 'Room Types',    'href' => '/admin/room-types',    'icon' => 'HomeIcon'],
-                        ['name' => 'Rooms',          'href' => '/admin/rooms',          'icon' => 'HomeIcon'],
-                        ['name' => 'Room Amenities', 'href' => '/admin/room-amenities', 'icon' => 'HomeIcon'],
-                        ['name' => 'Halls',          'href' => '/admin/halls',          'icon' => 'BuildingOfficeIcon'],
-                        ['name' => 'Hall Bookings',  'href' => '/admin/hall-bookings',  'icon' => 'CalendarDaysIcon'],
-                        ['name' => 'Reservations',   'href' => '/admin/reservations',   'icon' => 'CalendarDaysIcon'],
-                        ['name' => 'Guests',         'href' => '/admin/guests',         'icon' => 'UsersIcon'],
-                        ['name' => "Today's Guests", 'href' => '/admin/checkin/today-guests',  'icon' => 'UserGroupIcon'],
-                        ['name' => 'Police Report',  'href' => '/admin/checkin/police-report', 'icon' => 'DocumentTextIcon'],
-                    ]
-                ],
-                [
-                    'name' => 'Financial Management',
-                    'icon' => 'CurrencyDollarIcon',
-                    'current' => false,
-                    'children' => [
-                        ['name' => 'Transactions',       'href' => '/admin/transactions',          'icon' => 'CurrencyDollarIcon'],
-                        ['name' => 'Bill Adjustments',   'href' => '/admin/bill-adjustment-requests', 'icon' => 'ReceiptPercentIcon'],
-                        ['name' => 'Expenses',           'href' => '/admin/expenses',              'icon' => 'BanknotesIcon'],
-                        ['name' => 'Expense Categories', 'href' => '/admin/expenses/categories',   'icon' => 'ClipboardDocumentListIcon'],
-                        ['name' => 'Payroll',            'href' => '/admin/payroll',               'icon' => 'CreditCardIcon'],
-                        ['name' => 'Reports',            'href' => '/admin/financial-reports',     'icon' => 'ChartBarIcon']
-                    ]
-                ],
-                [
-                    'name' => 'Budget Management',
-                    'icon' => 'ChartBarIcon',
-                    'current' => false,
-                    'children' => [
-                        ['name' => 'Budget Dashboard',  'href' => '/admin/budget/dashboard',                  'icon' => 'HomeIcon'],
-                        ['name' => 'All Budgets',       'href' => '/admin/budget',                            'icon' => 'ChartBarIcon'],
-                        ['name' => 'Create Budget',     'href' => '/admin/budget/create',                     'icon' => 'PlusIcon'],
-                        ['name' => 'Budget Reports',    'href' => '/admin/budget/reports',                    'icon' => 'DocumentTextIcon'],
-                        ['name' => 'Budget Expenses',   'href' => '/admin/budget/expenses',                   'icon' => 'BanknotesIcon'],
-                        ['name' => 'Expense Approvals', 'href' => '/admin/budget/expenses/pending-approvals', 'icon' => 'CheckCircleIcon'],
-                        ['name' => 'Budget Alerts',     'href' => '/admin/budget/alerts',                     'icon' => 'BellIcon']
-                    ]
-                ],
-                [
-                    'name' => 'POS Management',
-                    'icon' => 'ReceiptPercentIcon',
-                    'current' => false,
-                    'children' => [
-                        ['name' => 'POS Terminal', 'href' => '/pos', 'icon' => 'CalculatorIcon'],
-                        ['name' => 'Products', 'href' => '/admin/pos/products', 'icon' => 'ArchiveBoxIcon'],
-                        ['name' => 'Categories', 'href' => '/admin/pos/categories', 'icon' => 'ArchiveBoxIcon'],
-                        ['name' => 'Inventory', 'href' => '/pos/inventory', 'icon' => 'ArchiveBoxIcon'],
-                        ['name' => 'Stock Batches', 'href' => '/pos/stock-batches', 'icon' => 'CubeIcon']
-                    ]
-                ],
-                [
-                    'name' => 'Purchasing & Suppliers',
-                    'icon' => 'TruckIcon',
-                    'current' => false,
-                    'children' => [
-                        ['name' => 'Suppliers', 'href' => '/pos/suppliers', 'icon' => 'TruckIcon'],
-                        ['name' => 'Purchase Orders', 'href' => '/pos/purchases', 'icon' => 'ShoppingCartIcon']
-                    ]
-                ],
-                [
-                    'name' => 'Sales Management',
-                    'icon' => 'DocumentTextIcon',
-                    'current' => false,
-                    'children' => [
-                        ['name' => 'All Sales', 'href' => '/pos/sales', 'icon' => 'DocumentTextIcon'],
-                        ['name' => 'Sales Report', 'href' => '/pos/sales/report', 'icon' => 'ChartBarIcon'],
-                        ['name' => 'POS Reports', 'href' => '/pos/reports', 'icon' => 'ChartBarIcon']
-                    ]
-                ],
-                [
-                    'name' => 'Customer Management',
-                    'icon' => 'UserGroupIcon',
-                    'current' => false,
-                    'children' => [
-                        ['name' => 'All Customers', 'href' => '/admin/customers', 'icon' => 'UsersIcon'],
-                        ['name' => 'Add Customer', 'href' => '/admin/customers/create', 'icon' => 'UserPlusIcon'],
-                        ['name' => 'Customer Groups', 'href' => '/admin/customer-groups', 'icon' => 'UserGroupIcon']
-                    ]
-                ],
-                [
-                    'name' => 'IPTV Management',
-                    'icon' => 'TvIcon',
-                    'current' => false,
-                    'children' => [
-                        ['name' => 'Channels', 'href' => '/admin/iptv/channels', 'icon' => 'TvIcon'],
-                        ['name' => 'Packages', 'href' => '/admin/iptv/packages', 'icon' => 'TvIcon'],
-                        ['name' => 'Devices', 'href' => '/admin/iptv/devices', 'icon' => 'TvIcon'],
-                        ['name' => 'Content', 'href' => '/admin/iptv/content', 'icon' => 'TvIcon']
-                    ]
-                ],
-                [
-                    'name' => 'Staff Management',
-                    'icon' => 'ClockIcon',
-                    'current' => false,
-                    'children' => [
-                        ['name' => 'Time Tracking', 'href' => '/admin/time-tracking', 'icon' => 'ClockIcon'],
-                        ['name' => 'Work Shifts', 'href' => '/admin/work-shifts', 'icon' => 'ClockIcon'],
-                        ['name' => 'Schedules', 'href' => '/admin/schedules', 'icon' => 'ClockIcon']
-                    ]
-                ],
-                [
-                    'name' => 'Reports & Analytics',
-                    'icon' => 'ChartBarIcon',
-                    'current' => false,
-                    'children' => [
-                        ['name' => 'Dashboard Analytics', 'href' => '/admin/analytics', 'icon' => 'ChartBarIcon'],
-                        ['name' => 'Occupancy Reports', 'href' => '/admin/reports/occupancy', 'icon' => 'ChartBarIcon'],
-                        ['name' => 'Revenue Reports', 'href' => '/admin/reports/revenue', 'icon' => 'ChartBarIcon'],
-                        ['name' => 'Staff Reports', 'href' => '/admin/reports/staff', 'icon' => 'ChartBarIcon']
-                    ]
-                ],
-                [
-                    'name' => 'System Settings',
-                    'icon' => 'Cog6ToothIcon',
-                    'current' => false,
-                    'children' => [
-                        ['name' => 'General Settings', 'href' => '/admin/settings', 'icon' => 'Cog6ToothIcon'],
-                        ['name' => 'Room Service Charge', 'href' => '/admin/room-service-settings', 'icon' => 'SparklesIcon'],
-                        ['name' => 'Email Settings', 'href' => '/admin/settings/email', 'icon' => 'Cog6ToothIcon'],
-                        ['name' => 'Backup & Restore', 'href' => '/admin/settings/backup', 'icon' => 'Cog6ToothIcon'],
-                        ['name' => 'System Logs', 'href' => '/admin/settings/logs', 'icon' => 'Cog6ToothIcon']
-                    ]
-                ],
-                [
-                    'name' => 'Hotel Services',
-                    'icon' => 'SparklesIcon',
-                    'current' => false,
-                    'children' => [
-                        ['name' => 'All Services', 'href' => '/admin/services', 'icon' => 'ClipboardDocumentListIcon'],
-                        ['name' => 'Concierge',    'href' => '/admin/services/concierge', 'icon' => 'BellIcon'],
-                    ]
-                ],
-                [
-                    'name' => 'Maintenance',
-                    'icon' => 'WrenchScrewdriverIcon',
-                    'current' => false,
-                    'children' => [
-                        ['name' => 'All Requests',   'href' => '/admin/maintenance-requests',          'icon' => 'ClipboardDocumentListIcon'],
-                        ['name' => 'New Request',    'href' => '/admin/maintenance-requests/create',   'icon' => 'PlusIcon'],
-                        ['name' => 'All Categories', 'href' => '/admin/maintenance-categories',        'icon' => 'TagIcon'],
-                        ['name' => 'New Category',   'href' => '/admin/maintenance-categories/create', 'icon' => 'PlusIcon'],
-                    ]
-                ],
-                [
-                    'name' => 'Key Cards',
-                    'icon' => 'CreditCardIcon',
-                    'current' => false,
-                    'children' => [
-                        ['name' => 'All Key Cards',    'href' => '/front-desk/key-cards',            'icon' => 'CreditCardIcon'],
-                        ['name' => 'Assignment Center','href' => '/front-desk/key-cards/assignment', 'icon' => 'KeyIcon'],
-                        ['name' => 'Add Key Card',     'href' => '/front-desk/key-cards/create',     'icon' => 'PlusIcon'],
-                    ]
-                ]
-            ],
+            'admin' => $this->liteNavigation(),
             'manager' => [
                 [
                     'name' => 'Operations',
@@ -1506,68 +1337,7 @@ class DashboardController extends Controller
                     'current' => false
                 ]
             ],
-            'front_desk' => [
-                [
-                    'name' => 'Check In',
-                    'href' => '/front-desk/checkin',
-                    'icon' => 'ArrowRightOnRectangleIcon',
-                    'current' => false
-                ],
-                [
-                    'name' => 'Check Out',
-                    'href' => '/front-desk/checkout',
-                    'icon' => 'ArrowLeftOnRectangleIcon',
-                    'current' => false
-                ],
-                [
-                    'name' => 'New Reservation',
-                    'href' => '/front-desk/reservations/create',
-                    'icon' => 'CalendarDaysIcon',
-                    'current' => false
-                ],
-                [
-                    'name' => 'Process Payments',
-                    'href' => '/front-desk/payments/process',
-                    'icon' => 'CreditCardIcon',
-                    'current' => false
-                ],
-                [
-                    'name' => 'My Transactions',
-                    'href' => '/front-desk/transactions',
-                    'icon' => 'CurrencyDollarIcon',
-                    'current' => false
-                ],
-                [
-                    'name' => 'Customer Management',
-                    'icon' => 'UserGroupIcon',
-                    'current' => false,
-                    'children' => [
-                        ['name' => 'All Customers', 'href' => '/front-desk/customers', 'icon' => 'UsersIcon'],
-                        ['name' => 'Add Customer', 'href' => '/front-desk/customers/create', 'icon' => 'UserPlusIcon'],
-                        ['name' => 'Customer Groups', 'href' => '/admin/customer-groups', 'icon' => 'UserGroupIcon']
-                    ]
-                ],
-                [
-                    'name' => 'Services & Requests',
-                    'icon' => 'BellIcon',
-                    'current' => false,
-                    'children' => [
-                        ['name' => 'Concierge',    'href' => '/front-desk/services/concierge',    'icon' => 'BellIcon'],
-                        ['name' => 'Hall Bookings','href' => '/front-desk/services/hall-bookings', 'icon' => 'BuildingOfficeIcon'],
-                        ['name' => 'Housekeeping', 'href' => '/front-desk/services/housekeeping', 'icon' => 'SparklesIcon'],
-                        ['name' => 'Maintenance',  'href' => '/front-desk/services/maintenance',  'icon' => 'WrenchScrewdriverIcon'],
-                    ]
-                ],
-                [
-                    'name' => 'Expenses',
-                    'icon' => 'BanknotesIcon',
-                    'current' => false,
-                    'children' => [
-                        ['name' => 'All Expenses',    'href' => '/front-desk/expenses',        'icon' => 'DocumentTextIcon'],
-                        ['name' => 'Record Expense',  'href' => '/front-desk/expenses/create', 'icon' => 'PlusCircleIcon'],
-                    ]
-                ]
-            ],
+            'front_desk' => $this->liteNavigation(),
             'housekeeping' => [
                 [
                     'name' => 'Time Tracking',
@@ -1637,5 +1407,40 @@ class DashboardController extends Controller
         ];
 
         return array_merge($baseNavigation, $roleSpecificNavigation[$role] ?? []);
+    }
+
+    /**
+     * Lite navigation: only surfaces the modules the Lite build uses —
+     * guest name input, rooms management, and full IPTV/Android device
+     * management. Everything else stays in code but is hidden from navigation.
+     */
+    private function liteNavigation(): array
+    {
+        return [
+            [
+                'name'    => 'Guest Display',
+                'href'    => '/lite/dashboard',
+                'icon'    => 'TvIcon',
+                'current' => false,
+            ],
+            [
+                'name'    => 'Rooms Management',
+                'icon'    => 'BuildingOfficeIcon',
+                'current' => false,
+                'children' => [
+                    ['name' => 'Rooms',      'href' => '/admin/rooms',       'icon' => 'HomeIcon'],
+                    ['name' => 'Room Types', 'href' => '/admin/room-types',  'icon' => 'HomeIcon'],
+                ],
+            ],
+            [
+                'name'    => 'IPTV Management',
+                'icon'    => 'TvIcon',
+                'current' => false,
+                'children' => [
+                    ['name' => 'Channels', 'href' => '/admin/iptv/channels', 'icon' => 'TvIcon'],
+                    ['name' => 'Devices',  'href' => '/admin/iptv/devices',  'icon' => 'TvIcon'],
+                ],
+            ],
+        ];
     }
 }
