@@ -373,7 +373,6 @@ const roleNavigation = computed(() => {
                 condition: null,
                 flat: true,
                 items: [
-                    { label: 'Channels', routeName: 'admin.iptv.channels' },
                     { label: 'Devices',  routeName: 'admin.iptv.devices.index' },
                 ],
             },

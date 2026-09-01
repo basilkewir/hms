@@ -1437,8 +1437,7 @@ class DashboardController extends Controller
                 'icon'    => 'TvIcon',
                 'current' => false,
                 'children' => [
-                    ['name' => 'Channels', 'href' => '/admin/iptv/channels', 'icon' => 'TvIcon'],
-                    ['name' => 'Devices',  'href' => '/admin/iptv/devices',  'icon' => 'TvIcon'],
+                    ['name' => 'Devices', 'href' => '/admin/iptv/devices', 'icon' => 'TvIcon'],
                 ],
             ],
         ];
