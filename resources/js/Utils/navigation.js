@@ -11,9 +11,16 @@ export const getNavigationForRole = (role, userPermissions = []) => {
     // Normalize role name
     const normalizedRole = (roleString || '').toLowerCase().replace(/\s+/g, '_');
 
-    // Lite build: only surface guest name input, rooms management and full
-    // IPTV / Android device management for the roles that run the front desk.
-    if (normalizedRole === 'admin' || normalizedRole === 'front_desk') {
+    // Front desk is locked to the Guest Display page only.
+    if (normalizedRole === 'front_desk' || normalizedRole === 'frontdesk') {
+        return [
+            { name: 'Guest Display', href: '/lite/dashboard', icon: 'TvIcon', current: false },
+        ];
+    }
+
+    // Lite build for admin: guest name input, rooms management and full
+    // IPTV / Android device management.
+    if (normalizedRole === 'admin') {
         return [
             { name: 'Dashboard', href: '/lite/dashboard', icon: 'HomeIcon', current: false },
             { name: 'Guest Display', href: '/lite/dashboard', icon: 'TvIcon', current: false },

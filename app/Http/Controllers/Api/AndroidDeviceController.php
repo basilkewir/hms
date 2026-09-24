@@ -258,6 +258,7 @@ class AndroidDeviceController extends Controller
         $settings = $this->getDbSettings([
             'hotel_name', 'hotel_address', 'hotel_phone', 'hotel_email',
             'hotel_logo', 'hotel_check_in_time', 'hotel_check_out_time',
+            'welcome_background_url',
         ]);
 
         return response()->json([
@@ -270,6 +271,7 @@ class AndroidDeviceController extends Controller
                 'logo_url'       => $settings['hotel_logo'] ?? '',
                 'check_in_time'  => $settings['hotel_check_in_time'] ?? '14:00',
                 'check_out_time' => $settings['hotel_check_out_time'] ?? '11:00',
+                'background_url' => $settings['welcome_background_url'] ?? '',
                 'server_time'    => now()->toIso8601String(),
                 'timezone'       => config('app.timezone', 'UTC'),
             ],
@@ -338,24 +340,14 @@ class AndroidDeviceController extends Controller
 
     private function buildSettingsPayload(IptvDevice $device): array
     {
-        $db = $this->getDbSettings([
-            // Xtream Codes
-            'xtream_url', 'xtream_username', 'xtream_password', 'xtream_use_https',
-            // Network interface for stream delivery
-            'iptv_network_interface', 'iptv_stream_port', 'iptv_force_interface',
-            // Hotel branding
-            'hotel_name', 'hotel_logo', 'hotel_address', 'hotel_phone',
-            'hotel_primary_color', 'hotel_welcome_message', 'welcome_background_url',
-            // Weather widget
-            'weather_api_key', 'weather_city', 'weather_units', 'weather_enabled',
-            // TV UI behaviour
-            'iptv_ui_theme', 'iptv_show_epg', 'iptv_auto_launch_seconds',
-            'iptv_show_clock', 'iptv_show_room_number',
-            'iptv_enable_vod', 'iptv_enable_series', 'iptv_enable_radio',
-            'iptv_parental_pin', 'iptv_default_channel',
-            // Security
-            'admin_pin',
-        ]);
+        $db = $this->getDbSettings(array_merge(
+            \App\Support\IptvSettingsSync::allKeys(),
+            [
+                // Hotel branding / identity always useful on the welcome screen
+                'hotel_name', 'hotel_logo', 'hotel_address', 'hotel_phone',
+                'welcome_background_url',
+            ]
+        ));
 
         // Resolve the IP address of the selected network interface
         $streamIp = '';

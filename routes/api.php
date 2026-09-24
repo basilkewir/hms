@@ -61,7 +61,7 @@ Route::prefix('android')->group(function () {
 Route::prefix('public')->middleware(['throttle:60,1'])->group(function () {
     // Hotel information
     Route::get('/hotel-info', function () {
-        $settings = \App\Models\Setting::whereIn('key', ['hotel_name', 'hotel_address', 'hotel_phone', 'hotel_email', 'currency', 'currency_position'])
+        $settings = \App\Models\Setting::whereIn('key', ['hotel_name', 'hotel_address', 'hotel_phone', 'hotel_email', 'currency', 'currency_position', 'welcome_background_url'])
             ->pluck('value', 'key')
             ->toArray();
 
@@ -71,6 +71,7 @@ Route::prefix('public')->middleware(['throttle:60,1'])->group(function () {
             'phone' => $settings['hotel_phone'] ?? config('app.hotel_phone', '+1234567890'),
             'email' => $settings['hotel_email'] ?? config('app.hotel_email', 'info@hotel.com'),
             'timezone' => config('app.timezone', 'UTC'),
+            'background_url' => $settings['welcome_background_url'] ?? '',
             'currency' => $settings['currency'] ?? 'USD',
             'currency_position' => $settings['currency_position'] ?? 'prefix',
         ]);

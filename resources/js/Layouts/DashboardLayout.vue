@@ -348,8 +348,22 @@ const primaryRole = computed(() => {
 })
 
 const roleNavigation = computed(() => {
-    // Lite build: surface only guest name input, rooms and IPTV/Android management
-    if (primaryRole.value === 'admin' || primaryRole.value === 'front_desk') {
+    // Front desk is locked to Guest Display only
+    if (primaryRole.value === 'front_desk') {
+        return [
+            {
+                section: 'Main',
+                condition: null,
+                flat: true,
+                items: [
+                    { label: 'Guest Display', routeName: 'lite.dashboard', icon: 'home' },
+                ],
+            },
+        ]
+    }
+
+    // Lite build for admin: guest name input, rooms and IPTV/Android management
+    if (primaryRole.value === 'admin') {
         return [
             {
                 section: 'Main',
@@ -616,7 +630,7 @@ const openNotification = (notification) => {
                         <button @click="showTutorial = true" class="p-1.5 rounded transition-colors hover:opacity-80" :style="{ color: themeColors.textTertiary }" title="Help">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke-width="2"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3m0 4h.01"/></svg>
                         </button>
-                        <Link href="/pos" class="p-1.5 rounded" :style="{ color: themeColors.textTertiary }" title="POS Terminal">
+                        <Link v-if="!isFrontDesk || isAdmin" href="/pos" class="p-1.5 rounded" :style="{ color: themeColors.textTertiary }" title="POS Terminal">
                             <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8m-4-4v4"/></svg>
                         </Link>
                         <button @click="toggleTheme" class="p-1.5 rounded" :style="{ color: themeColors.textTertiary }" :title="isDark ? 'Light mode' : 'Dark mode'">

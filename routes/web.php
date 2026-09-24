@@ -31,6 +31,7 @@ use App\Http\Controllers\Admin\BackupController;
 use App\Http\Controllers\Admin\LicenseController;
 use App\Http\Controllers\BillAdjustmentRequestManagementController;
 use App\Support\MoneyInput;
+use App\Support\IptvSettingsSync;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 
@@ -4064,23 +4065,7 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
             ->pluck('value', 'key')->toArray();
 
         // ── IPTV / Android TV settings ──────────────────────────────────────
-        $iptvKeys = [
-            // Xtream Codes
-            'xtream_url', 'xtream_username', 'xtream_password', 'xtream_use_https',
-            // Network interface for stream delivery
-            'iptv_network_interface', 'iptv_stream_port', 'iptv_force_interface',
-            // Hotel branding on TV
-            'hotel_welcome_message', 'hotel_primary_color', 'welcome_background_url',
-            // Weather widget
-            'weather_api_key', 'weather_city', 'weather_units', 'weather_enabled',
-            // TV UI & behaviour
-            'iptv_ui_theme', 'iptv_show_epg', 'iptv_auto_launch_seconds',
-            'iptv_show_clock', 'iptv_show_room_number',
-            'iptv_enable_vod', 'iptv_enable_series', 'iptv_enable_radio',
-            'iptv_parental_pin',
-            // Security / PIN
-            'admin_pin',
-        ];
+        $iptvKeys = \App\Support\IptvSettingsSync::allKeys();
         $iptvSettings = \App\Models\Setting::whereIn('key', $iptvKeys)
             ->pluck('value', 'key')->toArray();
 
@@ -4177,30 +4162,15 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
             'enable_vod', 'enable_parental_controls',
         ];
 
-        $iptvKeys = [
-            'xtream_url', 'xtream_username', 'xtream_password',
-            'iptv_network_interface', 'iptv_stream_port',
-            'hotel_welcome_message', 'hotel_primary_color', 'welcome_background_url',
-            'weather_api_key', 'weather_city', 'weather_units',
-            'iptv_ui_theme', 'iptv_parental_pin', 'admin_pin',
-            'iptv_default_channel',
-        ];
-        $iptvBoolKeys = [
-            'xtream_use_https', 'weather_enabled', 'iptv_force_interface',
-            'iptv_show_epg', 'iptv_show_clock', 'iptv_show_room_number',
-            'iptv_enable_vod', 'iptv_enable_series', 'iptv_enable_radio',
-        ];
-        $iptvIntKeys = ['iptv_auto_launch_seconds'];
+        // Persist every IPTV key (group=iptv) and force-push to all TVs
+        $pushed = \App\Support\IptvSettingsSync::saveAndForcePush($settings);
 
         foreach ($settings as $key => $value) {
+            if (\App\Support\IptvSettingsSync::isIptvKey($key)) {
+                continue; // already saved as group=iptv
+            }
             if (strpos($key, 'theme_') === 0) {
                 \App\Models\Setting::set($key, $value, 'string', 'theme');
-            } elseif (in_array($key, $iptvBoolKeys, true)) {
-                \App\Models\Setting::set($key, $value ? '1' : '0', 'boolean', 'iptv');
-            } elseif (in_array($key, $iptvIntKeys, true)) {
-                \App\Models\Setting::set($key, (int) $value, 'integer', 'iptv');
-            } elseif (in_array($key, $iptvKeys, true)) {
-                \App\Models\Setting::set($key, $value, 'string', 'iptv');
             } elseif (in_array($key, $generalBoolKeys, true)) {
                 \App\Models\Setting::set($key, $value ? '1' : '0', 'boolean', 'general');
             } elseif (is_numeric($value) && strpos((string) $value, '.') !== false) {
@@ -4212,32 +4182,11 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
             }
         }
 
-        // Bump settings_version on all devices whenever IPTV settings change
-        $hasIptvChange = !empty(array_intersect(
-            array_keys($settings),
-            array_merge($iptvKeys, $iptvBoolKeys, $iptvIntKeys)
-        ));
-        if ($hasIptvChange) {
-            // Propagate any Xtream credential changes into per-device pushed_settings
-            // so devices with existing overrides also pick up the new global values.
-            $xtreamOverrides = array_filter([
-                'xtream_url'      => $settings['xtream_url']      ?? null,
-                'xtream_username' => $settings['xtream_username']  ?? null,
-                'xtream_password' => $settings['xtream_password']  ?? null,
-            ], fn($v) => $v !== null && $v !== '');
-
-            \App\Models\IptvDevice::where('is_active', true)->each(function ($device) use ($xtreamOverrides) {
-                $newPushed = array_merge($device->pushed_settings ?? [], $xtreamOverrides);
-                $device->update([
-                    'pushed_settings'  => $newPushed,
-                    'settings_version' => ($device->settings_version ?? 0) + 1,
-                ]);
-                // Dispatch push_settings command so the device is notified immediately via SSE/heartbeat
-                $device->dispatchCommand('push_settings', ['settings_version' => $device->settings_version]);
-            });
-        }
-
-        return response()->json(['success' => true, 'message' => 'Settings updated successfully']);
+        return response()->json([
+            'success'         => true,
+            'message'         => 'Settings updated successfully',
+            'devices_pushed'  => $pushed,
+        ]);
     })->name('settings.update');
 
     // Test HMS API connectivity (used by Settings → IPTV tab "Test Connection" button)
@@ -9745,7 +9694,48 @@ Route::middleware(['auth', 'role:accountant'])->prefix('accountant')->name('acco
 
 // Manager Routes
 Route::middleware(['auth', 'role:manager'])->prefix('manager')->name('manager.')->group(function () {
-    // Settings save route (manager saves general settings via this endpoint)
+    // Settings page (GET) — managers open /manager/settings from the nav
+    Route::get('/settings', function () {
+        $user = auth()->user()->load('roles');
+
+        $generalKeys = [
+            'hotel_name', 'hotel_address', 'hotel_phone', 'hotel_email', 'timezone',
+            'currency', 'currency_position', 'tax_rate', 'room_tax_rate', 'hotel_logo',
+            'auto_apply_guest_type_discount', 'auto_apply_vip_discount',
+            'vip_discount_percentage', 'discount_combination_mode',
+            'session_timeout', 'password_min_length', 'require_2fa', 'force_password_change',
+            'pos_print_paper_width', 'pos_print_font_size', 'pos_print_show_logo',
+            'frontdesk_print_paper_width', 'frontdesk_print_font_size', 'frontdesk_print_show_logo',
+            'backup_frequency', 'backup_retention_days',
+        ];
+        $generalSettings = \App\Models\Setting::whereIn('key', $generalKeys)
+            ->pluck('value', 'key')->toArray();
+
+        $themeKeys = [
+            'theme_mode', 'theme_primary_color', 'theme_secondary_color', 'theme_success_color',
+            'theme_warning_color', 'theme_danger_color', 'theme_background_color', 'theme_sidebar_color',
+            'theme_card_color', 'theme_text_primary', 'theme_text_secondary', 'theme_text_tertiary',
+            'theme_border_color', 'theme_radius', 'theme_shadow', 'theme_transition',
+        ];
+        $themeSettings = \App\Models\Setting::whereIn('key', $themeKeys)
+            ->pluck('value', 'key')->toArray();
+
+        $iptvSettings = \App\Models\Setting::whereIn('key', \App\Support\IptvSettingsSync::allKeys())
+            ->pluck('value', 'key')->toArray();
+
+        return Inertia::render('Admin/Settings/Index', [
+            'user'     => $user,
+            'settings' => [
+                'general' => $generalSettings,
+                'theme'   => $themeSettings,
+                'iptv'    => $iptvSettings,
+            ],
+            'server_url'         => rtrim(config('app.url'), '/'),
+            'network_interfaces' => [],
+        ]);
+    })->name('settings.index');
+
+    // Settings save route (manager saves general + IPTV settings via this endpoint)
     Route::put('/settings', function (\Illuminate\Http\Request $request) {
         $settings = $request->input('settings', []);
         $booleanKeys = [
@@ -9754,30 +9744,16 @@ Route::middleware(['auth', 'role:manager'])->prefix('manager')->name('manager.')
             'pos_print_show_logo', 'frontdesk_print_show_logo',
             'enable_vod', 'enable_parental_controls',
         ];
-        $iptvKeys = [
-            'xtream_url', 'xtream_username', 'xtream_password',
-            'iptv_network_interface', 'iptv_stream_port',
-            'hotel_welcome_message', 'hotel_primary_color', 'welcome_background_url',
-            'weather_api_key', 'weather_city', 'weather_units',
-            'iptv_ui_theme', 'iptv_parental_pin', 'admin_pin',
-            'iptv_default_channel',
-        ];
-        $iptvBoolKeys = [
-            'xtream_use_https', 'weather_enabled', 'iptv_force_interface',
-            'iptv_show_epg', 'iptv_show_clock', 'iptv_show_room_number',
-            'iptv_enable_vod', 'iptv_enable_series', 'iptv_enable_radio',
-        ];
-        $iptvIntKeys = ['iptv_auto_launch_seconds'];
+
+        // Persist every IPTV key (group=iptv) and force-push to all TVs
+        $pushed = \App\Support\IptvSettingsSync::saveAndForcePush($settings);
 
         foreach ($settings as $key => $value) {
+            if (\App\Support\IptvSettingsSync::isIptvKey($key)) {
+                continue; // already saved as group=iptv
+            }
             if (strpos($key, 'theme_') === 0) {
                 \App\Models\Setting::set($key, $value, 'string', 'theme');
-            } elseif (in_array($key, $iptvBoolKeys, true)) {
-                \App\Models\Setting::set($key, $value ? '1' : '0', 'boolean', 'iptv');
-            } elseif (in_array($key, $iptvIntKeys, true)) {
-                \App\Models\Setting::set($key, (int) $value, 'integer', 'iptv');
-            } elseif (in_array($key, $iptvKeys, true)) {
-                \App\Models\Setting::set($key, $value, 'string', 'iptv');
             } elseif (in_array($key, $booleanKeys, true)) {
                 \App\Models\Setting::set($key, $value ? '1' : '0', 'boolean', 'general');
             } elseif (is_numeric($value) && strpos((string) $value, '.') !== false) {
@@ -9788,7 +9764,12 @@ Route::middleware(['auth', 'role:manager'])->prefix('manager')->name('manager.')
                 \App\Models\Setting::set($key, $value, 'string', 'general');
             }
         }
-        return response()->json(['success' => true, 'message' => 'Settings updated successfully']);
+
+        return response()->json([
+            'success'        => true,
+            'message'        => 'Settings updated successfully',
+            'devices_pushed' => $pushed,
+        ]);
     })->name('settings.update');
 
     // Tunnel / Application URL update (manager can also trigger this)

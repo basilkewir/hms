@@ -1337,7 +1337,7 @@ class DashboardController extends Controller
                     'current' => false
                 ]
             ],
-            'front_desk' => $this->liteNavigation(),
+            'front_desk' => $this->frontDeskLiteNavigation(),
             'housekeeping' => [
                 [
                     'name' => 'Time Tracking',
@@ -1441,6 +1441,21 @@ class DashboardController extends Controller
                     ['name' => 'Weather',          'href' => '/admin/iptv/weather', 'icon' => 'CloudIcon'],
                     ['name' => 'Welcome Message',  'href' => '/admin/settings',     'icon' => 'ChatBubbleLeftIcon'],
                 ],
+            ],
+        ];
+    }
+
+    /**
+     * Front-desk users are locked to the Guest Display page only.
+     */
+    private function frontDeskLiteNavigation(): array
+    {
+        return [
+            [
+                'name'    => 'Guest Display',
+                'href'    => '/lite/dashboard',
+                'icon'    => 'TvIcon',
+                'current' => false,
             ],
         ];
     }

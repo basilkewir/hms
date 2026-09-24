@@ -677,16 +677,20 @@ const submitRename = () => {
 // Push settings to all
 const pushingAll = ref(false)
 const globalSettings = ref({
-    xtream_url: '',
-    xtream_username: '',
-    xtream_password: '',
-    admin_pin: '',
+    xtream_url: props.globalSettings?.xtream_url || '',
+    xtream_username: props.globalSettings?.xtream_username || '',
+    xtream_password: props.globalSettings?.xtream_password || '',
+    admin_pin: props.globalSettings?.admin_pin || '',
 })
 
 const pushSettingsAll = () => {
     if (!confirm('Push these settings to ALL active devices?')) return
     pushingAll.value = true
-    router.post(route('admin.iptv.devices.push-all'), globalSettings.value, {
+    // Send only non-empty overrides so empty form fields don't wipe globals
+    const payload = Object.fromEntries(
+        Object.entries(globalSettings.value).filter(([, v]) => v !== '' && v !== null && v !== undefined)
+    )
+    router.post(route('admin.iptv.devices.push-all'), payload, {
         preserveScroll: true,
         onFinish: () => { pushingAll.value = false }
     })

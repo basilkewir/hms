@@ -33,6 +33,7 @@ return Application::configure(basePath: dirname(__DIR__))
             \App\Http\Middleware\ShareSettings::class,
             \App\Http\Middleware\ShareUserPermissions::class,
             \App\Http\Middleware\CheckLicense::class,
+            \App\Http\Middleware\RestrictFrontDeskToLite::class,
             \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
         ]);
 

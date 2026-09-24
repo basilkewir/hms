@@ -300,22 +300,31 @@ class DeviceController extends Controller
             'parental_pin'           => 'nullable|string|max:8',
         ]);
 
-        $overrides = array_filter($request->only([
-            'xtream_url', 'xtream_username', 'xtream_password',
-            'admin_pin', 'ui_theme', 'auto_launch_seconds',
-            'show_epg', 'show_clock', 'show_room_number',
-            'enable_vod', 'enable_series', 'enable_radio', 'parental_pin',
-        ]), fn($v) => $v !== null && $v !== '');
+        // Persist any submitted keys as global IPTV settings first
+        \App\Support\IptvSettingsSync::saveIptvKeys($request->only(
+            \App\Support\IptvSettingsSync::allKeys()
+        ));
 
-        $count = 0;
-        IptvDevice::where('is_active', true)->each(function (IptvDevice $device) use ($overrides, &$count) {
-            $device->update([
-                'pushed_settings'  => array_merge($device->pushed_settings ?? [], $overrides),
-                'settings_version' => ($device->settings_version ?? 0) + 1,
-            ]);
-            $device->dispatchCommand('push_settings', ['settings_version' => $device->settings_version], auth()->user()?->name);
-            $count++;
-        });
+        // Map UI field names onto global setting keys + per-device overrides
+        $overrides = array_filter([
+            'xtream_url'             => $request->input('xtream_url'),
+            'xtream_username'        => $request->input('xtream_username'),
+            'xtream_password'        => $request->input('xtream_password'),
+            'admin_pin'              => $request->input('admin_pin'),
+            'ui_theme'               => $request->input('ui_theme'),
+            'auto_launch_seconds'    => $request->input('auto_launch_seconds'),
+            'show_epg'               => $request->input('show_epg'),
+            'show_clock'             => $request->input('show_clock'),
+            'show_room_number'       => $request->input('show_room_number'),
+            'enable_vod'             => $request->input('enable_vod'),
+            'enable_series'          => $request->input('enable_series'),
+            'enable_radio'           => $request->input('enable_radio'),
+            'parental_pin'           => $request->input('parental_pin'),
+        ], fn($v) => $v !== null && $v !== '');
+
+        // Force-push: bump settings_version + queue push_settings on every active device
+        $count = \App\Support\IptvSettingsSync::forcePushAll($overrides);
+
         return response()->json(['success' => true, 'message' => "Settings pushed to {$count} devices"]);
     }
 
@@ -452,20 +461,12 @@ class DeviceController extends Controller
     private function getGlobalSettings(): array
     {
         try {
-            $keys = [
-                // Xtream Codes
-                'xtream_url', 'xtream_username', 'xtream_password', 'xtream_use_https',
-                // Hotel branding for TV
+            $keys = \App\Support\IptvSettingsSync::allKeys();
+            // Hotel branding / identity also useful on the devices page
+            $keys = array_merge($keys, [
                 'hotel_name', 'hotel_logo', 'hotel_address', 'hotel_phone',
-                'hotel_primary_color', 'hotel_welcome_message', 'welcome_background_url',
-                // Weather widget
-                'weather_api_key', 'weather_city', 'weather_units', 'weather_enabled',
-                // TV UI & behaviour
-                'iptv_ui_theme', 'iptv_show_epg', 'iptv_auto_launch_seconds',
-                'iptv_show_clock', 'iptv_show_room_number',
-                'iptv_enable_vod', 'iptv_enable_series', 'iptv_enable_radio',
-                'iptv_parental_pin', 'iptv_default_channel', 'admin_pin',
-            ];
+                'welcome_background_url',
+            ]);
             return Setting::whereIn('key', $keys)->pluck('value', 'key')->toArray();
         } catch (\Exception $e) {
             return [];

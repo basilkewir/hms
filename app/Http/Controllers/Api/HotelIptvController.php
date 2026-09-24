@@ -515,7 +515,7 @@ class HotelIptvController extends Controller
 
             $config = [
                 'xtream_api' => [
-                    'url' => Setting::get('xtream_api_url'),
+                    'url' => Setting::get('xtream_url'),
                     'username' => Setting::get('xtream_username'),
                     'password' => Setting::get('xtream_password'),
                 ],

@@ -1106,6 +1106,7 @@ const settings = ref({
     // IPTV settings
     iptv_server_url: props.settings?.iptv?.iptv_server_url || 'http://iptv.grandhotel.com',
     default_channel_package: props.settings?.iptv?.default_channel_package || 'premium',
+    iptv_default_channel: props.settings?.iptv?.iptv_default_channel || '',
     enable_vod: props.settings?.iptv?.enable_vod || true,
     enable_parental_controls: props.settings?.iptv?.enable_parental_controls || true,
     auto_provision_rooms: props.settings?.iptv?.auto_provision_rooms || true,
@@ -1286,8 +1287,10 @@ const saveSettings = async () => {
             // IPTV settings
             settingsToSave.iptv_server_url = settings.value.iptv_server_url
             settingsToSave.default_channel_package = settings.value.default_channel_package
+            settingsToSave.iptv_default_channel = settings.value.iptv_default_channel || ''
             settingsToSave.enable_vod = settings.value.enable_vod
             settingsToSave.enable_parental_controls = settings.value.enable_parental_controls
+            settingsToSave.auto_provision_rooms = settings.value.auto_provision_rooms
         } else if (activeTab.value === 'integrations') {
             // Integration settings
             settingsToSave['integration.booking_api_token'] = settings.value['integration.booking_api_token']
