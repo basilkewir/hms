@@ -61,19 +61,54 @@ Route::prefix('android')->group(function () {
 Route::prefix('public')->middleware(['throttle:60,1'])->group(function () {
     // Hotel information
     Route::get('/hotel-info', function () {
-        $settings = \App\Models\Setting::whereIn('key', ['hotel_name', 'hotel_address', 'hotel_phone', 'hotel_email', 'currency', 'currency_position', 'welcome_background_url'])
-            ->pluck('value', 'key')
-            ->toArray();
+        $keys = ['hotel_name','hotel_address','hotel_phone','hotel_email','currency','currency_position',
+                 'hotel_welcome_message','hotel_star_rating','hotel_website','hotel_fax','hotel_toll_free',
+                 'hotel_facebook','hotel_instagram','hotel_twitter','hotel_logo','welcome_background_url','hotel_primary_color',
+                 'hotel_check_in_time','hotel_check_out_time',
+                 'service_front_desk','service_room_service','service_housekeeping','service_concierge',
+                 'service_laundry','service_maintenance','service_wakeup','service_emergency',
+                 'service_spa','service_restaurant','service_parking','service_business',
+                 'service_swimming_pool','service_gym'];
+        $settings = \App\Models\Setting::whereIn('key', $keys)->pluck('value', 'key')->toArray();
+        $s = function($k) use ($settings) { return $settings[$k] ?? ''; };
 
         return response()->json([
-            'name' => $settings['hotel_name'] ?? config('app.hotel_name', 'Grand Hotel'),
-            'address' => $settings['hotel_address'] ?? config('app.hotel_address', '123 Hotel Street'),
-            'phone' => $settings['hotel_phone'] ?? config('app.hotel_phone', '+1234567890'),
-            'email' => $settings['hotel_email'] ?? config('app.hotel_email', 'info@hotel.com'),
+            'name' => $s('hotel_name') ?: config('app.hotel_name', 'Grand Hotel'),
+            'address' => $s('hotel_address') ?: config('app.hotel_address', '123 Hotel Street'),
+            'phone' => $s('hotel_phone') ?: config('app.hotel_phone', '+1234567890'),
+            'email' => $s('hotel_email') ?: config('app.hotel_email', 'info@hotel.com'),
             'timezone' => config('app.timezone', 'UTC'),
-            'background_url' => $settings['welcome_background_url'] ?? '',
-            'currency' => $settings['currency'] ?? 'USD',
-            'currency_position' => $settings['currency_position'] ?? 'prefix',
+            'currency' => $s('currency') ?: 'USD',
+            'currency_position' => $s('currency_position') ?: 'prefix',
+            'welcome_message' => $s('hotel_welcome_message'),
+            'star_rating' => $s('hotel_star_rating'),
+            'website' => $s('hotel_website'),
+            'fax' => $s('hotel_fax'),
+            'toll_free' => $s('hotel_toll_free'),
+            'facebook' => $s('hotel_facebook'),
+            'instagram' => $s('hotel_instagram'),
+            'twitter' => $s('hotel_twitter'),
+            'logo_url' => $s('hotel_logo'),
+            'background_url' => $s('welcome_background_url'),
+            'primary_color' => $s('hotel_primary_color'),
+            'check_in_time' => $s('hotel_check_in_time'),
+            'check_out_time' => $s('hotel_check_out_time'),
+            'services' => [
+                'front_desk' => $s('service_front_desk'),
+                'room_service' => $s('service_room_service'),
+                'housekeeping' => $s('service_housekeeping'),
+                'concierge' => $s('service_concierge'),
+                'laundry' => $s('service_laundry'),
+                'maintenance' => $s('service_maintenance'),
+                'wakeup' => $s('service_wakeup'),
+                'emergency' => $s('service_emergency'),
+                'spa' => $s('service_spa'),
+                'restaurant' => $s('service_restaurant'),
+                'parking' => $s('service_parking'),
+                'business' => $s('service_business'),
+                'swimming_pool' => $s('service_swimming_pool'),
+                'gym' => $s('service_gym'),
+            ],
         ]);
     });
 

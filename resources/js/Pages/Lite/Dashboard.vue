@@ -25,7 +25,7 @@
                         Guest Display
                     </h1>
                     <p class="mt-1.5 text-sm max-w-xl" :style="{ color: themeColors.textSecondary }">
-                        Enter a guest name and send it straight to the room’s TV. The welcome screen updates within seconds.
+                        Enter a guest name and send it straight to the room’s TV — you choose how long it stays before it auto-removes.
                     </p>
                 </div>
 
@@ -82,6 +82,19 @@
                 </div>
 
                 <div class="flex flex-col sm:flex-row gap-2.5 sm:items-center w-full lg:w-auto">
+                    <div class="flex items-center gap-2 px-3 py-1.5 rounded-xl border"
+                         :style="{ backgroundColor: themeColors.background, borderColor: themeColors.border }">
+                        <ClockIcon class="h-4 w-4 shrink-0" :style="{ color: themeColors.textTertiary }" />
+                        <label for="ttl-select" class="text-[11px] font-semibold uppercase tracking-wide" :style="{ color: themeColors.textSecondary }">
+                            Auto-remove
+                        </label>
+                        <select id="ttl-select" v-model.number="selectedTtl"
+                                class="bg-transparent text-xs font-bold outline-none cursor-pointer pr-1"
+                                :style="{ color: themeColors.textPrimary }"
+                                title="How long the guest name stays on the TV before it is removed automatically">
+                            <option v-for="opt in ttlOptions" :key="opt.v" :value="opt.v">{{ opt.label }}</option>
+                        </select>
+                    </div>
                     <div class="relative flex-1 sm:min-w-[220px]">
                         <MagnifyingGlassIcon class="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2"
                                              :style="{ color: themeColors.textTertiary }" />
@@ -113,7 +126,9 @@
                      class="rounded-2xl border p-4 flex flex-col gap-3 transition hover:shadow-md"
                      :style="{
                          backgroundColor: themeColors.background,
-                         borderColor: room.guest_name ? 'rgba(34,197,94,0.45)' : themeColors.border,
+                         borderColor: room.guest_name
+                             ? (expiryInfo(room)?.urgent ? 'rgba(245, 158, 11, 0.5)' : 'rgba(34,197,94,0.45)')
+                             : themeColors.border,
                          boxShadow: room.guest_name ? '0 0 0 1px rgba(34,197,94,0.08)' : 'none',
                      }">
                     <div class="flex items-start justify-between gap-2">
@@ -145,11 +160,30 @@
                             <XCircleIcon class="h-3.5 w-3.5" /> Clear
                         </button>
                     </div>
+                    <p v-if="room.guest_name && expiryInfo(room)"
+                       class="-mt-1.5 flex items-center gap-1.5 text-[11px] font-medium"
+                       :class="expiryInfo(room).urgent ? 'text-amber-400' : ''"
+                       :style="expiryInfo(room).urgent ? {} : { color: themeColors.textTertiary }">
+                        <ClockIcon class="h-3.5 w-3.5 shrink-0" />
+                        <template v-if="expiryInfo(room).expired">
+                            Expired — clearing…
+                        </template>
+                        <template v-else>
+                            On TV until {{ expiryInfo(room).at }}
+                            <span class="opacity-70">· in {{ expiryInfo(room).text }}</span>
+                        </template>
+                    </p>
+                    <p v-else-if="room.guest_name"
+                       class="-mt-1.5 flex items-center gap-1.5 text-[11px] font-medium"
+                       :style="{ color: themeColors.textTertiary }">
+                        <ClockIcon class="h-3.5 w-3.5 shrink-0" />
+                        Stays on the TV until you clear it
+                    </p>
                     <div v-else
                          class="rounded-xl px-3 py-2.5 flex items-center gap-2 text-xs font-medium border border-dashed"
                          :style="{ borderColor: themeColors.border, color: themeColors.textTertiary, backgroundColor: themeColors.card }">
                         <SparklesIcon class="h-4 w-4 text-amber-500/80" />
-                        Ready for a guest name — it will appear on the TV welcome screen.
+                        Ready for a guest name — it stays for the selected auto-remove time.
                     </div>
 
                     <!-- Device -->
@@ -331,7 +365,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { router, useForm } from '@inertiajs/vue3'
 import DashboardLayout from '@/Layouts/DashboardLayout.vue'
 import {
@@ -343,6 +377,7 @@ import {
     BuildingOfficeIcon,
     MagnifyingGlassIcon,
     SparklesIcon,
+    ClockIcon,
 } from '@heroicons/vue/24/outline'
 
 const props = defineProps({
@@ -352,6 +387,7 @@ const props = defineProps({
     devices: { type: Array, default: () => [] },
     roomTypes: { type: Array, default: () => [] },
     unassignedRooms: { type: Array, default: () => [] },
+    ttlMinutes: { type: Number, default: 120 },
 })
 
 const themeColors = computed(() => ({
@@ -411,6 +447,58 @@ const filters = [
     { key: 'available', label: 'Available' },
 ]
 
+// ── Guest name auto-remove (expiry) ──────────────────────────────────────
+const ttlOptions = [
+    { v: 15, label: '15 min' },
+    { v: 30, label: '30 min' },
+    { v: 60, label: '1 hour' },
+    { v: 120, label: '2 hours' },
+    { v: 240, label: '4 hours' },
+    { v: 480, label: '8 hours' },
+    { v: 720, label: '12 hours' },
+    { v: 1440, label: '24 hours' },
+    { v: 2880, label: '48 hours' },
+    { v: 10080, label: '7 days' },
+    { v: 0, label: 'Never' },
+]
+
+const selectedTtl = ref(props.ttlMinutes)
+watch(selectedTtl, (val) => {
+    if (val === props.ttlMinutes) return
+    router.post(route('lite.settings.ttl'), { ttl_minutes: val }, {
+        preserveScroll: true,
+        preserveState: true,
+    })
+})
+
+const nowTs = ref(Date.now())
+let clockTimer = null
+onMounted(() => {
+    clockTimer = setInterval(() => { nowTs.value = Date.now() }, 1000)
+})
+onUnmounted(() => {
+    if (clockTimer) clearInterval(clockTimer)
+})
+
+const expiryInfo = (room) => {
+    if (!room.guest_expires_at) return null
+    const target = new Date(room.guest_expires_at).getTime()
+    const diff = target - nowTs.value
+    const at = new Date(target).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    if (!isFinite(diff)) return null
+    if (diff <= 0) return { expired: true, urgent: true, at, text: 'now' }
+    const totalSec = Math.floor(diff / 1000)
+    const d = Math.floor(totalSec / 86400)
+    const h = Math.floor((totalSec % 86400) / 3600)
+    const m = Math.floor((totalSec % 3600) / 60)
+    const s = totalSec % 60
+    const text = d > 0 ? `${d}d ${h}h`
+        : h > 0 ? `${h}h ${m}m`
+        : m > 0 ? `${m}m ${s}s`
+        : `${s}s`
+    return { expired: false, urgent: diff < 10 * 60 * 1000, at, text }
+}
+
 const filteredRooms = computed(() => {
     const q = search.value.trim().toLowerCase()
     return props.rooms.filter((room) => {
@@ -445,6 +533,7 @@ const setGuest = (room) => {
     router.post(route('lite.guests.store'), {
         room_id: room.id,
         first_name: name,
+        ttl_minutes: selectedTtl.value,
     }, {
         preserveScroll: true,
         onFinish: () => { processingRoom.value = null; guestNames.value[room.id] = '' },

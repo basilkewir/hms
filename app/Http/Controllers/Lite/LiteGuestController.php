@@ -8,6 +8,7 @@ use App\Models\IptvDevice;
 use App\Models\Reservation;
 use App\Models\Room;
 use App\Models\RoomType;
+use App\Models\Setting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -31,6 +32,9 @@ class LiteGuestController extends Controller
     {
         $role = auth()->user()->roles->first()?->name ?? 'admin';
 
+        // Auto-remove any guest names whose display expiry has passed
+        $this->expireOverdueGuestDisplays();
+
         $rooms = Room::with(['roomType', 'currentReservation.guest', 'iptvDevices'])
             ->orderBy('room_number')
             ->get()
@@ -43,6 +47,7 @@ class LiteGuestController extends Controller
                     'guest_name'         => $this->guestDisplayName($res),
                     'guest_id'           => $res?->guest_id,
                     'reservation_id'     => $res?->id,
+                    'guest_expires_at'   => $res?->guest_display_expires_at?->toIso8601String(),
                     'device_id'          => $room->iptvDevices->first()?->device_id,
                     'device_name'        => $room->iptvDevices->first()?->device_name,
                     'device_id_field'    => $room->iptvDevices->first()?->id,
@@ -71,6 +76,7 @@ class LiteGuestController extends Controller
             'devices'        => $devices->values(),
             'roomTypes'      => RoomType::orderBy('name')->get(['id', 'name', 'code']),
             'unassignedRooms' => Room::orderBy('room_number')->get(['id', 'room_number'])->values(),
+            'ttlMinutes'     => (int) Setting::get('guest_display_ttl_minutes', 120),
         ]);
     }
 
@@ -84,9 +90,10 @@ class LiteGuestController extends Controller
     public function storeGuest(Request $request)
     {
         $data = $request->validate([
-            'room_id'    => 'required|exists:rooms,id',
-            'first_name' => 'required|string|max:255',
-            'last_name'  => 'nullable|string|max:255',
+            'room_id'     => 'required|exists:rooms,id',
+            'first_name'  => 'required|string|max:255',
+            'last_name'   => 'nullable|string|max:255',
+            'ttl_minutes' => 'nullable|integer|min:0|max:10080',
         ]);
 
         $room     = Room::findOrFail($data['room_id']);
@@ -94,6 +101,11 @@ class LiteGuestController extends Controller
         $parts    = preg_split('/\s+/', $fullName) ?: [];
         $firstName = array_shift($parts) ?? '';
         $lastName  = implode(' ', $parts);
+
+        // Display expiry: minutes from now (0 = keep until manually cleared)
+        $ttlMinutes = isset($data['ttl_minutes']) ? (int) $data['ttl_minutes']
+            : (int) Setting::get('guest_display_ttl_minutes', 120);
+        $expiresAt = $ttlMinutes > 0 ? now()->addMinutes($ttlMinutes) : null;
 
         // Check out any existing checked-in reservation on this room
         $this->checkoutRoom($room);
@@ -130,6 +142,7 @@ class LiteGuestController extends Controller
             'paid_amount'          => 0,
             'balance_amount'       => 0,
             'actual_check_in'      => now(),
+            'guest_display_expires_at' => $expiresAt,
             'booking_source'       => 'walk_in',
             'created_by'           => auth()->id(),
             'updated_by'           => auth()->id(),
@@ -141,8 +154,36 @@ class LiteGuestController extends Controller
         // Notify the device so the TV refreshes the welcome screen promptly
         $this->refreshRoomDevices($room);
 
-        return redirect()->route('lite.dashboard')
-            ->with('success', 'Guest name added to room ' . $room->room_number . ' — it will show on the TV.');
+        $message = $expiresAt
+            ? 'Guest name added to room ' . $room->room_number . ' — shows on the TV until ' . $expiresAt->format('H:i') . '.'
+            : 'Guest name added to room ' . $room->room_number . ' — it will show on the TV until cleared.';
+
+        return redirect()->route('lite.dashboard')->with('success', $message);
+    }
+
+    /**
+     * Persist the default guest-name display duration (minutes; 0 = never expire).
+     */
+    public function updateTtl(Request $request)
+    {
+        $data = $request->validate([
+            'ttl_minutes' => 'required|integer|min:0|max:10080',
+        ]);
+
+        Setting::set(
+            'guest_display_ttl_minutes',
+            (int) $data['ttl_minutes'],
+            'integer',
+            'iptv',
+            'Guest display name auto-remove delay in minutes (0 = never)'
+        );
+
+        $minutes = (int) $data['ttl_minutes'];
+        $message = $minutes > 0
+            ? 'Guest names will now auto-remove after ' . $this->formatMinutes($minutes) . '.'
+            : 'Guest names will stay on the TV until manually cleared.';
+
+        return redirect()->route('lite.dashboard')->with('success', $message);
     }
 
     /**
@@ -229,6 +270,58 @@ class LiteGuestController extends Controller
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────
+
+    /**
+     * Check out every lite reservation whose guest-name display expiry has
+     * passed and push a refresh to the room's TVs. Returns how many expired.
+     */
+    private function expireOverdueGuestDisplays(): int
+    {
+        $expired = Reservation::where('status', 'checked_in')
+            ->whereNotNull('guest_display_expires_at')
+            ->where('guest_display_expires_at', '<', now())
+            ->get();
+
+        foreach ($expired as $reservation) {
+            $reservation->update([
+                'status'           => 'checked_out',
+                'actual_check_out' => now(),
+            ]);
+
+            $room = $reservation->room_id ? Room::find($reservation->room_id) : null;
+            if (!$room) {
+                continue;
+            }
+
+            $stillCheckedIn = Reservation::where('room_id', $room->id)
+                ->where('status', 'checked_in')
+                ->exists();
+            if (!$stillCheckedIn && $room->status === 'occupied') {
+                $room->update(['status' => 'available']);
+            }
+
+            $this->refreshRoomDevices($room);
+        }
+
+        return $expired->count();
+    }
+
+    private function formatMinutes(int $minutes): string
+    {
+        if ($minutes % 10080 === 0) {
+            $days = intdiv($minutes, 10080);
+            return $days . ($days === 1 ? ' day' : ' days');
+        }
+        if ($minutes % 1440 === 0 && $minutes >= 1440) {
+            $hours = intdiv($minutes, 1440);
+            return $hours . ($hours === 1 ? ' day' : ' days');
+        }
+        if ($minutes % 60 === 0 && $minutes >= 60) {
+            $hours = intdiv($minutes, 60);
+            return $hours . ($hours === 1 ? ' hour' : ' hours');
+        }
+        return $minutes . ($minutes === 1 ? ' minute' : ' minutes');
+    }
 
     private function guestDisplayName(?Reservation $res): ?string
     {

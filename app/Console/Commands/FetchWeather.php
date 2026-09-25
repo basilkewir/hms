@@ -50,11 +50,18 @@ class FetchWeather extends Command
             return self::FAILURE;
         }
 
-        // Prefer a configured OpenWeatherMap key; otherwise fall back to the
-        // free Open-Meteo API (no key required) so the widget works out of the box.
-        $weather = !empty($apiKey)
-            ? $this->fetchFromOpenWeatherMap($city, $apiKey, $units)
-            : $this->fetchFromOpenMeteo($city, $units);
+        // Prefer OpenWeatherMap when a key is configured; always fall back to
+        // free Open-Meteo if OWM fails (DNS/HTTP) so weather never goes stale.
+        $weather = null;
+        if (!empty($apiKey)) {
+            $weather = $this->fetchFromOpenWeatherMap($city, $apiKey, $units);
+            if (!$weather) {
+                $this->warn('OpenWeatherMap unavailable — falling back to Open-Meteo.');
+            }
+        }
+        if (!$weather) {
+            $weather = $this->fetchFromOpenMeteo($city, $units);
+        }
 
         if (!$weather) {
             return self::FAILURE;

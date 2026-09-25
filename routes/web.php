@@ -4051,6 +4051,14 @@ Route::middleware(['auth', 'role:admin|manager'])->prefix('admin')->name('admin.
             'pos_print_paper_width', 'pos_print_font_size', 'pos_print_show_logo',
             'frontdesk_print_paper_width', 'frontdesk_print_font_size', 'frontdesk_print_show_logo',
             'backup_frequency', 'backup_retention_days',
+            'hotel_star_rating', 'hotel_website', 'hotel_facebook', 'hotel_instagram',
+            'hotel_twitter', 'hotel_fax', 'hotel_toll_free',
+            'hotel_check_in_time', 'hotel_check_out_time',
+            'service_front_desk', 'service_room_service', 'service_housekeeping',
+            'service_concierge', 'service_laundry', 'service_maintenance',
+            'service_wakeup', 'service_emergency', 'service_spa',
+            'service_restaurant', 'service_parking', 'service_business',
+            'service_swimming_pool', 'service_gym',
         ];
         $generalSettings = \App\Models\Setting::whereIn('key', $generalKeys)
             ->pluck('value', 'key')->toArray();
@@ -5823,6 +5831,7 @@ Route::middleware(['auth', 'role:admin|front_desk'])->prefix('lite')->name('lite
     Route::get('/dashboard', [\App\Http\Controllers\Lite\LiteGuestController::class, 'dashboard'])->name('dashboard');
     Route::post('/guests', [\App\Http\Controllers\Lite\LiteGuestController::class, 'storeGuest'])->name('guests.store');
     Route::post('/guests/checkout', [\App\Http\Controllers\Lite\LiteGuestController::class, 'checkout'])->name('guests.checkout');
+    Route::post('/ttl', [\App\Http\Controllers\Lite\LiteGuestController::class, 'updateTtl'])->name('settings.ttl');
     Route::post('/rooms', [\App\Http\Controllers\Lite\LiteGuestController::class, 'storeRoom'])->name('rooms.store');
     Route::post('/devices/{device}/room', [\App\Http\Controllers\Lite\LiteGuestController::class, 'setDeviceRoom'])->name('devices.room');
 });

@@ -497,6 +497,172 @@
                                 </p>
                             </div>
                         </div>
+
+                    <!-- Hotel Details Section -->
+                    <div class="mt-8 pt-6 border-t border-kotel-border">
+                        <h3 class="text-lg font-semibold text-kotel-text-primary mb-4">Hotel Details</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div>
+                                <label class="block text-sm font-medium text-kotel-text-secondary mb-2">Star Rating</label>
+                                <select v-model="settings.hotel_star_rating"
+                                        class="w-full border border-kotel-border rounded-md px-3 py-2 bg-kotel-black text-kotel-text-primary focus:outline-none focus:ring-2 focus:ring-kotel-yellow">
+                                    <option value="">Not rated</option>
+                                    <option value="1">★ 1 Star</option>
+                                    <option value="2">★★ 2 Stars</option>
+                                    <option value="3">★★★ 3 Stars</option>
+                                    <option value="4">★★★★ 4 Stars</option>
+                                    <option value="5">★★★★★ 5 Stars</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-kotel-text-secondary mb-2">Check-in Time</label>
+                                <input type="text" v-model="settings.hotel_check_in_time" placeholder="14:00"
+                                       class="w-full border border-kotel-border rounded-md px-3 py-2 bg-kotel-black text-kotel-text-primary focus:outline-none focus:ring-2 focus:ring-kotel-yellow">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-kotel-text-secondary mb-2">Check-out Time</label>
+                                <input type="text" v-model="settings.hotel_check_out_time" placeholder="11:00"
+                                       class="w-full border border-kotel-border rounded-md px-3 py-2 bg-kotel-black text-kotel-text-primary focus:outline-none focus:ring-2 focus:ring-kotel-yellow">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-kotel-text-secondary mb-2">Website</label>
+                                <input type="url" v-model="settings.hotel_website" placeholder="https://hotel.com"
+                                       class="w-full border border-kotel-border rounded-md px-3 py-2 bg-kotel-black text-kotel-text-primary focus:outline-none focus:ring-2 focus:ring-kotel-yellow">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-kotel-text-secondary mb-2">Fax Number</label>
+                                <input type="text" v-model="settings.hotel_fax" placeholder="+1 (555) 000-0000"
+                                       class="w-full border border-kotel-border rounded-md px-3 py-2 bg-kotel-black text-kotel-text-primary focus:outline-none focus:ring-2 focus:ring-kotel-yellow">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-kotel-text-secondary mb-2">Toll-Free Number</label>
+                                <input type="text" v-model="settings.hotel_toll_free" placeholder="+1 (800) 000-0000"
+                                       class="w-full border border-kotel-border rounded-md px-3 py-2 bg-kotel-black text-kotel-text-primary focus:outline-none focus:ring-2 focus:ring-kotel-yellow">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-kotel-text-secondary mb-2">Facebook URL</label>
+                                <input type="url" v-model="settings.hotel_facebook" placeholder="https://facebook.com/..."
+                                       class="w-full border border-kotel-border rounded-md px-3 py-2 bg-kotel-black text-kotel-text-primary focus:outline-none focus:ring-2 focus:ring-kotel-yellow">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-kotel-text-secondary mb-2">Instagram URL</label>
+                                <input type="url" v-model="settings.hotel_instagram" placeholder="https://instagram.com/..."
+                                       class="w-full border border-kotel-border rounded-md px-3 py-2 bg-kotel-black text-kotel-text-primary focus:outline-none focus:ring-2 focus:ring-kotel-yellow">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-kotel-text-secondary mb-2">Twitter / X URL</label>
+                                <input type="url" v-model="settings.hotel_twitter" placeholder="https://x.com/..."
+                                       class="w-full border border-kotel-border rounded-md px-3 py-2 bg-kotel-black text-kotel-text-primary focus:outline-none focus:ring-2 focus:ring-kotel-yellow">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- TV Background Image Section -->
+                    <div class="mt-8 pt-6 border-t border-kotel-border">
+                        <h3 class="text-lg font-semibold text-kotel-text-primary mb-4">TV Welcome Background</h3>
+                        <p class="text-sm text-kotel-text-tertiary mb-4">Background image shown on the TV welcome screen.</p>
+                        <div class="flex items-start gap-6">
+                            <div v-if="settings.welcome_background_url" class="flex-shrink-0">
+                                <img :src="settings.welcome_background_url" alt="Background"
+                                     class="w-64 h-36 object-cover rounded-lg border border-kotel-border">
+                            </div>
+                            <div>
+                                <input ref="bgInput" type="file" accept="image/jpeg,image/png,image/webp"
+                                       @change="handleBgUpload" class="hidden">
+                                <div class="flex flex-wrap gap-3">
+                                    <button @click="bgInput && bgInput.click()" type="button"
+                                            class="px-4 py-2 bg-kotel-yellow text-kotel-black font-medium rounded-md hover:bg-yellow-400 transition-colors text-sm">
+                                        {{ settings.welcome_background_url ? 'Change Background' : 'Upload Background' }}
+                                    </button>
+                                    <button v-if="settings.welcome_background_url" @click="removeBackground" type="button"
+                                            class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-md transition-colors text-sm">
+                                        Remove
+                                    </button>
+                                </div>
+                                <p class="text-xs text-kotel-text-tertiary mt-2">JPEG, PNG or WEBP. Max 8 MB. Recommended 1920×1080.</p>
+                                <p v-if="bgError" class="text-xs text-red-400">{{ bgError }}</p>
+                                <p v-if="bgSuccess" class="text-xs text-green-400">{{ bgSuccess }}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Service Numbers Section -->
+                    <div class="mt-8 pt-6 border-t border-kotel-border">
+                        <h3 class="text-lg font-semibold text-kotel-text-primary mb-4">Service Phone Numbers</h3>
+                        <p class="text-sm text-kotel-text-tertiary mb-4">Phone numbers displayed on TV and exposed via API for guest devices.</p>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div>
+                                <label class="block text-sm font-medium text-kotel-text-secondary mb-2">Front Desk / Reception</label>
+                                <input type="text" v-model="settings.service_front_desk"
+                                       class="w-full border border-kotel-border rounded-md px-3 py-2 bg-kotel-black text-kotel-text-primary focus:outline-none focus:ring-2 focus:ring-kotel-yellow">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-kotel-text-secondary mb-2">Room Service</label>
+                                <input type="text" v-model="settings.service_room_service"
+                                       class="w-full border border-kotel-border rounded-md px-3 py-2 bg-kotel-black text-kotel-text-primary focus:outline-none focus:ring-2 focus:ring-kotel-yellow">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-kotel-text-secondary mb-2">Housekeeping</label>
+                                <input type="text" v-model="settings.service_housekeeping"
+                                       class="w-full border border-kotel-border rounded-md px-3 py-2 bg-kotel-black text-kotel-text-primary focus:outline-none focus:ring-2 focus:ring-kotel-yellow">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-kotel-text-secondary mb-2">Concierge</label>
+                                <input type="text" v-model="settings.service_concierge"
+                                       class="w-full border border-kotel-border rounded-md px-3 py-2 bg-kotel-black text-kotel-text-primary focus:outline-none focus:ring-2 focus:ring-kotel-yellow">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-kotel-text-secondary mb-2">Laundry</label>
+                                <input type="text" v-model="settings.service_laundry"
+                                       class="w-full border border-kotel-border rounded-md px-3 py-2 bg-kotel-black text-kotel-text-primary focus:outline-none focus:ring-2 focus:ring-kotel-yellow">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-kotel-text-secondary mb-2">Maintenance</label>
+                                <input type="text" v-model="settings.service_maintenance"
+                                       class="w-full border border-kotel-border rounded-md px-3 py-2 bg-kotel-black text-kotel-text-primary focus:outline-none focus:ring-2 focus:ring-kotel-yellow">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-kotel-text-secondary mb-2">Wake-up Call</label>
+                                <input type="text" v-model="settings.service_wakeup"
+                                       class="w-full border border-kotel-border rounded-md px-3 py-2 bg-kotel-black text-kotel-text-primary focus:outline-none focus:ring-2 focus:ring-kotel-yellow">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-kotel-text-secondary mb-2">Emergency</label>
+                                <input type="text" v-model="settings.service_emergency"
+                                       class="w-full border border-kotel-border rounded-md px-3 py-2 bg-kotel-black text-kotel-text-primary focus:outline-none focus:ring-2 focus:ring-kotel-yellow">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-kotel-text-secondary mb-2">Spa & Wellness</label>
+                                <input type="text" v-model="settings.service_spa"
+                                       class="w-full border border-kotel-border rounded-md px-3 py-2 bg-kotel-black text-kotel-text-primary focus:outline-none focus:ring-2 focus:ring-kotel-yellow">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-kotel-text-secondary mb-2">Restaurant</label>
+                                <input type="text" v-model="settings.service_restaurant"
+                                       class="w-full border border-kotel-border rounded-md px-3 py-2 bg-kotel-black text-kotel-text-primary focus:outline-none focus:ring-2 focus:ring-kotel-yellow">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-kotel-text-secondary mb-2">Parking / Valet</label>
+                                <input type="text" v-model="settings.service_parking"
+                                       class="w-full border border-kotel-border rounded-md px-3 py-2 bg-kotel-black text-kotel-text-primary focus:outline-none focus:ring-2 focus:ring-kotel-yellow">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-kotel-text-secondary mb-2">Business Center</label>
+                                <input type="text" v-model="settings.service_business"
+                                       class="w-full border border-kotel-border rounded-md px-3 py-2 bg-kotel-black text-kotel-text-primary focus:outline-none focus:ring-2 focus:ring-kotel-yellow">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-kotel-text-secondary mb-2">Swimming Pool</label>
+                                <input type="text" v-model="settings.service_swimming_pool"
+                                       class="w-full border border-kotel-border rounded-md px-3 py-2 bg-kotel-black text-kotel-text-primary focus:outline-none focus:ring-2 focus:ring-kotel-yellow">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-kotel-text-secondary mb-2">Gym / Fitness</label>
+                                <input type="text" v-model="settings.service_gym"
+                                       class="w-full border border-kotel-border rounded-md px-3 py-2 bg-kotel-black text-kotel-text-primary focus:outline-none focus:ring-2 focus:ring-kotel-yellow">
+                            </div>
+                        </div>
+                    </div>
                     </div>
                 </div>
 
@@ -1356,6 +1522,54 @@ const activeTab = ref('general')
 
 // Logo upload functionality
 const logoInput = ref(null)
+
+const bgInput = ref(null)
+const bgError = ref('')
+const bgSuccess = ref('')
+
+const handleBgUpload = async (event) => {
+    const file = event.target.files[0]
+    if (!file) return
+    bgError.value = ''
+    bgSuccess.value = ''
+    const formData = new FormData()
+    formData.append('background', file)
+    try {
+        const response = await fetch('/admin/settings/background', {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content') },
+            body: formData
+        })
+        const result = await response.json()
+        if (result.success) {
+            settings.value.welcome_background_url = result.background_url
+            bgSuccess.value = 'Background uploaded successfully!'
+        } else {
+            bgError.value = result.message || 'Upload failed'
+        }
+    } catch (e) {
+        bgError.value = 'Upload failed: ' + e.message
+    }
+    event.target.value = ''
+}
+
+const removeBackground = async () => {
+    bgError.value = ''
+    bgSuccess.value = ''
+    try {
+        const response = await fetch('/admin/settings/background', {
+            method: 'DELETE',
+            headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content') }
+        })
+        const result = await response.json()
+        if (result.success) {
+            settings.value.welcome_background_url = ''
+            bgSuccess.value = 'Background removed.'
+        }
+    } catch (e) {
+        bgError.value = 'Remove failed: ' + e.message
+    }
+}
 const logoPreview = ref(null)
 const uploadedLogo = ref(null)
 const isLogoSaving = ref(false)
@@ -1590,6 +1804,29 @@ const settings = ref({
     hotel_phone: props.settings?.general?.hotel_phone || '+1 (555) 123-4567',
     hotel_email: props.settings?.general?.hotel_email || 'info@grandhotel.com',
     hotel_website: props.settings?.general?.hotel_website || '',
+    hotel_star_rating: props.settings?.general?.hotel_star_rating || '',
+    hotel_fax: props.settings?.general?.hotel_fax || '',
+    hotel_toll_free: props.settings?.general?.hotel_toll_free || '',
+    hotel_facebook: props.settings?.general?.hotel_facebook || '',
+    hotel_instagram: props.settings?.general?.hotel_instagram || '',
+    hotel_twitter: props.settings?.general?.hotel_twitter || '',
+    hotel_check_in_time: props.settings?.general?.hotel_check_in_time || '14:00',
+    hotel_check_out_time: props.settings?.general?.hotel_check_out_time || '11:00',
+    welcome_background_url: props.settings?.iptv?.welcome_background_url || '',
+    service_front_desk: props.settings?.general?.service_front_desk || '',
+    service_room_service: props.settings?.general?.service_room_service || '',
+    service_housekeeping: props.settings?.general?.service_housekeeping || '',
+    service_concierge: props.settings?.general?.service_concierge || '',
+    service_laundry: props.settings?.general?.service_laundry || '',
+    service_maintenance: props.settings?.general?.service_maintenance || '',
+    service_wakeup: props.settings?.general?.service_wakeup || '',
+    service_emergency: props.settings?.general?.service_emergency || '',
+    service_spa: props.settings?.general?.service_spa || '',
+    service_restaurant: props.settings?.general?.service_restaurant || '',
+    service_parking: props.settings?.general?.service_parking || '',
+    service_business: props.settings?.general?.service_business || '',
+    service_swimming_pool: props.settings?.general?.service_swimming_pool || '',
+    service_gym: props.settings?.general?.service_gym || '',
     timezone: props.settings?.general?.timezone || 'America/New_York',
     currency: props.settings?.general?.currency || 'USD',
     currency_position: props.settings?.general?.currency_position || 'prefix',
@@ -1911,6 +2148,28 @@ const saveSettings = async () => {
             settingsToSave.auto_apply_vip_discount = settings.value.auto_apply_vip_discount
             settingsToSave.vip_discount_percentage = settings.value.vip_discount_percentage
             settingsToSave.discount_combination_mode = settings.value.discount_combination_mode
+            settingsToSave.hotel_star_rating = settings.value.hotel_star_rating
+            settingsToSave.hotel_fax = settings.value.hotel_fax
+            settingsToSave.hotel_toll_free = settings.value.hotel_toll_free
+            settingsToSave.hotel_facebook = settings.value.hotel_facebook
+            settingsToSave.hotel_instagram = settings.value.hotel_instagram
+            settingsToSave.hotel_twitter = settings.value.hotel_twitter
+            settingsToSave.hotel_check_in_time = settings.value.hotel_check_in_time
+            settingsToSave.hotel_check_out_time = settings.value.hotel_check_out_time
+            settingsToSave.service_front_desk = settings.value.service_front_desk
+            settingsToSave.service_room_service = settings.value.service_room_service
+            settingsToSave.service_housekeeping = settings.value.service_housekeeping
+            settingsToSave.service_concierge = settings.value.service_concierge
+            settingsToSave.service_laundry = settings.value.service_laundry
+            settingsToSave.service_maintenance = settings.value.service_maintenance
+            settingsToSave.service_wakeup = settings.value.service_wakeup
+            settingsToSave.service_emergency = settings.value.service_emergency
+            settingsToSave.service_spa = settings.value.service_spa
+            settingsToSave.service_restaurant = settings.value.service_restaurant
+            settingsToSave.service_parking = settings.value.service_parking
+            settingsToSave.service_business = settings.value.service_business
+            settingsToSave.service_swimming_pool = settings.value.service_swimming_pool
+            settingsToSave.service_gym = settings.value.service_gym
         } else if (activeTab.value === 'print') {
             // Print settings
             settingsToSave.pos_print_paper_width = settings.value.pos_print_paper_width

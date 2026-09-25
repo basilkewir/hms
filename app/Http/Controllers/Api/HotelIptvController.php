@@ -72,6 +72,13 @@ class HotelIptvController extends Controller
                 ->with('guest')
                 ->first();
 
+            // Hide the name once its guest-display expiry has passed
+            if ($currentReservation
+                && $currentReservation->guest_display_expires_at !== null
+                && $currentReservation->guest_display_expires_at->isPast()) {
+                $currentReservation = null;
+            }
+
             $guestInfo = null;
             if ($currentReservation && $currentReservation->guest) {
                 $guest = $currentReservation->guest;

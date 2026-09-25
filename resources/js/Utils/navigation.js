@@ -40,7 +40,7 @@ export const getNavigationForRole = (role, userPermissions = []) => {
                 children: [
                     { name: 'Devices', href: '/admin/iptv/devices', icon: 'TvIcon' },
                     { name: 'Weather', href: '/admin/iptv/weather', icon: 'CloudIcon' },
-                    { name: 'Welcome Message', href: '/admin/settings', icon: 'ChatBubbleLeftIcon' },
+                    { name: 'Settings', href: '/admin/settings', icon: 'CogIcon' },
                 ],
             },
         ];

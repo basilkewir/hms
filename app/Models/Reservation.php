@@ -66,6 +66,7 @@ class Reservation extends Model
         'children',
         'police_report_status',
         'police_reported_at',
+        'guest_display_expires_at',
     ];
 
     protected $casts = [
@@ -79,6 +80,7 @@ class Reservation extends Model
         'room_preferences' => 'array',
         'iptv_preferences' => 'array',
         'police_reported_at' => 'datetime',
+        'guest_display_expires_at' => 'datetime',
         'early_check_in_requested' => 'boolean',
         'late_check_out_requested' => 'boolean',
         'iptv_adult_content' => 'boolean',

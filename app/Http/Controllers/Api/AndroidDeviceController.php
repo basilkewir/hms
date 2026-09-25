@@ -46,6 +46,7 @@ class AndroidDeviceController extends Controller
             'device_type'     => 'nullable|string|max:32',
             'android_version' => 'nullable|string|max:16',
             'app_version'     => 'nullable|string|max:16',
+            'room_number'     => 'nullable|string|max:32',
         ]);
 
         try {
@@ -74,6 +75,41 @@ class AndroidDeviceController extends Controller
                 'last_seen'       => now(),
                 'last_heartbeat'  => now(),
             ]);
+
+            // ── Link device to room by room_number ────────────────────────
+            $roomNumber = trim((string) $request->input('room_number', ''));
+            if ($roomNumber !== '') {
+                $autoProvision = (bool) \App\Models\Setting::get('auto_provision_rooms', '1');
+
+                $room = Room::where('room_number', $roomNumber)->first();
+
+                if (!$room && $autoProvision) {
+                    $roomTypeId = \App\Models\RoomType::orderBy('id')->value('id');
+                    $room = Room::create([
+                        'room_number'   => $roomNumber,
+                        'room_type_id'  => $roomTypeId,
+                        'status'        => 'available',
+                        'iptv_active'   => true,
+                        'is_active'     => true,
+                    ]);
+                }
+
+                if ($room) {
+                    // If another device is already linked to this room, detach it
+                    IptvDevice::where('room_id', $room->id)
+                        ->where('id', '!=', $device->id)
+                        ->update(['room_id' => null]);
+
+                    $device->update(['room_id' => $room->id]);
+                    $room->update([
+                        'iptv_device_id'  => $device->device_id,
+                        'iptv_mac_address' => $request->mac_address ?? $room->iptv_mac_address,
+                        'iptv_ip_address'  => $request->ip(),
+                        'iptv_last_seen'   => now(),
+                        'iptv_active'      => true,
+                    ]);
+                }
+            }
 
             // Generate a fresh registration token
             $token = $device->generateRegistrationToken();
@@ -258,22 +294,55 @@ class AndroidDeviceController extends Controller
         $settings = $this->getDbSettings([
             'hotel_name', 'hotel_address', 'hotel_phone', 'hotel_email',
             'hotel_logo', 'hotel_check_in_time', 'hotel_check_out_time',
-            'welcome_background_url',
+            'hotel_welcome_message', 'hotel_star_rating', 'hotel_website',
+            'hotel_facebook', 'hotel_instagram', 'hotel_twitter',
+            'hotel_fax', 'hotel_toll_free',
+            'welcome_background_url', 'hotel_primary_color',
+            'service_front_desk', 'service_room_service', 'service_housekeeping',
+            'service_concierge', 'service_laundry', 'service_maintenance',
+            'service_wakeup', 'service_emergency', 'service_spa',
+            'service_restaurant', 'service_parking', 'service_business',
+            'service_swimming_pool', 'service_gym',
         ]);
 
         return response()->json([
             'success' => true,
             'data'    => [
-                'name'           => $settings['hotel_name'] ?? config('app.name', 'Hotel'),
-                'address'        => $settings['hotel_address'] ?? '',
-                'phone'          => $settings['hotel_phone'] ?? '',
-                'email'          => $settings['hotel_email'] ?? '',
-                'logo_url'       => $settings['hotel_logo'] ?? '',
-                'check_in_time'  => $settings['hotel_check_in_time'] ?? '14:00',
-                'check_out_time' => $settings['hotel_check_out_time'] ?? '11:00',
-                'background_url' => $settings['welcome_background_url'] ?? '',
-                'server_time'    => now()->toIso8601String(),
-                'timezone'       => config('app.timezone', 'UTC'),
+                'name'              => $settings['hotel_name'] ?? config('app.name', 'Hotel'),
+                'address'           => $settings['hotel_address'] ?? '',
+                'phone'             => $settings['hotel_phone'] ?? '',
+                'email'             => $settings['hotel_email'] ?? '',
+                'logo_url'          => $settings['hotel_logo'] ?? '',
+                'check_in_time'     => $settings['hotel_check_in_time'] ?? '14:00',
+                'check_out_time'    => $settings['hotel_check_out_time'] ?? '11:00',
+                'server_time'       => now()->toIso8601String(),
+                'timezone'          => config('app.timezone', 'UTC'),
+                'welcome_message'   => $settings['hotel_welcome_message'] ?? '',
+                'star_rating'       => $settings['hotel_star_rating'] ?? '',
+                'website'           => $settings['hotel_website'] ?? '',
+                'facebook'          => $settings['hotel_facebook'] ?? '',
+                'instagram'         => $settings['hotel_instagram'] ?? '',
+                'twitter'           => $settings['hotel_twitter'] ?? '',
+                'fax'               => $settings['hotel_fax'] ?? '',
+                'toll_free'         => $settings['hotel_toll_free'] ?? '',
+                'background_url'    => $settings['welcome_background_url'] ?? '',
+                'primary_color'     => $settings['hotel_primary_color'] ?? '#FFD700',
+                'services'          => [
+                    'front_desk'      => $settings['service_front_desk'] ?? '',
+                    'room_service'    => $settings['service_room_service'] ?? '',
+                    'housekeeping'    => $settings['service_housekeeping'] ?? '',
+                    'concierge'       => $settings['service_concierge'] ?? '',
+                    'laundry'         => $settings['service_laundry'] ?? '',
+                    'maintenance'     => $settings['service_maintenance'] ?? '',
+                    'wakeup'          => $settings['service_wakeup'] ?? '',
+                    'emergency'       => $settings['service_emergency'] ?? '',
+                    'spa'             => $settings['service_spa'] ?? '',
+                    'restaurant'      => $settings['service_restaurant'] ?? '',
+                    'parking'         => $settings['service_parking'] ?? '',
+                    'business'        => $settings['service_business'] ?? '',
+                    'swimming_pool'   => $settings['service_swimming_pool'] ?? '',
+                    'gym'             => $settings['service_gym'] ?? '',
+                ],
             ],
         ]);
     }
@@ -332,10 +401,26 @@ class AndroidDeviceController extends Controller
 
     private function findDevice(string $deviceId, string $token): ?IptvDevice
     {
-        return IptvDevice::where('device_id', $deviceId)
-                         ->where('registration_token', $token)
-                         ->where('is_active', true)
-                         ->first();
+        $device = IptvDevice::where('device_id', $deviceId)
+                             ->where('registration_token', $token)
+                             ->where('is_active', true)
+                             ->first();
+
+        if ($device) {
+            return $device;
+        }
+
+        // Token is stale — find by device_id alone and auto-update the token
+        $device = IptvDevice::where('device_id', $deviceId)
+                             ->where('is_active', true)
+                             ->first();
+
+        if ($device) {
+            $device->update(['registration_token' => $token, 'last_seen' => now()]);
+            Log::info('findDevice: auto-refreshed stale token for device ' . $deviceId);
+        }
+
+        return $device;
     }
 
     private function buildSettingsPayload(IptvDevice $device): array

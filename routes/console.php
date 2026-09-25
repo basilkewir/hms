@@ -326,6 +326,42 @@ Artisan::command('housekeeping:generate-daily-tasks {--dry-run : Show what would
 
 })->purpose('Mark all currently occupied and checkout rooms dirty and create cleaning tasks for the day');
 
+// Auto-remove guest names from room TVs once their display expiry passes
+Artisan::command('lite:expire-guests', function () {
+    $expired = \App\Models\Reservation::where('status', 'checked_in')
+        ->whereNotNull('guest_display_expires_at')
+        ->where('guest_display_expires_at', '<', now())
+        ->get();
+
+    foreach ($expired as $reservation) {
+        $reservation->update([
+            'status'           => 'checked_out',
+            'actual_check_out' => now(),
+        ]);
+
+        $room = $reservation->room_id ? \App\Models\Room::find($reservation->room_id) : null;
+        if (!$room) {
+            continue;
+        }
+
+        $stillCheckedIn = \App\Models\Reservation::where('room_id', $room->id)
+            ->where('status', 'checked_in')
+            ->exists();
+        if (!$stillCheckedIn && $room->status === 'occupied') {
+            $room->update(['status' => 'available']);
+        }
+
+        $room->iptvDevices()->where('is_active', true)->each(function ($device) {
+            $device->update(['settings_version' => ($device->settings_version ?? 0) + 1]);
+            $device->dispatchCommand('reload_app', ['reason' => 'guest-name-expired']);
+        });
+
+        $this->line('Expired guest name on room ' . $room->room_number);
+    }
+
+    $this->info("Expired {$expired->count()} guest display name(s)");
+})->purpose('Auto-remove guest names from room TVs once their display expiry passes');
+
 // Schedule the commands
 if (app()->runningInConsole()) {
     app()->booted(function () {
@@ -378,6 +414,13 @@ if (app()->runningInConsole()) {
                 ->everyFifteenMinutes()
                 ->description('Cache current weather for IPTV player welcome screens')
                 ->withoutOverlapping()
-                ->runInBackground();
+                ->runInBackground()
+                ->appendOutputTo(storage_path('logs/weather-scheduler.log'));
+
+        // Auto-remove expired guest names from in-room TV welcome screens
+        $schedule->command('lite:expire-guests')
+                ->everyMinute()
+                ->description('Expire guest display names on room TVs')
+                ->withoutOverlapping();
     });
 }
