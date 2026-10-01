@@ -5831,7 +5831,7 @@ Route::middleware(['auth', 'role:admin|front_desk'])->prefix('lite')->name('lite
     Route::get('/dashboard', [\App\Http\Controllers\Lite\LiteGuestController::class, 'dashboard'])->name('dashboard');
     Route::post('/guests', [\App\Http\Controllers\Lite\LiteGuestController::class, 'storeGuest'])->name('guests.store');
     Route::post('/guests/checkout', [\App\Http\Controllers\Lite\LiteGuestController::class, 'checkout'])->name('guests.checkout');
-    Route::post('/ttl', [\App\Http\Controllers\Lite\LiteGuestController::class, 'updateTtl'])->name('settings.ttl');
+    Route::post('/stay-days', [\App\Http\Controllers\Lite\LiteGuestController::class, 'updateStayDays'])->name('settings.stay-days');
     Route::post('/rooms', [\App\Http\Controllers\Lite\LiteGuestController::class, 'storeRoom'])->name('rooms.store');
     Route::post('/devices/{device}/room', [\App\Http\Controllers\Lite\LiteGuestController::class, 'setDeviceRoom'])->name('devices.room');
 });

@@ -76,7 +76,7 @@ class LiteGuestController extends Controller
             'devices'        => $devices->values(),
             'roomTypes'      => RoomType::orderBy('name')->get(['id', 'name', 'code']),
             'unassignedRooms' => Room::orderBy('room_number')->get(['id', 'room_number'])->values(),
-            'ttlMinutes'     => (int) Setting::get('guest_display_ttl_minutes', 120),
+            'stayDays'       => max(1, (int) Setting::get('guest_display_stay_days', 1)),
         ]);
     }
 
@@ -90,10 +90,10 @@ class LiteGuestController extends Controller
     public function storeGuest(Request $request)
     {
         $data = $request->validate([
-            'room_id'     => 'required|exists:rooms,id',
-            'first_name'  => 'required|string|max:255',
-            'last_name'   => 'nullable|string|max:255',
-            'ttl_minutes' => 'nullable|integer|min:0|max:10080',
+            'room_id'    => 'required|exists:rooms,id',
+            'first_name' => 'required|string|max:255',
+            'last_name'  => 'nullable|string|max:255',
+            'stay_days'  => 'nullable|integer|min:1|max:365',
         ]);
 
         $room     = Room::findOrFail($data['room_id']);
@@ -102,10 +102,12 @@ class LiteGuestController extends Controller
         $firstName = array_shift($parts) ?? '';
         $lastName  = implode(' ', $parts);
 
-        // Display expiry: minutes from now (0 = keep until manually cleared)
-        $ttlMinutes = isset($data['ttl_minutes']) ? (int) $data['ttl_minutes']
-            : (int) Setting::get('guest_display_ttl_minutes', 120);
-        $expiresAt = $ttlMinutes > 0 ? now()->addMinutes($ttlMinutes) : null;
+        // Display expiry: the name stays for as many days as the guest will
+        // occupy the room (room management is not used in the lite flow, so
+        // the operator enters the length of stay directly).
+        $stayDays = isset($data['stay_days']) ? (int) $data['stay_days']
+            : max(1, (int) Setting::get('guest_display_stay_days', 1));
+        $expiresAt = now()->addDays($stayDays);
 
         // Check out any existing checked-in reservation on this room
         $this->checkoutRoom($room);
@@ -127,8 +129,8 @@ class LiteGuestController extends Controller
             'room_id'              => $room->id,
             'room_type_id'         => $roomTypeId,
             'check_in_date'        => now()->toDateString(),
-            'check_out_date'       => now()->addDays(1)->toDateString(),
-            'nights'               => 1,
+            'check_out_date'       => now()->addDays($stayDays)->toDateString(),
+            'nights'               => $stayDays,
             'adults'               => 1,
             'children'             => 0,
             'infants'              => 0,
@@ -154,34 +156,33 @@ class LiteGuestController extends Controller
         // Notify the device so the TV refreshes the welcome screen promptly
         $this->refreshRoomDevices($room);
 
-        $message = $expiresAt
-            ? 'Guest name added to room ' . $room->room_number . ' — shows on the TV until ' . $expiresAt->format('H:i') . '.'
-            : 'Guest name added to room ' . $room->room_number . ' — it will show on the TV until cleared.';
+        $message = 'Guest name added to room ' . $room->room_number
+            . ' — on the TV for ' . $this->formatDays($stayDays)
+            . ', until ' . $expiresAt->format('D j M, H:i') . '.';
 
         return redirect()->route('lite.dashboard')->with('success', $message);
     }
 
     /**
-     * Persist the default guest-name display duration (minutes; 0 = never expire).
+     * Persist the default guest-name display length in days (used when the
+     * operator does not pick a per-room stay length).
      */
-    public function updateTtl(Request $request)
+    public function updateStayDays(Request $request)
     {
         $data = $request->validate([
-            'ttl_minutes' => 'required|integer|min:0|max:10080',
+            'stay_days' => 'required|integer|min:1|max:365',
         ]);
 
         Setting::set(
-            'guest_display_ttl_minutes',
-            (int) $data['ttl_minutes'],
+            'guest_display_stay_days',
+            (int) $data['stay_days'],
             'integer',
             'iptv',
-            'Guest display name auto-remove delay in minutes (0 = never)'
+            'Default guest display stay length in days'
         );
 
-        $minutes = (int) $data['ttl_minutes'];
-        $message = $minutes > 0
-            ? 'Guest names will now auto-remove after ' . $this->formatMinutes($minutes) . '.'
-            : 'Guest names will stay on the TV until manually cleared.';
+        $message = 'New guest names will stay on the TV for '
+            . $this->formatDays((int) $data['stay_days']) . '.';
 
         return redirect()->route('lite.dashboard')->with('success', $message);
     }
@@ -306,21 +307,9 @@ class LiteGuestController extends Controller
         return $expired->count();
     }
 
-    private function formatMinutes(int $minutes): string
+    private function formatDays(int $days): string
     {
-        if ($minutes % 10080 === 0) {
-            $days = intdiv($minutes, 10080);
-            return $days . ($days === 1 ? ' day' : ' days');
-        }
-        if ($minutes % 1440 === 0 && $minutes >= 1440) {
-            $hours = intdiv($minutes, 1440);
-            return $hours . ($hours === 1 ? ' day' : ' days');
-        }
-        if ($minutes % 60 === 0 && $minutes >= 60) {
-            $hours = intdiv($minutes, 60);
-            return $hours . ($hours === 1 ? ' hour' : ' hours');
-        }
-        return $minutes . ($minutes === 1 ? ' minute' : ' minutes');
+        return $days . ($days === 1 ? ' day' : ' days');
     }
 
     private function guestDisplayName(?Reservation $res): ?string

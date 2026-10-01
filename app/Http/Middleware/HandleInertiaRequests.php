@@ -92,6 +92,24 @@ class HandleInertiaRequests extends Middleware
             'items' => [],
         ];
 
+        // Legacy Laravel flashes (292 controllers use ->with('success'|'error'))
+        // must surface as props.flash for the Vue banners. Jetstream's
+        // ShareInertiaData runs after this middleware and re-shares
+        // session('flash'), so merge the legacy keys into the session too
+        // (now() = available for this request only, never ages onward).
+        $flash = [];
+        if ($request->hasSession()) {
+            $session = $request->session();
+            $legacyFlash = array_filter([
+                'success' => $session->get('success'),
+                'error'   => $session->get('error'),
+            ], fn ($value) => $value !== null);
+            $flash = array_merge($session->get('flash', []), $legacyFlash);
+            if ($legacyFlash !== []) {
+                $session->now('flash', $flash);
+            }
+        }
+
         if ($user) {
             $notifications = [
                 'unread_count' => $user->unreadNotifications()->count(),
@@ -148,6 +166,7 @@ class HandleInertiaRequests extends Middleware
                 'permissions' => $permissions,
             ],
             'notifications' => $notifications,
+            'flash' => $flash,
         ];
     }
 }

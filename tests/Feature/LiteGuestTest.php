@@ -134,17 +134,22 @@ class LiteGuestTest extends TestCase
         $room = $this->makeRoom();
 
         $this->post(route('lite.guests.store'), [
-            'room_id'     => $room->id,
-            'first_name'  => 'Expiry Guest',
-            'ttl_minutes' => 30,
+            'room_id'    => $room->id,
+            'first_name' => 'Expiry Guest',
+            'stay_days'  => 2,
         ])->assertRedirect(route('lite.dashboard'));
 
         $reservation = Reservation::where('room_id', $room->id)
             ->where('status', 'checked_in')
             ->firstOrFail();
 
-        $this->assertNotNull($reservation->guest_display_expires_at, 'TTL must be stored on the reservation.');
-        $this->assertTrue($reservation->guest_display_expires_at->greaterThan(now()->addMinutes(29)));
+        $this->assertNotNull($reservation->guest_display_expires_at, 'The stay expiry must be stored on the reservation.');
+        $this->assertTrue($reservation->guest_display_expires_at->greaterThan(now()->addDays(2)->subMinute()));
+        $this->assertTrue($reservation->guest_display_expires_at->lessThan(now()->addDays(2)->addMinute()));
+
+        // The minimal reservation must reflect the length of stay
+        $this->assertEquals(2, (int) $reservation->nights);
+        $this->assertEquals(now()->addDays(2)->toDateString(), $reservation->check_out_date->toDateString());
 
         // Push the expiry into the past — the dashboard sweep must clear it
         $reservation->update(['guest_display_expires_at' => now()->subMinute()]);
@@ -154,34 +159,35 @@ class LiteGuestTest extends TestCase
         $this->assertEquals('available', $room->fresh()->status);
     }
 
-    public function test_zero_ttl_means_the_name_never_expires(): void
+    public function test_missing_stay_days_defaults_to_one_day(): void
     {
         $this->actingAs($this->adminUser());
 
         $room = $this->makeRoom();
 
         $this->post(route('lite.guests.store'), [
-            'room_id'     => $room->id,
-            'first_name'  => 'Forever Guest',
-            'ttl_minutes' => 0,
+            'room_id'    => $room->id,
+            'first_name' => 'Default Stay Guest',
         ])->assertRedirect(route('lite.dashboard'));
 
         $reservation = Reservation::where('room_id', $room->id)
             ->where('status', 'checked_in')
             ->firstOrFail();
 
-        $this->assertNull($reservation->guest_display_expires_at, 'TTL 0 must mean no expiry.');
+        $this->assertNotNull($reservation->guest_display_expires_at, 'A stay length must always produce an expiry.');
+        $this->assertTrue($reservation->guest_display_expires_at->greaterThan(now()->addHour()->subMinutes(2)));
+        $this->assertTrue($reservation->guest_display_expires_at->lessThan(now()->addDay()->addMinutes(2)));
     }
 
-    public function test_default_ttl_setting_persists(): void
+    public function test_default_stay_days_setting_persists(): void
     {
         $this->actingAs($this->adminUser());
 
-        $this->post(route('lite.settings.ttl'), [
-            'ttl_minutes' => 240,
+        $this->post(route('lite.settings.stay-days'), [
+            'stay_days' => 5,
         ])->assertRedirect(route('lite.dashboard'));
 
-        $this->assertEquals(240, (int) \App\Models\Setting::get('guest_display_ttl_minutes', 120));
+        $this->assertEquals(5, (int) \App\Models\Setting::get('guest_display_stay_days', 1));
     }
 
     public function test_client_info_hides_expired_guest_name(): void
@@ -198,9 +204,9 @@ class LiteGuestTest extends TestCase
 
         $this->actingAs($this->adminUser());
         $this->post(route('lite.guests.store'), [
-            'room_id'     => $room->id,
-            'first_name'  => 'Visible Guest',
-            'ttl_minutes' => 60,
+            'room_id'    => $room->id,
+            'first_name' => 'Visible Guest',
+            'stay_days'  => 1,
         ]);
 
         $headers = ['X-Device-ID' => 'TEST-DEVICE-1'];
