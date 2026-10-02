@@ -232,7 +232,7 @@ class DeviceController extends Controller
     public function sendCommand(Request $request, IptvDevice $device)
     {
         $request->validate([
-            'type'    => 'required|in:reboot,refresh_channels,push_settings,set_channel,message,lock,unlock,reload_app',
+            'type'    => 'required|in:reboot,refresh_channels,refresh_vod,update_vod,update_content,push_settings,set_channel,message,lock,unlock,reload_app',
             'payload' => 'nullable|array',
         ]);
         $device->dispatchCommand($request->type, $request->payload ?? [], auth()->user()?->name);

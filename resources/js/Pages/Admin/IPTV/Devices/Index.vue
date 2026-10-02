@@ -600,7 +600,7 @@ const ago = (dt) => {
 
 // Quick commands
 const quickCommands = [
-    { type: 'refresh_channels', label: 'Refresh Channels', icon: ArrowPathIcon, cls: 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30' },
+    { type: 'refresh_channels', label: 'Refresh Channels & VOD', icon: ArrowPathIcon, cls: 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30' },
     { type: 'reload_app', label: 'Reload App', icon: ArrowDownTrayIcon, cls: 'bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30' },
     { type: 'lock', label: 'Lock Screen', icon: LockClosedIcon, cls: 'bg-orange-500/20 text-orange-400 hover:bg-orange-500/30' },
     { type: 'unlock', label: 'Unlock', icon: LockOpenIcon, cls: 'bg-green-500/20 text-green-400 hover:bg-green-500/30' },

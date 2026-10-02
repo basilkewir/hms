@@ -168,7 +168,7 @@
                         </button>
                         <button @click="sendCmd('refresh_channels')"
                                 class="w-full text-xs py-2 rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/30">
-                            📡 Refresh Channels
+                            📡 Refresh Channels &amp; VOD
                         </button>
                         <button @click="toggleActive"
                                 :class="liveDevice.is_active ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30' : 'bg-green-500/20 text-green-400 hover:bg-green-500/30'"
