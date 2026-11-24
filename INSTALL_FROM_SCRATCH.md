@@ -218,7 +218,7 @@ Access Information:
 Admin Login:
 ───────────────────────────────────────────────────────────
   Email:    admin@hotel.com
-  Password: password
+  Password: shown once after license activation
 
 Database Details:
 ───────────────────────────────────────────────────────────
@@ -230,8 +230,8 @@ Database Details:
 ⚠️  NEXT STEPS:
 ────────────────────────────────────────────────────────────
   1. Open your browser and navigate to the URL above
-  2. Login with the admin credentials above
-  3. Change the admin password immediately
+  2. Activate a license to create the admin account and display its temporary password once
+  3. Login with admin@hotel.com and change the temporary password
   4. Update hotel information in Settings
   5. Configure payment gateway
   6. Set up email notifications
@@ -249,10 +249,10 @@ http://192.168.20.85
 ```
 (Or use your domain/IP instead)
 
-### 2. Login with Default Admin
+### 2. Create and sign in to the Admin Account
 
-- **Email**: admin@hotel.com
-- **Password**: password
+- Activate a license to create **admin@hotel.com** and display a temporary password once
+- Save the password, sign in, and change it immediately
 
 ### 3. Change Admin Password IMMEDIATELY
 

@@ -142,7 +142,7 @@ Access Information:
 Admin Login:
 ───────────────────────────────────────────────────────────
   Email:    admin@hotel.com
-  Password: password
+  Password: shown once after license activation
 
 Database Details:
 ───────────────────────────────────────────────────────────

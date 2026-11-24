@@ -81,8 +81,8 @@ Three comprehensive guides created:
 4. Activate license with your license key
 
 ### Post-Activation (First Login)
-1. Login as admin@hotel.com / password
-2. **IMMEDIATELY change the admin password** ⚠️
+1. Save the one-time temporary password displayed after activation
+2. Login as admin@hotel.com and change the temporary password
 3. Go to Settings and configure:
    - Hotel information
    - Payment gateway (if using)

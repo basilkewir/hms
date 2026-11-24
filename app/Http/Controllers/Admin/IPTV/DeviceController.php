@@ -104,6 +104,16 @@ class DeviceController extends Controller
 
     public function store(Request $request)
     {
+        $licenseService = app(\App\Services\LicenseValidationService::class);
+        if (!$licenseService->isSystemLicensed()) {
+            return back()->withErrors(['device_id' => 'A valid license is required.']);
+        }
+
+        $limits = $licenseService->getLicenseLimits();
+        if ($limits['max_devices'] > 0 && IptvDevice::where('is_active', true)->count() >= $limits['max_devices']) {
+            return back()->withErrors(['device_id' => 'License IPTV device limit reached.']);
+        }
+
         $validated = $request->validate([
             'device_id'   => 'required|string|unique:iptv_devices,device_id|max:64',
             'mac_address' => 'nullable|string|max:64',

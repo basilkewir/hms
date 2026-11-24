@@ -1289,8 +1289,10 @@
                                     <span class="bg-kotel-yellow text-kotel-black px-2 py-1 rounded font-medium text-sm">{{ licenseInfo.license_type }}</span>
                                 </div>
                                 <div>
-                                    <label class="block text-sm font-medium text-kotel-sky-blue mb-1">Expires At</label>
-                                    <p class="text-white">{{ licenseInfo.expires_at }}</p>
+                                    <label class="block text-sm font-medium text-kotel-sky-blue mb-1">Expiry Date</label>
+                                    <p class="text-white">
+                                        {{ formatLicenseDate(licenseInfo.expires_at) }}
+                                    </p>
                                 </div>
                             </div>
                         </div>
@@ -1311,10 +1313,10 @@
                                     <div class="flex-1 mx-4">
                                         <div class="w-full bg-kotel-black rounded-full h-3">
                                             <div class="bg-kotel-yellow h-3 rounded-full transition-all"
-                                                 :style="{ width: Math.min((device.used / device.limit * 100), 100) + '%' }"></div>
+                                                 :style="{ width: Math.min((device.limit > 0 ? device.used / device.limit * 100 : 0), 100) + '%' }"></div>
                                         </div>
                                         <div class="text-xs text-kotel-sky-blue/70 mt-1 text-center">
-                                            {{ Math.round((device.used / device.limit * 100)) }}% used
+                                            {{ formatUsagePercentage(device.used, device.limit) }} used
                                         </div>
                                     </div>
                                 </div>
@@ -1327,10 +1329,10 @@
                                         <div class="flex-1 mx-4">
                                             <div class="w-full bg-kotel-black rounded-full h-4">
                                                 <div class="bg-kotel-yellow h-4 rounded-full transition-all"
-                                                     :style="{ width: Math.min((licenseInfo.total_used / licenseInfo.total_limit * 100), 100) + '%' }"></div>
+                                                     :style="{ width: Math.min((licenseInfo.total_limit > 0 ? licenseInfo.total_used / licenseInfo.total_limit * 100 : 0), 100) + '%' }"></div>
                                             </div>
                                             <div class="text-sm text-kotel-sky-blue/70 mt-1 text-center">
-                                                {{ Math.round((licenseInfo.total_used / licenseInfo.total_limit * 100)) }}% of total allocation used
+                                                {{ formatUsagePercentage(licenseInfo.total_used, licenseInfo.total_limit) }} of total allocation used
                                             </div>
                                         </div>
                                     </div>
@@ -1342,17 +1344,22 @@
                         <div class="bg-kotel-black/50 rounded-lg p-4 mb-6" v-if="licenseInfo.features">
                             <h4 class="text-kotel-sky-blue font-semibold mb-3">License Features</h4>
                             <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
-                                <div v-for="(value, feature) in licenseInfo.features" :key="feature"
+                                <div v-for="(value, feature) in displayLicenseFeatures" :key="feature"
                                      class="flex items-center space-x-2 p-2 bg-kotel-dark rounded">
-                                    <svg v-if="value === true || value === -1" class="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                                    <svg v-if="value === true || (typeof value === 'number' && value !== 0)" class="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 20 20">
                                         <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
                                     </svg>
                                     <svg v-else class="w-4 h-4 text-red-400" fill="currentColor" viewBox="0 0 20 20">
                                         <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
                                     </svg>
-                                    <span class="text-white text-sm capitalize">{{ feature.replace('_', ' ') }}</span>
-                                    <span v-if="typeof value === 'number' && value !== -1" class="text-kotel-yellow text-xs">({{ value }})</span>
-                                    <span v-else-if="value === -1" class="text-kotel-yellow text-xs">(Unlimited)</span>
+                                    <span class="text-white text-sm">{{ formatFeatureName(feature) }}</span>
+                                    <span v-if="typeof value === 'number' && value !== -1" class="text-kotel-yellow text-xs">: {{ value }}</span>
+                                    <span v-else-if="value === -1" class="text-kotel-yellow text-xs">: Unlimited</span>
+                                    <span v-else-if="typeof value === 'boolean'" class="text-xs"
+                                          :class="value ? 'text-green-400' : 'text-red-400'">
+                                        {{ value ? 'Included' : 'Not included' }}
+                                    </span>
+                                    <span v-else-if="typeof value === 'string'" class="text-kotel-yellow text-xs">: {{ value }}</span>
                                 </div>
                             </div>
                         </div>
@@ -1461,11 +1468,12 @@
 import { ref, computed, onMounted } from 'vue'
 import DashboardLayout from '@/Layouts/DashboardLayout.vue'
 import { notify } from '@/Composables/useNotification.js'
-import { useTheme } from '@/Composables/useTheme.js'
 import { setLocale } from '@/i18n/index.js'
 import { useI18n } from 'vue-i18n'
+import { useTheme } from '@/Composables/useTheme.js'
 
 const { locale } = useI18n()
+const { applyTheme: applySystemTheme } = useTheme()
 const uiLocale = ref(locale.value)
 
 function handleLocaleChange() {
@@ -1473,7 +1481,6 @@ function handleLocaleChange() {
 }
 
 // Initialize theme
-const { loadTheme } = useTheme()
 const themeColors = computed(() => ({
     background: `var(--kotel-background)`,
     card: `var(--kotel-card)`,
@@ -1489,8 +1496,6 @@ const themeColors = computed(() => ({
     hover: `rgba(255, 255, 255, 0.1)`
 }))
 
-// Load theme on mount
-loadTheme()
 import {
     CogIcon,
     ShieldCheckIcon,
@@ -1911,19 +1916,19 @@ const settings = ref({
 
     // Theme settings with Kotel Hotel Management System defaults
     theme_mode: props.settings?.theme?.theme_mode || 'dark',
-    theme_primary_color: props.settings?.theme?.theme_primary_color || '#FFD700', // Kotel Yellow
-    theme_secondary_color: props.settings?.theme?.theme_secondary_color || '#87CEEB', // Sky Blue
-    theme_background_color: props.settings?.theme?.theme_background_color || '#000000', // Black
-    theme_sidebar_color: props.settings?.theme?.theme_sidebar_color || '#1a1a1a', // Dark Gray
-    theme_card_color: props.settings?.theme?.theme_card_color || '#111827', // Dark Blue-Gray
-    theme_text_primary: props.settings?.theme?.theme_text_primary || '#ffffff', // White
-    theme_text_secondary: props.settings?.theme?.theme_text_secondary || '#87CEEB', // Sky Blue
-    theme_text_tertiary: props.settings?.theme?.theme_text_tertiary || '#D1D5DB', // Light Gray
-    theme_border_color: props.settings?.theme?.theme_border_color || '#374151', // Gray
-    theme_success_color: props.settings?.theme?.theme_success_color || '#10B981', // Green
-    theme_warning_color: props.settings?.theme?.theme_warning_color || '#F97316', // Orange
-    theme_danger_color: props.settings?.theme?.theme_danger_color || '#EF4444', // Red
-    theme_info_color: props.settings?.theme?.theme_info_color || '#8B5CF6', // Purple
+    theme_primary_color: props.settings?.theme?.theme_primary_color || '#facc15',
+    theme_secondary_color: props.settings?.theme?.theme_secondary_color || '#3b82f6',
+    theme_background_color: props.settings?.theme?.theme_background_color || '#0b0b0b',
+    theme_sidebar_color: props.settings?.theme?.theme_sidebar_color || '#0f172a',
+    theme_card_color: props.settings?.theme?.theme_card_color || '#111827',
+    theme_text_primary: props.settings?.theme?.theme_text_primary || '#f3f4f6',
+    theme_text_secondary: props.settings?.theme?.theme_text_secondary || '#9ca3af',
+    theme_text_tertiary: props.settings?.theme?.theme_text_tertiary || '#6b7280',
+    theme_border_color: props.settings?.theme?.theme_border_color || '#374151',
+    theme_success_color: props.settings?.theme?.theme_success_color || '#22c55e',
+    theme_warning_color: props.settings?.theme?.theme_warning_color || '#f59e0b',
+    theme_danger_color: props.settings?.theme?.theme_danger_color || '#ef4444',
+    theme_info_color: props.settings?.theme?.theme_info_color || '#3b82f6',
     theme_font_family: props.settings?.theme?.theme_font_family || 'Figtree, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, sans-serif',
     theme_radius: props.settings?.theme?.theme_radius || '0.5rem',
     theme_shadow: props.settings?.theme?.theme_shadow || '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
@@ -1943,6 +1948,32 @@ const bookingApiEndpoint = computed(() => {
 
 const isSaving = ref(false)
 const licenseInfo = ref(null)
+const displayLicenseFeatures = computed(() => Object.fromEntries(
+    Object.entries(licenseInfo.value?.features ?? {})
+        .filter(([feature]) => !['max_channels', 'max_users'].includes(feature))
+))
+const formatLicenseDate = (value) => {
+    if (!value) return 'Never expires'
+
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return 'Date unavailable'
+
+    return new Intl.DateTimeFormat('en-GB', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+        timeZone: 'UTC',
+    }).format(date)
+}
+const formatUsagePercentage = (used, limit) => {
+    if (limit <= 0) return '0%'
+
+    const percentage = Math.min(Math.max(used, 0) / limit * 100, 100)
+    return `${percentage.toLocaleString('en-GB', { maximumFractionDigits: 1 })}%`
+}
+const formatFeatureName = (feature) => String(feature)
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (letter) => letter.toUpperCase())
 
 // HMS connection test
 const hmsTestLoading = ref(false)
@@ -2047,65 +2078,6 @@ const runBackup = async () => {
 onMounted(async () => {
     await loadLicenseInfo()
     loadDeviceStats()
-
-    console.log('🔄 Settings page mounted, checking theme...')
-
-    // Apply theme from props when settings page loads
-    const { applyTheme } = useTheme()
-
-    if (props.settings?.theme) {
-        console.log('📦 Loading theme from props:', props.settings.theme.theme_border_color)
-
-        const themeSettings = {
-            theme_mode: props.settings.theme.theme_mode,
-            theme_primary_color: props.settings.theme.theme_primary_color,
-            theme_secondary_color: props.settings.theme.theme_secondary_color,
-            theme_background_color: props.settings.theme.theme_background_color,
-            theme_sidebar_color: props.settings.theme.theme_sidebar_color,
-            theme_card_color: props.settings.theme.theme_card_color,
-            theme_text_primary: props.settings.theme.theme_text_primary,
-            theme_text_secondary: props.settings.theme.theme_text_secondary,
-            theme_text_tertiary: props.settings.theme.theme_text_tertiary,
-            theme_border_color: props.settings.theme.theme_border_color,
-            theme_success_color: props.settings.theme.theme_success_color,
-            theme_warning_color: props.settings.theme.theme_warning_color,
-            theme_danger_color: props.settings.theme.theme_danger_color,
-            theme_info_color: props.settings.theme.theme_info_color,
-            theme_font_family: props.settings.theme.theme_font_family,
-            theme_radius: props.settings.theme.theme_radius,
-            theme_shadow: props.settings.theme.theme_shadow,
-            theme_transition: props.settings.theme.theme_transition
-        }
-
-        // Also save to localStorage for consistency
-        localStorage.setItem('kotel_theme', JSON.stringify(themeSettings))
-        console.log('💾 Theme from props saved to localStorage')
-
-        applyTheme(themeSettings)
-
-        // Verify CSS variables
-        setTimeout(() => {
-            const root = document.documentElement
-            const borderColor = getComputedStyle(root).getPropertyValue('--kotel-border').trim()
-            console.log('🎨 Border color in CSS after props load:', borderColor)
-        }, 100)
-
-    } else {
-        console.log('⚠️ No theme in props, checking localStorage...')
-
-        // Fallback to loadTheme if no theme in props
-        const { loadTheme } = useTheme()
-        await loadTheme()
-
-        // Check what was loaded
-        const savedTheme = localStorage.getItem('kotel_theme')
-        if (savedTheme) {
-            const parsed = JSON.parse(savedTheme)
-            console.log('📦 Theme loaded from localStorage:', parsed.theme_border_color)
-        } else {
-            console.log('❌ No theme found in localStorage either')
-        }
-    }
 })
 
 const loadLicenseInfo = async () => {
@@ -2388,25 +2360,10 @@ const getContrastColor = (hexColor) => {
 }
 
 const applyTheme = () => {
-    // Apply theme to document root
-    const root = document.documentElement
-
-    // Set CSS custom properties
-    root.style.setProperty('--kotel-primary', settings.value.theme_primary_color)
-    root.style.setProperty('--kotel-secondary', settings.value.theme_secondary_color)
-    root.style.setProperty('--kotel-success', settings.value.theme_success_color)
-    root.style.setProperty('--kotel-warning', settings.value.theme_warning_color)
-    root.style.setProperty('--kotel-danger', settings.value.theme_danger_color)
-    root.style.setProperty('--kotel-background', settings.value.theme_background_color)
-    root.style.setProperty('--kotel-sidebar', settings.value.theme_sidebar_color)
-    root.style.setProperty('--kotel-card', settings.value.theme_card_color)
-    root.style.setProperty('--kotel-text-primary', settings.value.theme_text_primary)
-    root.style.setProperty('--kotel-text-secondary', settings.value.theme_text_secondary)
-    root.style.setProperty('--kotel-text-tertiary', settings.value.theme_text_tertiary)
-    root.style.setProperty('--kotel-border', settings.value.theme_border_color)
-    root.style.setProperty('--kotel-radius', settings.value.theme_radius)
-    root.style.setProperty('--kotel-shadow', settings.value.theme_shadow)
-    root.style.setProperty('--kotel-transition', settings.value.theme_transition)
+    const themeSettings = Object.fromEntries(
+        Object.entries(settings.value).filter(([key]) => key.startsWith('theme_'))
+    )
+    applySystemTheme(themeSettings)
 
     notify.success('Theme applied successfully!')
 }

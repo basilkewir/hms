@@ -36,7 +36,14 @@ return [
     ],
 
     'license' => [
-        // Shared secret for HMAC request signing — must match kewirdev.com APP_KEY (or LICENSE_JWT_SECRET)
+        'server_url' => env(
+            'LICENSE_SERVER_URL',
+            env('APP_ENV') === 'local'
+                ? 'http://127.0.0.1:8000/api/license'
+                : 'https://kewirdev.com/api/license'
+        ),
+        'offline_grace_hours' => (int) env('LICENSE_OFFLINE_GRACE_HOURS', 72),
+        // Set the same dedicated HMAC secret here and on the license server.
         'signature_secret' => env('LICENSE_SIGNATURE_SECRET', ''),
     ],
 

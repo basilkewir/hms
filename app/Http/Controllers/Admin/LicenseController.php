@@ -22,7 +22,7 @@ class LicenseController extends Controller
         $user = auth()->user()->load('roles');
         $role = $user->roles->first()?->name ?? 'staff';
 
-        $licenseStatus = $this->licenseService->getLicenseStatus();
+        $licenseStatus = $this->licenseService->refreshLicenseStatus();
 
         return Inertia::render('Admin/Settings/License', [
             'user'        => $user,
@@ -37,7 +37,7 @@ class LicenseController extends Controller
      */
     public function info()
     {
-        $licenseStatus = $this->licenseService->getLicenseStatus();
+        $licenseStatus = $this->licenseService->refreshLicenseStatus();
 
         if (!$licenseStatus['licensed']) {
             return response()->json(['licensed' => false]);
@@ -129,6 +129,15 @@ class LicenseController extends Controller
             'expires_at'       => $data['expires_at']         ?? null,
             'features'         => $data['features']           ?? [],
             'device_allocation'=> $data['device_allocation']  ?? [],
+            'device_limit_usage' => $data['device_limit_usage'] ?? [],
+            'device_usage'     => $data['device_usage']       ?? [],
+            'max_devices'      => $data['max_devices']        ?? 0,
+            'max_tv_devices'   => $data['max_tv_devices']     ?? 0,
+            'max_android_tv'   => $data['max_android_tv']     ?? 0,
+            'max_smart_tv'     => $data['max_smart_tv']       ?? 0,
+            'max_backend'      => $data['max_backend']        ?? 0,
+            'max_admin_panel'  => $data['max_admin_panel']    ?? 0,
+            'max_channels'     => $data['max_channels']       ?? 0,
             'rooms_used'       => $data['rooms_used']         ?? 0,
             'rooms_limit'      => $data['rooms_limit']        ?? -1,
             'total_used'       => $data['total_used']         ?? 0,

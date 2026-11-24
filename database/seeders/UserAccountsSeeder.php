@@ -34,19 +34,6 @@ class UserAccountsSeeder extends Seeder
         // Create users for each role
         $users = [
             [
-                'employee_id' => 'ADM001',
-                'first_name' => 'System',
-                'last_name' => 'Administrator',
-                'email' => 'admin@hotel.com',
-                'password' => Hash::make('password'),
-                'department' => 'Administration',
-                'position' => 'System Administrator',
-                'hire_date' => now()->subYears(2),
-                'employment_status' => 'active',
-                'is_active' => true,
-                'role' => 'admin'
-            ],
-            [
                 'employee_id' => 'MGR001',
                 'first_name' => 'Hotel',
                 'last_name' => 'Manager',
@@ -206,7 +193,8 @@ class UserAccountsSeeder extends Seeder
 
         $this->command->info('User accounts seeded successfully!');
         $this->command->info('You can now login with:');
-        $this->command->info('Email: any-role@hotel.com (e.g., admin@hotel.com, bartender@hotel.com, etc.)');
+        $this->command->info('Email: any seeded staff account (e.g., manager@hotel.com, bartender@hotel.com)');
         $this->command->info('Password: password');
+        $this->command->info('The admin@hotel.com account is created after license activation with a one-time password.');
     }
 }

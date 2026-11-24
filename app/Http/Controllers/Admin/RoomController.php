@@ -19,6 +19,7 @@ use App\Models\Setting;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
 
 class RoomController extends Controller
 {
@@ -396,9 +397,9 @@ class RoomController extends Controller
     public function store(Request $request)
     {
         // ── License room limit check ──────────────────────────────────────────
-        $limits   = app(LicenseValidationService::class)->getLicenseLimits();
-        $maxRooms = $limits['max_rooms']; // -1 = unlimited
-        if ($maxRooms !== -1 && Room::count() >= $maxRooms) {
+        $roomLimits = app(\App\Services\RoomLimitService::class);
+        $maxRooms = $roomLimits->getMaxRooms();
+        if (!$roomLimits->canCreateRoom()) {
             $msg = "License limit reached: your plan allows a maximum of {$maxRooms} rooms.";
             if ($request->expectsJson()) {
                 return response()->json(['message' => $msg], 422);
@@ -449,8 +450,14 @@ class RoomController extends Controller
             unset($validated['bed_type_id']);
         }
 
-        // Create the room
-        $room = Room::create($validated);
+        // Create atomically and re-check the live room count under a transaction.
+        $room = DB::transaction(function () use ($validated, $roomLimits) {
+            if (!$roomLimits->canCreateRoom()) {
+                throw new \RuntimeException('License room limit reached.');
+            }
+
+            return Room::create($validated);
+        }, 3);
 
         // Sync live room count to license server (non-blocking — failure won't abort the request)
         app(LicenseValidationService::class)->syncRooms(Room::count());
@@ -811,6 +818,7 @@ class RoomController extends Controller
         try {
             $roomNumber = $room->room_number;
             $room->delete();
+            app(LicenseValidationService::class)->syncRooms(Room::count());
             return back()->with('success', "Room {$roomNumber} has been deleted.");
         } catch (\Illuminate\Database\QueryException $e) {
             return back()->with('error', "Cannot delete room {$room->room_number}: it is still referenced by other records (folios, maintenance logs, etc.).");
@@ -845,6 +853,8 @@ class RoomController extends Controller
                 $skipped[] = $room->room_number;
             }
         }
+
+        app(LicenseValidationService::class)->syncRooms(Room::count());
 
         $message = "Deleted {$deleted} room(s) successfully.";
         if (!empty($skipped)) {

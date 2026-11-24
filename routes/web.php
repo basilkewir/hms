@@ -29,6 +29,7 @@ use App\Http\Controllers\Admin\MaintenanceCategoryController;
 use App\Http\Controllers\Admin\MaintenanceRequestController;
 use App\Http\Controllers\Admin\BackupController;
 use App\Http\Controllers\Admin\LicenseController;
+use App\Http\Controllers\SystemLicenseController;
 use App\Http\Controllers\BillAdjustmentRequestManagementController;
 use App\Support\MoneyInput;
 use App\Support\IptvSettingsSync;
@@ -59,15 +60,11 @@ Route::post('/register', function () {
     abort(403, 'Registration is disabled.');
 });
 
-Route::get('/license/activate', function () {
-    // License check is temporarily disabled — redirect straight to login
-    return redirect()->route('login');
-})->name('license.activate');
+Route::get('/license/activate', [SystemLicenseController::class, 'showActivation'])
+    ->name('license.activate');
 
-Route::post('/license/activate', function (Request $request) {
-    // License check is temporarily disabled — redirect straight to login
-    return redirect()->route('login');
-})->name('license.activate.store');
+Route::post('/license/activate', [SystemLicenseController::class, 'activate'])
+    ->name('license.activate.store');
 
 if (!function_exists('hms_label_to_key')) {
     function hms_label_to_key(?string $label): string

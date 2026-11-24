@@ -105,6 +105,15 @@ class HandleInertiaRequests extends Middleware
                 'error'   => $session->get('error'),
             ], fn ($value) => $value !== null);
             $flash = array_merge($session->get('flash', []), $legacyFlash);
+            $initialAdminCredentials = $session->pull('initial_admin_credentials');
+            if (is_array($initialAdminCredentials)) {
+                $flash['initial_admin_credentials'] = $initialAdminCredentials;
+            }
+            $adminAccountNotice = $session->pull('admin_account_notice');
+            if (is_string($adminAccountNotice)) {
+                $flash['admin_account_notice'] = $adminAccountNotice;
+            }
+
             if ($legacyFlash !== []) {
                 $session->now('flash', $flash);
             }

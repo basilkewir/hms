@@ -129,12 +129,14 @@ Step 9 — System services
 http://YOUR_DOMAIN_OR_IP
 ```
 
-### Default admin credentials *(change immediately!)*
+### Admin account after license activation
 
 | Field | Value |
 |-------|-------|
 | Email | `admin@hotel.com` |
-| Password | `password` |
+| Password | Generated at activation and shown once on the login screen |
+
+Save the generated password securely and change it after the first sign-in. Existing admin accounts are not modified.
 
 ### Credentials file
 

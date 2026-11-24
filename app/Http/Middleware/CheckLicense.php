@@ -13,9 +13,9 @@ class CheckLicense
 
     public function handle(Request $request, Closure $next)
     {
-        // --- LICENSE CHECK TEMPORARILY DISABLED ---
-        // TODO: Re-enable once license system is fully working
-        return $next($request);
+        if ($request->isMethod('OPTIONS')) {
+            return $next($request);
+        }
 
         $path = $request->path();
 
@@ -28,11 +28,15 @@ class CheckLicense
             'password',
             'forgot-password',
             'reset-password',
+            'api/license',  // Activation, token validation and license status endpoints
+            'api/android/license-check',
+            'api/android/ping',
+            'api/health',
+            'api/ping',
             '_ignition',     // debug/dev tool
             '_debugbar',
             'vendor',
             'storage',
-            'api',           // API routes handled separately
             'up',            // health-check
         ];
 

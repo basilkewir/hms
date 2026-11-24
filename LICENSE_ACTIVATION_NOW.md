@@ -158,8 +158,8 @@ This prevents:
 **AFTER ACTIVATION** (First Login):
 1. Go to: http://192.168.20.85
 2. Enter your license key
-3. Login as: admin@hotel.com / password
-4. **CHANGE THE ADMIN PASSWORD IMMEDIATELY**
+3. Save the one-time temporary password displayed on the login screen
+4. Login as: admin@hotel.com and change the temporary password
 5. Configure hotel settings in Settings page
 
 ---

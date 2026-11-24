@@ -29,6 +29,17 @@ class IptvController extends Controller
         ]);
 
         try {
+            $licenseService = app(\App\Services\LicenseValidationService::class);
+            if (!$licenseService->isSystemLicensed()) {
+                return response()->json(['success' => false, 'message' => 'A valid license is required'], 403);
+            }
+
+            $existing = IptvDevice::where('device_id', $request->device_id)->first();
+            $limits = $licenseService->getLicenseLimits();
+            if (!$existing && $limits['max_devices'] > 0 && IptvDevice::where('is_active', true)->count() >= $limits['max_devices']) {
+                return response()->json(['success' => false, 'message' => 'License IPTV device limit reached'], 422);
+            }
+
             // Find the room
             $room = Room::where('room_number', $request->room_number)->first();
             if (!$room) {

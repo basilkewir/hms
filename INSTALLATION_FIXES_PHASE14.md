@@ -195,7 +195,7 @@ Before considering installation "done", verify:
 
 - [ ] Step 6/8 migrations complete without errors
 - [ ] Application accessible at http://192.168.20.85
-- [ ] Admin login works (admin@hotel.com / password)
+- [ ] Activate the license, save the one-time password, and sign in as admin@hotel.com
 - [ ] Dashboard loads without errors
 - [ ] Database has all tables (mysql hms_db: `SHOW TABLES;`)
 - [ ] Services running: nginx, php8.2-fpm, mysql, hms-queue

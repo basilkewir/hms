@@ -558,7 +558,8 @@ cat > /root/hms_credentials.txt << ENDCREDS
 
 👤 Admin Account:
    Email    : admin@hotel.com
-   Password : password
+   Created after license activation
+   Temporary password is shown once on the login screen
 
 💾 Database:
    Host     : localhost
@@ -570,7 +571,7 @@ cat > /root/hms_credentials.txt << ENDCREDS
    FEATURE_HMS  : ${ENABLE_HMS}
    FEATURE_IPTV : ${ENABLE_IPTV}
 
-⚠️  IMPORTANT: Change admin password immediately!
+⚠️  Save the temporary admin password shown after license activation.
 ════════════════════════════════════════
 ENDCREDS
 chmod 600 /root/hms_credentials.txt
@@ -599,14 +600,14 @@ echo -e "${BOLD}URL:${RESET}      ${GREEN}${APP_URL}${RESET}"
 echo ""
 echo -e "${BOLD}Admin Login:${RESET}"
 echo -e "  Email    : admin@hotel.com"
-echo -e "  Password : password"
+echo -e "  Activate a license to create this account and display its one-time password."
 echo ""
 echo -e "${BOLD}Database:${RESET}"
 echo -e "  Name     : ${DB_DATABASE}"
 echo -e "  User     : ${DB_USERNAME}"
 echo -e "  Password : ${DB_PASSWORD}"
 echo ""
-echo -e "${YELLOW}⚠  Change the admin password immediately after first login!${RESET}"
+echo -e "${YELLOW}⚠  The admin account is created after license activation.${RESET}"
 echo -e "   Credentials saved to: /root/hms_credentials.txt"
 echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
 echo ""

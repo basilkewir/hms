@@ -80,6 +80,21 @@ const roomsUsed  = computed(() => props.licenseInfo?.rooms_used  ?? 0)
 const roomsLimit = computed(() => props.licenseInfo?.rooms_limit ?? -1)
 const roomsPct   = computed(() => roomsLimit.value === -1 ? 0 : Math.min(100, Math.round(roomsUsed.value / roomsLimit.value * 100)))
 const roomsAtLimit = computed(() => roomsLimit.value !== -1 && roomsUsed.value >= roomsLimit.value)
+const deviceAllocations = computed(() => [
+    { key: 'android_tv', label: 'Android TV devices', limitKey: 'max_android_tv' },
+    { key: 'smart_tv', label: 'Smart TV devices', limitKey: 'max_smart_tv' },
+    { key: 'backend', label: 'Backend servers', limitKey: 'max_backend' },
+    { key: 'admin_panel', label: 'Admin panels', limitKey: 'max_admin_panel' },
+].map(({ key, label, limitKey }) => {
+    const allocation = props.licenseInfo?.device_limit_usage?.[key]
+        ?? props.licenseInfo?.device_allocation?.[key]
+    return {
+        key,
+        label,
+        current: allocation?.current ?? props.licenseInfo?.device_usage?.[key] ?? 0,
+        limit: allocation?.max ?? props.licenseInfo?.[limitKey] ?? 0,
+    }
+}))
 </script>
 
 <template>
@@ -229,25 +244,28 @@ const roomsAtLimit = computed(() => roomsLimit.value !== -1 && roomsUsed.value >
                             </p>
                         </div>
 
-                        <!-- API Device usage -->
-                        <div v-if="licenseInfo.total_used !== undefined" class="pt-2 border-t" :style="{ borderColor: themeColors.border }">
-                            <div class="flex justify-between items-center mb-1">
-                                <span :style="{ color: themeColors.textSecondary }">API Devices</span>
-                                <span :style="{ color: themeColors.textPrimary }">
-                                    {{ licenseInfo.total_used }} / {{ fmtLimit(licenseInfo.total_limit) }}
-                                </span>
-                            </div>
-                            <div v-if="licenseInfo.total_limit !== -1 && licenseInfo.total_limit > 0"
-                                 class="h-1.5 rounded-full overflow-hidden" :style="{ backgroundColor: themeColors.border }">
-                                <div class="h-full rounded-full transition-all"
-                                     :style="{
-                                         width: Math.min(100, Math.round(licenseInfo.total_used / licenseInfo.total_limit * 100)) + '%',
-                                         backgroundColor: licenseInfo.total_used >= licenseInfo.total_limit
-                                             ? themeColors.danger
-                                             : licenseInfo.total_used / licenseInfo.total_limit > 0.8
-                                                 ? themeColors.warning
-                                                 : themeColors.success
-                                     }">
+                        <!-- Device and server allocations -->
+                        <div class="pt-2 border-t space-y-3" :style="{ borderColor: themeColors.border }">
+                            <h3 class="font-medium" :style="{ color: themeColors.textPrimary }">Licensed Devices & Servers</h3>
+                            <div v-for="allocation in deviceAllocations" :key="allocation.key">
+                                <div class="flex justify-between items-center mb-1">
+                                    <span :style="{ color: themeColors.textSecondary }">{{ allocation.label }}</span>
+                                    <span :style="{ color: allocation.limit > 0 && allocation.current >= allocation.limit ? themeColors.danger : themeColors.textPrimary }">
+                                        {{ allocation.current }} / {{ fmtLimit(allocation.limit) }}
+                                    </span>
+                                </div>
+                                <div v-if="allocation.limit > 0" class="h-1.5 rounded-full overflow-hidden"
+                                     :style="{ backgroundColor: themeColors.border }">
+                                    <div class="h-full rounded-full transition-all"
+                                         :style="{
+                                             width: Math.min(100, Math.round(allocation.current / allocation.limit * 100)) + '%',
+                                             backgroundColor: allocation.current >= allocation.limit
+                                                 ? themeColors.danger
+                                                 : allocation.current / allocation.limit > 0.8
+                                                     ? themeColors.warning
+                                                     : themeColors.success
+                                         }">
+                                    </div>
                                 </div>
                             </div>
                         </div>

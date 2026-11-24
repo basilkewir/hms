@@ -74,12 +74,12 @@ Access Information:
 Admin Login:
 ─────────────────────────────────────────────────────────
   Email:    admin@hotel.com
-  Password: password
+  Password: shown once after license activation
 ```
 
 Then:
 1. **Open browser**: `http://192.168.20.85`
-2. **Login** with admin@hotel.com / password
+2. **Activate a license**, save the one-time password, then login with admin@hotel.com
 3. **Change password** immediately
 4. **Update hotel info** in Settings
 

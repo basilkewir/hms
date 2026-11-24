@@ -103,11 +103,12 @@ php artisan serve
 
 | Role | Email | Password | Permissions |
 |------|-------|----------|-------------|
-| **Admin** | admin@hotel.com | password | Full system access |
 | **Manager** | manager@hotel.com | password | Hotel operations management |
 | **Accountant** | accountant@hotel.com | password | Financial management |
 | **Front Desk** | frontdesk@hotel.com | password | Guest services & reservations |
 | **Staff** | staff@hotel.com | password | Basic staff functions |
+
+The `admin@hotel.com` account is created after license activation. Its secure temporary password is shown once on the login screen; save it and change it after signing in.
 
 ## 📱 IPTV Android Client Integration
 

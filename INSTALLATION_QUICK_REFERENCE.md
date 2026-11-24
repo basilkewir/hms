@@ -31,15 +31,15 @@ Follow the prompts:
 # 1. Open browser
 http://192.168.20.85
 
-# 2. Login
+# 2. Activate a license to create the admin account
 Email: admin@hotel.com
-Password: password
+Temporary password: shown once on the login screen
 
-# 3. CHANGE PASSWORD IMMEDIATELY
+# 3. Login and change the temporary password
 
 # 4. Configure hotel info in Settings
 
-# 5. Activate license (if you have a key)
+# 5. Activate the license before using the system
 ```
 
 ---

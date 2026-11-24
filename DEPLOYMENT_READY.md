@@ -171,7 +171,7 @@ e51e739 - fix: use composer update to get PHP 8.2 compatible versions
 
 URL: http://192.168.20.85
 Admin Email: admin@hotel.com
-Admin Password: password
+Admin password: shown once after license activation
 ```
 
 ---
@@ -181,8 +181,8 @@ Admin Password: password
 After installation completes:
 
 - [ ] Open browser: http://192.168.20.85
-- [ ] Login with admin@hotel.com / password
-- [ ] Change admin password immediately
+- [ ] Activate the license and save the one-time admin password
+- [ ] Login with admin@hotel.com and change the temporary password
 - [ ] Update hotel information in Settings
 - [ ] Verify all dashboard widgets load
 - [ ] Test user authentication

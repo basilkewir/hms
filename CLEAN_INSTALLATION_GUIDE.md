@@ -197,8 +197,8 @@ Time    Action
 ## After Installation Completes
 
 1. **Open browser**: http://192.168.20.85
-2. **Login**: admin@hotel.com / password
-3. **Change password** immediately
+2. **Activate your license**; this creates `admin@hotel.com` and displays its temporary password once
+3. **Save the temporary password** and change it after signing in
 4. **Update hotel info** in Settings
 5. **Configure payment gateway**
 6. **Set up email notifications**

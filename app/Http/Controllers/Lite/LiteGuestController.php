@@ -248,7 +248,16 @@ class LiteGuestController extends Controller
             $attributes['floor'] = $data['floor'] ?? '';
         }
 
+        $roomLimits = app(\App\Services\RoomLimitService::class);
+        if (!$roomLimits->canCreateRoom()) {
+            return back()->withErrors([
+                'room_number' => 'License room limit reached. Maximum rooms: ' . $roomLimits->getMaxRooms(),
+            ]);
+        }
+
         Room::create($attributes);
+
+        app(\App\Services\LicenseValidationService::class)->syncRooms(Room::count());
 
         return redirect()->route('lite.dashboard')->with('success', 'Room ' . $data['room_number'] . ' created.');
     }

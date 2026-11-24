@@ -9,27 +9,30 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
+use App\Services\AdminAccountProvisioner;
 
 class SystemLicenseController extends Controller
 {
     protected $licenseService;
+    protected $adminAccountProvisioner;
 
-    public function __construct(LicenseValidationService $licenseService)
-    {
+    public function __construct(
+        LicenseValidationService $licenseService,
+        AdminAccountProvisioner $adminAccountProvisioner
+    ) {
         $this->licenseService = $licenseService;
+        $this->adminAccountProvisioner = $adminAccountProvisioner;
     }
 
     public function showActivation()
     {
-        // Check if license already exists
-        $license = \App\Models\License::where('status', 'active')->first();
-        
-        if ($license) {
-            // Redirect to settings page if license exists
-            return redirect()->route('admin.settings')->with('message', 'License is already activated');
+        if ($this->licenseService->isSystemLicensed()) {
+            return $this->redirectAfterActivation('License is already activated.');
         }
-        
-        return Inertia::render('License/Activate');
+
+        return Inertia::render('Auth/LicenseActivate', [
+            'trial' => $this->licenseService->getTrialStatus(),
+        ]);
     }
 
     public function activate(Request $request)
@@ -37,10 +40,10 @@ class SystemLicenseController extends Controller
         $request->validate([
             'license_key' => 'required|string',
             'hotel_name' => 'nullable|string',
-            'device_info' => 'required|array'
+            'device_info' => 'nullable|array'
         ]);
 
-        $deviceInfo = $request->device_info;
+        $deviceInfo = $request->device_info ?? [];
         $deviceInfo['hotel_name'] = $request->hotel_name;
 
         $result = $this->licenseService->validateLicense(
@@ -49,19 +52,71 @@ class SystemLicenseController extends Controller
             $deviceInfo
         );
 
-        if ($result['valid']) {
+        if ($request->expectsJson() && !$request->header('X-Inertia')) {
+            $adminAccount = null;
+            if ($result['valid']) {
+                try {
+                    $adminAccount = $this->adminAccountProvisioner->provision();
+                    if (($adminAccount['created'] ?? false) && $request->hasSession()) {
+                        $request->session()->flash('initial_admin_credentials', [
+                            'email' => $adminAccount['email'],
+                            'password' => $adminAccount['password'],
+                        ]);
+                    }
+                } catch (\Throwable $e) {
+                    Log::error('License activated, but initial administrator provisioning failed', [
+                        'exception' => $e::class,
+                        'message' => $e->getMessage(),
+                    ]);
+                }
+            }
+
             return response()->json([
-                'success' => true,
-                'message' => 'License activated successfully',
-                'license' => $result['license'],
-                'token' => $result['token'] ?? null
+                'success' => $result['valid'],
+                'message' => $result['message'],
+                ...($result['valid'] ? [
+                    'license' => $result['license'],
+                    'token' => $result['token'] ?? null,
+                    'admin_user_created' => $adminAccount['created'] ?? false,
+                ] : []),
+            ], $result['valid'] ? 200 : 400);
+        }
+
+        if ($result['valid']) {
+            return $this->redirectAfterActivation('License activated successfully.');
+        }
+
+        return back()->withErrors([
+            'license_key' => $result['message'],
+        ])->withInput($request->only('license_key', 'hotel_name'));
+    }
+
+    private function redirectAfterActivation(string $message)
+    {
+        $redirect = redirect()->route('login')->with('success', $message);
+
+        try {
+            $adminAccount = $this->adminAccountProvisioner->provision();
+        } catch (\Throwable $e) {
+            Log::error('License is active, but initial administrator provisioning failed', [
+                'exception' => $e::class,
+                'message' => $e->getMessage(),
+            ]);
+
+            return $redirect->with('error', 'The license is active, but the initial administrator account could not be created. Check the server logs or contact support.');
+        }
+
+        if ($adminAccount['created']) {
+            return $redirect->with('initial_admin_credentials', [
+                'email' => $adminAccount['email'],
+                'password' => $adminAccount['password'],
             ]);
         }
 
-        return response()->json([
-            'success' => false,
-            'message' => $result['message']
-        ], 400);
+        return $redirect->with(
+            'admin_account_notice',
+            'An admin@hotel.com account already exists. Its password was not changed.'
+        );
     }
 
     public function status()

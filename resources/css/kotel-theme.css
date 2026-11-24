@@ -354,6 +354,134 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     animation: kotel-glow 2s ease-in-out infinite;
 }
 
+/* Use saved system theme values after legacy utility styles are loaded. */
+.bg-kotel-yellow,
+.bg-primary {
+    background-color: var(--kotel-primary, #0891ab) !important;
+}
+
+.bg-kotel-yellow-dark {
+    background-color: var(--kotel-yellow-dark, var(--kotel-primary, #0891ab)) !important;
+}
+
+.text-kotel-yellow,
+.text-kotel-yellow-dark,
+.text-blue-600,
+.text-blue-700 {
+    color: var(--kotel-primary, #0891ab) !important;
+}
+
+.border-kotel-yellow {
+    border-color: var(--kotel-primary, #0891ab) !important;
+}
+
+.bg-kotel-black {
+    background-color: var(--kotel-background, #000000) !important;
+}
+
+.bg-kotel-dark {
+    background-color: var(--kotel-sidebar, #1a1a1a) !important;
+}
+
+.bg-kotel-gray-dark {
+    background-color: var(--kotel-card, #1F2937) !important;
+}
+
+.text-kotel-sky-blue,
+.text-kotel-sky-blue-dark {
+    color: var(--kotel-secondary, #87CEEB) !important;
+}
+
+.border-kotel-sky-blue {
+    border-color: var(--kotel-secondary, #87CEEB) !important;
+}
+
+.bg-kotel-sky-blue {
+    background-color: var(--kotel-secondary, #87CEEB) !important;
+}
+
+.bg-kotel-green {
+    background-color: var(--kotel-success, #10B981) !important;
+}
+
+.text-kotel-green,
+.text-kotel-green-dark {
+    color: var(--kotel-success, #10B981) !important;
+}
+
+.border-kotel-green {
+    border-color: var(--kotel-success, #10B981) !important;
+}
+
+.bg-kotel-red {
+    background-color: var(--kotel-danger, #EF4444) !important;
+}
+
+.text-kotel-red,
+.text-kotel-red-dark {
+    color: var(--kotel-danger, #EF4444) !important;
+}
+
+.border-kotel-red {
+    border-color: var(--kotel-danger, #EF4444) !important;
+}
+
+.bg-kotel-orange {
+    background-color: var(--kotel-warning, #F97316) !important;
+}
+
+.text-kotel-orange,
+.text-kotel-orange-dark {
+    color: var(--kotel-warning, #F97316) !important;
+}
+
+.border-kotel-orange {
+    border-color: var(--kotel-warning, #F97316) !important;
+}
+
+.bg-kotel-purple {
+    background-color: var(--kotel-info, #8B5CF6) !important;
+}
+
+.text-kotel-purple,
+.text-kotel-purple-dark {
+    color: var(--kotel-info, #8B5CF6) !important;
+}
+
+.border-kotel-purple {
+    border-color: var(--kotel-info, #8B5CF6) !important;
+}
+
+.text-kotel-text-primary {
+    color: var(--kotel-text-primary, #ffffff) !important;
+}
+
+.text-kotel-text-secondary {
+    color: var(--kotel-text-secondary, #87CEEB) !important;
+}
+
+.text-kotel-text-tertiary {
+    color: var(--kotel-text-tertiary, #D1D5DB) !important;
+}
+
+.bg-kotel-gray {
+    background-color: var(--kotel-card, #374151) !important;
+}
+
+.shadow,
+.shadow-lg,
+.shadow-xl {
+    box-shadow: var(--kotel-shadow, 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.2)) !important;
+}
+
+button,
+[role="button"],
+.card,
+.card-hover,
+.form-input {
+    border-radius: var(--kotel-radius, 0.5rem);
+}
+
 /* Kotel theme color classes */
 .bg-kotel-yellow {
     background-color: #FFD700 !important;

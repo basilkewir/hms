@@ -66,8 +66,8 @@ class DatabaseSeeder extends Seeder
         $this->call(TrialLicenseSeeder::class);
 
         echo "Database seeded successfully!\n";
-        echo "Default login credentials:\n";
-        echo "Admin:      admin@hotel.com / password\n";
+        echo "Staff demo accounts use the configured seeder password.\n";
+        echo "The administrator account is created after license activation.\n";
         echo "Manager:    manager@hotel.com / password\n";
         echo "Accountant: accountant@hotel.com / password\n";
         echo "Front Desk: frontdesk@hotel.com / password\n";
@@ -117,11 +117,6 @@ class DatabaseSeeder extends Seeder
     private function createUsers()
     {
         $users = [
-            [
-                'employee_id' => 'EMP001', 'first_name' => 'System',   'last_name' => 'Administrator',
-                'email' => 'admin@hotel.com',      'department' => 'Administration',   'position' => 'System Administrator',
-                'hire_date' => now()->subYears(2),  'role' => 'admin',
-            ],
             [
                 'employee_id' => 'EMP002', 'first_name' => 'Hotel',    'last_name' => 'Manager',
                 'email' => 'manager@hotel.com',    'department' => 'Management',       'position' => 'General Manager',

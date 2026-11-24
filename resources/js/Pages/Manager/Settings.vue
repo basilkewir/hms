@@ -716,10 +716,10 @@
                                     <div class="flex-1 mx-4">
                                         <div class="w-full bg-kotel-black rounded-full h-3">
                                             <div class="bg-kotel-yellow h-3 rounded-full transition-all"
-                                                 :style="{ width: Math.min((device.used / device.limit * 100), 100) + '%' }"></div>
+                                                 :style="{ width: Math.min((device.limit > 0 ? device.used / device.limit * 100 : 0), 100) + '%' }"></div>
                                         </div>
                                         <div class="text-xs text-kotel-sky-blue/70 mt-1 text-center">
-                                            {{ Math.round((device.used / device.limit * 100)) }}% used
+                                            {{ device.limit > 0 ? Math.round(device.used / device.limit * 100) : 0 }}% used
                                         </div>
                                     </div>
                                 </div>
@@ -732,10 +732,10 @@
                                         <div class="flex-1 mx-4">
                                             <div class="w-full bg-kotel-black rounded-full h-4">
                                                 <div class="bg-kotel-yellow h-4 rounded-full transition-all"
-                                                     :style="{ width: Math.min((licenseInfo.total_used / licenseInfo.total_limit * 100), 100) + '%' }"></div>
+                                                     :style="{ width: Math.min((licenseInfo.total_limit > 0 ? licenseInfo.total_used / licenseInfo.total_limit * 100 : 0), 100) + '%' }"></div>
                                             </div>
                                             <div class="text-sm text-kotel-sky-blue/70 mt-1 text-center">
-                                                {{ Math.round((licenseInfo.total_used / licenseInfo.total_limit * 100)) }}% of total allocation used
+                                                {{ licenseInfo.total_limit > 0 ? Math.round(licenseInfo.total_used / licenseInfo.total_limit * 100) : 0 }}% of total allocation used
                                             </div>
                                         </div>
                                     </div>

@@ -191,6 +191,7 @@ class SettingsController extends Controller
             'theme_success_color' => '#22c55e',
             'theme_warning_color' => '#f59e0b',
             'theme_danger_color' => '#ef4444',
+            'theme_info_color' => '#3b82f6',
             'theme_background_color' => '#0b0b0b',
             'theme_sidebar_color' => '#0f172a',
             'theme_card_color' => '#111827',
@@ -198,6 +199,7 @@ class SettingsController extends Controller
             'theme_text_secondary' => '#9ca3af',
             'theme_text_tertiary' => '#6b7280',
             'theme_border_color' => '#374151',
+            'theme_font_family' => 'Figtree, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, sans-serif',
             'theme_radius' => '0.5rem',
             'theme_shadow' => '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
             'theme_transition' => 'all 0.3s ease-in-out'

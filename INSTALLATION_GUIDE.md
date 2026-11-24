@@ -152,7 +152,7 @@ On success you will see:
 
   Admin Login:
     Email    : admin@hotel.com
-    Password : password
+    Password : shown once after license activation
 
   Database:
     Name     : hms_db
@@ -207,10 +207,8 @@ The room number is returned to the app in the next settings sync.
 ## After Installation — Admin Web UI (HMS and Both modes only)
 
 1. Open a browser: `http://<your-server-ip>`
-2. Login:
-   - **Email:** `admin@hotel.com`
-   - **Password:** `password`
-3. **Change the password immediately** — Profile → Change Password
+2. Activate a license; this creates `admin@hotel.com` and displays a temporary password once.
+3. Save the password, sign in, and change it — Profile → Change Password
 
 ---
 

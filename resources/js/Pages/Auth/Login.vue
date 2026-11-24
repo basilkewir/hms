@@ -1,5 +1,6 @@
 <script setup>
-import { Head, Link, useForm } from '@inertiajs/vue3';
+import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
+import { computed } from 'vue';
 import KotelAuthenticationCard from '@/Components/KotelAuthenticationCard.vue';
 import KotelTextInput from '@/Components/KotelTextInput.vue';
 import KotelButton from '@/Components/KotelButton.vue';
@@ -10,6 +11,9 @@ defineProps({
     canResetPassword: Boolean,
     status: String,
 });
+
+const page = usePage();
+const flash = computed(() => page.props.flash ?? {});
 
 const form = useForm({
     email: '',
@@ -33,6 +37,34 @@ const submit = () => {
     <KotelAuthenticationCard>
         <div v-if="status" class="mb-4 font-medium text-sm text-green-400 text-center">
             {{ status }}
+        </div>
+
+        <div
+            v-if="flash.initial_admin_credentials"
+            class="mb-6 rounded-lg border border-amber-400/40 bg-amber-400/10 p-4 text-sm text-amber-100"
+            role="status"
+        >
+            <p class="font-semibold">Initial administrator account created</p>
+            <p class="mt-2">Save these credentials now. The temporary password is shown only once.</p>
+            <dl class="mt-3 space-y-2">
+                <div>
+                    <dt class="font-medium">Email</dt>
+                    <dd class="break-all font-mono">{{ flash.initial_admin_credentials.email }}</dd>
+                </div>
+                <div>
+                    <dt class="font-medium">Temporary password</dt>
+                    <dd class="break-all font-mono select-all">{{ flash.initial_admin_credentials.password }}</dd>
+                </div>
+            </dl>
+            <p class="mt-3">Change this password after your first sign-in.</p>
+        </div>
+
+        <div
+            v-else-if="flash.admin_account_notice"
+            class="mb-6 rounded-lg border border-sky-400/40 bg-sky-400/10 p-4 text-sm text-sky-100"
+            role="status"
+        >
+            {{ flash.admin_account_notice }}
         </div>
 
         <form @submit.prevent="submit" class="space-y-8">

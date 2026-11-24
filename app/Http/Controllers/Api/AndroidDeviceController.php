@@ -14,6 +14,8 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use App\Services\LicenseValidationService;
+use App\Services\RoomLimitService;
 
 /**
  * AndroidDeviceController
@@ -50,6 +52,27 @@ class AndroidDeviceController extends Controller
         ]);
 
         try {
+            $licenseService = app(LicenseValidationService::class);
+            if (!$licenseService->isSystemLicensed()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'A valid license is required to register IPTV devices.',
+                ], 403);
+            }
+
+            $existingDevice = IptvDevice::where('device_id', $request->device_id)->first();
+            $deviceLimits = $licenseService->getLicenseLimits();
+            $activeDeviceCount = IptvDevice::where('is_active', true)->count();
+
+            if (!$existingDevice && $deviceLimits['max_devices'] > 0 && $activeDeviceCount >= $deviceLimits['max_devices']) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'License device limit reached.',
+                    'current' => $activeDeviceCount,
+                    'maximum' => $deviceLimits['max_devices'],
+                ], 422);
+            }
+
             $device = IptvDevice::firstOrCreate(
                 ['device_id' => $request->device_id],
                 [
@@ -84,6 +107,15 @@ class AndroidDeviceController extends Controller
                 $room = Room::where('room_number', $roomNumber)->first();
 
                 if (!$room && $autoProvision) {
+                    $roomLimits = app(RoomLimitService::class);
+                    if (!$roomLimits->canCreateRoom()) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'License room limit reached.',
+                            'usage' => $roomLimits->getRoomUsage(),
+                        ], 422);
+                    }
+
                     $roomTypeId = \App\Models\RoomType::orderBy('id')->value('id');
                     $room = Room::create([
                         'room_number'   => $roomNumber,
@@ -143,6 +175,9 @@ class AndroidDeviceController extends Controller
      */
     public function heartbeat(Request $request): JsonResponse
     {
+        if (!app(LicenseValidationService::class)->isSystemLicensed()) {
+            return response()->json(['success' => false, 'message' => 'Valid license required'], 403);
+        }
         $request->validate([
             'device_id'        => 'required|string',
             'registration_token' => 'required|string',
@@ -208,6 +243,9 @@ class AndroidDeviceController extends Controller
 
     public function commandAck(Request $request): JsonResponse
     {
+        if (!app(LicenseValidationService::class)->isSystemLicensed()) {
+            return response()->json(['success' => false, 'message' => 'Valid license required'], 403);
+        }
         $request->validate([
             'device_id'        => 'required|string',
             'registration_token' => 'required|string',
@@ -238,6 +276,9 @@ class AndroidDeviceController extends Controller
      */
     public function getSettings(Request $request): JsonResponse
     {
+        if (!app(LicenseValidationService::class)->isSystemLicensed()) {
+            return response()->json(['success' => false, 'message' => 'Valid license required'], 403);
+        }
         $request->validate([
             'device_id'        => 'required|string',
             'registration_token' => 'required|string',
@@ -261,6 +302,9 @@ class AndroidDeviceController extends Controller
 
     public function getIptvConfig(Request $request): JsonResponse
     {
+        if (!app(LicenseValidationService::class)->isSystemLicensed()) {
+            return response()->json(['success' => false, 'message' => 'Valid license required'], 403);
+        }
         $request->validate([
             'device_id'        => 'required|string',
             'registration_token' => 'required|string',
@@ -410,17 +454,13 @@ class AndroidDeviceController extends Controller
             return $device;
         }
 
-        // Token is stale — find by device_id alone and auto-update the token
-        $device = IptvDevice::where('device_id', $deviceId)
-                             ->where('is_active', true)
-                             ->first();
+        // Never accept a device_id alone or silently replace a registration token.
+        Log::warning('Rejected IPTV device request with invalid registration token', [
+            'device_id' => $deviceId,
+            'ip' => request()->ip(),
+        ]);
 
-        if ($device) {
-            $device->update(['registration_token' => $token, 'last_seen' => now()]);
-            Log::info('findDevice: auto-refreshed stale token for device ' . $deviceId);
-        }
-
-        return $device;
+        return null;
     }
 
     private function buildSettingsPayload(IptvDevice $device): array
@@ -494,6 +534,8 @@ class AndroidDeviceController extends Controller
             'room_number'             => $device->room?->room_number ?? '',
             'package'                 => $device->package ?? 'basic',
             'settings_version'        => $device->settings_version ?? 0,
+            'license_channel_limit'   => app(LicenseValidationService::class)->getLicenseLimits()['max_channels'],
+            'license_device_limit'    => app(LicenseValidationService::class)->getLicenseLimits()['max_devices'],
         ], $pushed);  // pushed_settings (per-device username/password etc.) win
     }
 
@@ -530,22 +572,9 @@ class AndroidDeviceController extends Controller
     public function licenseCheck(Request $request): JsonResponse
     {
         try {
-            // Try to find an active license record
-            $license = null;
-            if (class_exists(\App\Models\License::class)) {
-                $license = \App\Models\License::where('status', 'active')->first();
-            }
-
-            // Try LicenseValidationService if available
-            $isLicensed = false;
-            if (class_exists(\App\Services\LicenseValidationService::class)) {
-                $isLicensed = \App\Services\LicenseValidationService::isSystemLicensed();
-            } elseif ($license) {
-                $isLicensed = true;
-            } else {
-                // Fallback: if no license table exists, treat as licensed (self-hosted)
-                $isLicensed = true;
-            }
+            $license = \App\Models\License::whereIn('status', ['active', 'trial'])->latest('id')->first();
+            $licenseService = app(LicenseValidationService::class);
+            $isLicensed = $licenseService->isSystemLicensed();
 
             $hotelName = '';
             try {
@@ -556,18 +585,18 @@ class AndroidDeviceController extends Controller
                 'licensed'    => $isLicensed,
                 'plan'        => $license?->plan ?? 'standard',
                 'expires_at'  => $license?->expires_at ?? null,
-                'max_devices' => $license?->max_devices ?? 999,
+                'max_devices' => $license?->max_devices ?? 0,
                 'hotel_name'  => $hotelName,
             ]);
         } catch (\Exception $e) {
-            // If anything fails, grant access (don't lock out TVs due to server error)
+            Log::warning('License check failed for Android device', ['error' => $e->getMessage()]);
             return response()->json([
-                'licensed'    => true,
-                'plan'        => 'standard',
+                'licensed'    => false,
+                'plan'        => 'none',
                 'expires_at'  => null,
-                'max_devices' => 999,
+                'max_devices' => 0,
                 'hotel_name'  => '',
-            ]);
+            ], 403);
         }
     }
     private function getDbSettings(array $keys): array
