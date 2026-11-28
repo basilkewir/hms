@@ -243,6 +243,28 @@ class LicenseValidationService
             return $this->hardwareFingerprint;
         }
 
+        // Docker recreates containers with a new hostname and MAC address. Keep
+        // the first hardware identity in the persistent storage volume so a
+        // normal container restart does not invalidate an activated license.
+        $identityPath = storage_path('app/hms_device_id');
+        if (is_readable($identityPath)) {
+            $stored = trim((string) @file_get_contents($identityPath));
+            $parts = explode('|', $stored, 2);
+            if (count($parts) === 2 && preg_match('/^[a-f0-9]{64}$/', $parts[0])) {
+                $this->hardwareFingerprint = $parts[0];
+                return $this->hardwareFingerprint;
+            }
+        }
+
+        $fingerprintPath = storage_path('app/hms_hardware_fingerprint');
+        if (is_readable($fingerprintPath)) {
+            $stored = trim((string) @file_get_contents($fingerprintPath));
+            if (preg_match('/^[a-f0-9]{64}$/', $stored)) {
+                $this->hardwareFingerprint = $stored;
+                return $this->hardwareFingerprint;
+            }
+        }
+
         $identifiers = [];
         $identifierFiles = [
             'machine_id' => ['/etc/machine-id', '/var/lib/dbus/machine-id'],
@@ -338,6 +360,9 @@ class LicenseValidationService
             'os' => strtolower(php_uname('s')),
             'architecture' => strtolower(php_uname('m')),
         ], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+
+        @file_put_contents($fingerprintPath, $this->hardwareFingerprint, LOCK_EX);
+        @chmod($fingerprintPath, 0600);
 
         return $this->hardwareFingerprint;
     }
