@@ -31,6 +31,10 @@ return Application::configure(basePath: dirname(__DIR__))
             \App\Http\Middleware\CheckLicense::class,
         ]);
 
+        $middleware->web(replace: [
+            \Illuminate\Foundation\Http\Middleware\ValidateCsrfToken::class => \App\Http\Middleware\RedirectExpiredCsrfToken::class,
+        ]);
+
         $middleware->web(append: [
             \App\Http\Middleware\HandleInertiaRequests::class,
             \App\Http\Middleware\ShareSettings::class,
