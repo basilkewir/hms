@@ -27,7 +27,7 @@ class DeviceController extends Controller
                 'stats'          => ['total' => 0, 'online' => 0, 'idle' => 0, 'offline' => 0, 'issues' => 0, 'uptime' => 0],
                 'availableRooms' => [],
                 'globalSettings' => $this->getGlobalSettings(),
-                'serverUrl'      => url('/'),
+                'serverUrl'      => rtrim(config('app.url'), '/'),
                 'migrationNeeded' => true,
             ]);
         }
@@ -54,7 +54,7 @@ class DeviceController extends Controller
             'stats'          => $stats,
             'availableRooms' => $availableRooms->values(),
             'globalSettings' => $this->getGlobalSettings(),
-            'serverUrl'      => url('/'),
+            'serverUrl'      => rtrim(config('app.url'), '/'),
         ]);
     }
 
@@ -96,7 +96,7 @@ class DeviceController extends Controller
             'device'     => $this->deviceResource($device),
             'heartbeats' => $heartbeats,
             'commands'   => $commandHistory,
-            'serverUrl'  => url('/'),
+            'serverUrl'  => rtrim(config('app.url'), '/'),
         ]);
     }
 

@@ -15,35 +15,19 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        // Dynamically set APP_URL and scheme based on the incoming request.
-        // This allows the app to work on both:
-        //   - http://10.0.0.10  (local network)
-        //   - https://donzebemanagement.qzz.io  (Cloudflare Tunnel)
-        // Cloudflare Tunnel sets X-Forwarded-Proto: https on tunneled requests.
-
-        $isHttps = request()->server('HTTP_X_FORWARDED_PROTO') === 'https'
-            || request()->server('HTTPS') === 'on';
-
-        if ($isHttps) {
-            URL::forceScheme('https');
-
-            // Mark session cookie as Secure so browsers send it over HTTPS
-            // (without this, XSRF-TOKEN cookie is blocked and every request gets 419)
-            Config::set('session.secure', true);
-
-            // Clear SESSION_DOMAIN so the cookie is scoped to the requesting
-            // host automatically. This allows the app to work on both the local
-            // IP and any Cloudflare Tunnel domain without cookie conflicts.
-            Config::set('session.domain', null);
-
-            // Set APP_URL to the actual public hostname so Ziggy and
-            // CSRF token validation use the correct origin
-            $host = request()->server('HTTP_X_FORWARDED_HOST')
-                ?? request()->server('HTTP_HOST')
-                ?? parse_url(config('app.url'), PHP_URL_HOST);
-
-            Config::set('app.url', 'https://' . $host);
-            URL::forceRootUrl('https://' . $host);
+        // HMS and the Android client use the hotel LAN HTTP endpoint. Force all
+        // generated URLs and session cookies to that origin so opening the admin
+        // panel through an HTTPS proxy cannot advertise an unreachable HTTPS
+        // server address to TVs.
+        $root = rtrim((string) config('app.url'), '/');
+        if ($root === '') {
+            $root = 'http://192.168.100.130';
         }
+
+        URL::forceScheme('http');
+        URL::forceRootUrl($root);
+        Config::set('app.url', $root);
+        Config::set('session.secure', false);
+        Config::set('session.domain', null);
     }
 }
