@@ -824,7 +824,22 @@ class LicenseValidationService
             return false;
         }
 
+        // License tokens are short-lived. Revalidate the license online before
+        // the token expires; the refresh-token endpoint intentionally rejects
+        // an already expired token, so waiting for validation to fail is too
+        // late and flashes the activation screen.
+        if ($this->tokenExpiresSoon($license)) {
+            $this->revalidateCurrentLicense();
+            $license = $this->currentLicense();
+        }
+
         $result = $this->validateToken();
+
+        // Recover once from an expired/rejected token without requiring the
+        // operator to activate the license again.
+        if (!$result['valid'] && empty($result['network_error']) && $this->revalidateCurrentLicense()) {
+            $result = $this->validateToken();
+        }
 
         if ($result['valid']) {
             return true;
@@ -840,6 +855,35 @@ class LicenseValidationService
         }
 
         return false;
+    }
+
+    private function tokenExpiresSoon(License $license): bool
+    {
+        $expiresAt = $license->license_data['token_expires_at'] ?? null;
+        if (!is_string($expiresAt) || $expiresAt === '') {
+            return false;
+        }
+
+        try {
+            return Carbon::parse($expiresAt)->subMinutes(10)->isPast();
+        } catch (\Throwable $e) {
+            return true;
+        }
+    }
+
+    private function revalidateCurrentLicense(): bool
+    {
+        $license = $this->currentLicense();
+        if (!$license) {
+            return false;
+        }
+
+        $result = $this->validateLicense(
+            $license->license_key,
+            $license->customer_name ?: $license->license_data['hotel_name'] ?? null
+        );
+
+        return !empty($result['valid']);
     }
 
     private function withinOfflineGracePeriod(License $license): bool
