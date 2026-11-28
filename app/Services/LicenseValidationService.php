@@ -40,14 +40,12 @@ class LicenseValidationService
             return null;
         }
 
-        $expectedSignature = hash_hmac(
-            'sha256',
-            $serverTime . '|' . $nonce,
-            $this->signatureSecret()
-        );
-
-        if (!hash_equals($expectedSignature, $signature)) {
-            return null;
+        $secret = $this->signatureSecret();
+        if ($secret !== null) {
+            $expectedSignature = hash_hmac('sha256', $serverTime . '|' . $nonce, $secret);
+            if (!hash_equals($expectedSignature, $signature)) {
+                return null;
+            }
         }
 
         try {
@@ -402,17 +400,18 @@ class LicenseValidationService
         @chmod($path, 0600);
     }
 
-    private function signatureSecret(): string
+    private function signatureSecret(): ?string
     {
-        return (string) (config('services.license.signature_secret')
-            ?: env('LICENSE_SIGNATURE_SECRET')
-            ?: env('LICENSE_JWT_SECRET')
-            ?: config('app.key', ''));
+        // Only the dedicated shared secret may sign/verify license traffic.
+        // Never fall back to APP_KEY or a local JWT secret.
+        $secret = config('services.license.signature_secret') ?: env('LICENSE_SIGNATURE_SECRET');
+        return is_string($secret) && $secret !== '' ? $secret : null;
     }
 
-    private function computeSignature(array $payload): string
+    private function computeSignature(array $payload): ?string
     {
-        return hash_hmac('sha256', json_encode($payload), $this->signatureSecret());
+        $secret = $this->signatureSecret();
+        return $secret !== null ? hash_hmac('sha256', json_encode($payload), $secret) : null;
     }
 
     private function buildValidatePayload(string $licenseKey, ?string $hotelName = null): array
@@ -465,8 +464,13 @@ class LicenseValidationService
         }
 
         try {
+            $headers = [];
+            $signature = $this->computeSignature($payload);
+            if ($signature !== null) {
+                $headers['X-License-Signature'] = $signature;
+            }
             $response = $this->client()
-                ->withHeaders(['X-License-Signature' => $this->computeSignature($payload)])
+                ->withHeaders($headers)
                 ->post($this->licenseServer . '/validate', $payload);
 
             if (!$response->successful()) {

@@ -178,8 +178,8 @@ const submit = () => {
                                     class="w-full px-4 py-3 pr-12 rounded-xl font-mono text-base outline-none transition-all"
                                     style="background: #161b22; border: 1px solid #30363d; color: #e6edf3; letter-spacing: 0.05em;"
                                     :class="{ 'border-red-500': form.errors.license_key }"
-                                    @focus="($el) => $el.style.borderColor = '#f5c518'"
-                                    @blur="($el) => $el.style.borderColor = form.errors.license_key ? '#f85149' : '#30363d'"
+                                    @focus="$event.currentTarget.style.borderColor = '#f5c518'"
+                                    @blur="$event.currentTarget.style.borderColor = form.errors.license_key ? '#f85149' : '#30363d'"
                                 />
                                 <button type="button" @click="showKey = !showKey"
                                         class="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded"
